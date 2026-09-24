@@ -81,7 +81,7 @@ test('регистрация, личная переписка, реакции, �
   await bob.getByRole('button', { name: 'Назад' }).first().click();
   await bob.locator('.chat-item', { hasText: 'Друзья' }).click();
   await expect(bob.locator('.bubble', { hasText: 'Всем привет в группе' })).toBeVisible();
-  await expect(bob.getByText('Алиса создал(а) «Друзья»')).toBeVisible();
+  await expect(bob.locator('.msg-row.system', { hasText: 'Алиса создал(а) «Друзья»' })).toBeVisible();
   await alice.screenshot({ path: 'test-results/desktop-group.png' });
 });
 
