@@ -9,6 +9,14 @@ export interface UserProfile {
   hideLastSeen: boolean;
   lastSeen: number | null;
   createdAt: number;
+  verified: boolean;
+  scam: boolean;
+  /** До какого момента действует премиум (мс), null — нет премиума. */
+  premiumUntil: number | null;
+}
+
+export function isPremium(p: Pick<UserProfile, 'premiumUntil'> | null | undefined): boolean {
+  return !!p?.premiumUntil && p.premiumUntil > Date.now();
 }
 
 export type ChatType = 'private' | 'group' | 'channel' | 'saved';
@@ -61,6 +69,8 @@ export interface Chat {
   otherId: string | null;
   /** Когда другие участники последний раз читали чат (для галочек). */
   othersReadAt: number;
+  verified: boolean;
+  scam: boolean;
 }
 
 export interface Member {
@@ -94,6 +104,11 @@ export interface Message {
   reactions: Record<string, string[]>;
   system: SystemEvent | null;
   call: CallInfo | null;
+  /** Настоящие просмотры (каналы и группы). */
+  views: number;
+  boostViews: number;
+  /** Накрутка реакций: эмодзи → сколько прибавить. */
+  boostReactions: Record<string, number>;
   /** Ещё не дошло до сервера (офлайн-очередь). */
   pending: boolean;
   /** Сервер отказал (например, собеседник заблокировал). */
@@ -115,5 +130,10 @@ export interface CallRow {
 }
 
 export const GROUP_MAX_MEMBERS = 50;
+export const GROUP_MAX_MEMBERS_PREMIUM = 200;
+export const BIO_MAX = 70;
+export const BIO_MAX_PREMIUM = 200;
+export const PINNED_CHATS_MAX = 5;
+export const PINNED_CHATS_MAX_PREMIUM = 10;
 export const CHANNEL_MAX_MEMBERS = 1000;
 export const MESSAGE_MAX_LENGTH = 4096;

@@ -3,7 +3,7 @@ import { Navigate, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useApp, useMe } from '../../app/store';
 import type { Chat, Member } from '../../supabase/types';
-import { CHANNEL_MAX_MEMBERS, GROUP_MAX_MEMBERS } from '../../supabase/types';
+import { CHANNEL_MAX_MEMBERS, GROUP_MAX_MEMBERS, GROUP_MAX_MEMBERS_PREMIUM, isPremium } from '../../supabase/types';
 import {
   addMembers,
   deleteChat,
@@ -30,6 +30,7 @@ import { useChat } from '../chat/useChatData';
 import { lastSeenText } from '../chat/ChatHeader';
 import { ShareLink } from '../profile/ShareProfile';
 import { PeoplePicker } from './PeoplePicker';
+import { Badges } from '../../ui/Badges';
 
 export function ChatInfoRoute() {
   const { chatId = '' } = useParams();
@@ -126,7 +127,8 @@ function ChatInfo({ chat, me }: { chat: Chat; me: string }) {
   const isOwner = chat.myRole === 'owner';
   const isMember = chat.myRole !== null;
   const isChannel = chat.type === 'channel';
-  const max = isChannel ? CHANNEL_MAX_MEMBERS : GROUP_MAX_MEMBERS;
+  const owner = useProfile(chat.ownerId);
+  const max = isChannel ? CHANNEL_MAX_MEMBERS : isPremium(owner) ? GROUP_MAX_MEMBERS_PREMIUM : GROUP_MAX_MEMBERS;
   const { members, reload } = useMembers(chat.id);
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -154,7 +156,10 @@ function ChatInfo({ chat, me }: { chat: Chat; me: string }) {
       <div className="scroll">
         <div className="profile-hero">
           <Avatar name={chat.title ?? ''} seed={chat.id} src={chat.avatar} size={112} />
-          <h2>{chat.title}</h2>
+          <h2 className="name-with-badges">
+            {chat.title}
+            <Badges verified={chat.verified} scam={chat.scam} size={22} />
+          </h2>
           <p className="muted">
             {isChannel ? t('chats.subscribers', { count: chat.memberCount }) : t('chats.members', { count: chat.memberCount })}
           </p>
@@ -213,7 +218,7 @@ function ChatInfo({ chat, me }: { chat: Chat; me: string }) {
             <h3 className="section-title">
               {isChannel ? t('groups.subscribers') : t('groups.members')} · {chat.memberCount}
             </h3>
-            {isAdmin && chat.memberCount < max && (
+            {isAdmin && members.length < max && (
               <button className="list-item accent-text" onClick={() => setAdding(true)}>
                 <span className="icon-circle">
                   <Icon name="userPlus" />
@@ -270,7 +275,7 @@ function ChatInfo({ chat, me }: { chat: Chat; me: string }) {
           <PeoplePicker
             selected={toAdd}
             onChange={setToAdd}
-            max={max - chat.memberCount}
+            max={max - members.length}
             exclude={members.map((m) => m.userId)}
           />
         </Modal>

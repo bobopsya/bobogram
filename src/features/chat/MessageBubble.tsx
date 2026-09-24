@@ -1,11 +1,13 @@
 import { memo, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ChatType, Message } from '../../supabase/types';
+import { isPremium, type ChatType, type Message } from '../../supabase/types';
+import { formatCount } from '../../lib/time';
 import { displayNameOf, useProfile } from '../../app/profiles';
 import { formatDuration, formatTime, toDate } from '../../lib/time';
 import { Icon } from '../../ui/Icon';
 import { Avatar } from '../../ui/Avatar';
 import { useLongPress } from '../../ui/useLongPress';
+import { Badges } from '../../ui/Badges';
 import { callText, systemText } from '../chats/chatMeta';
 import { isEmojiOnly, MessageText } from './MessageText';
 
@@ -56,11 +58,25 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
     onMenu(msg, e.clientX, e.clientY);
   };
 
-  const reactions = Object.entries(msg.reactions).filter(([, uids]) => uids.length > 0);
+  // Настоящие реакции + накрутка администратора.
+  const reactions = [...new Set([...Object.keys(msg.reactions), ...Object.keys(msg.boostReactions)])]
+    .map((emoji) => {
+      const uids = msg.reactions[emoji] ?? [];
+      return { emoji, mine: uids.includes(me), count: uids.length + (msg.boostReactions[emoji] ?? 0) };
+    })
+    .filter((r) => r.count > 0)
+    .sort((a, b) => b.count - a.count);
+  const views = msg.views + msg.boostViews;
   const big = !msg.replyTo && !msg.forwardedFrom && isEmojiOnly(msg.text);
 
   const meta = (
     <span className="msg-meta">
+      {chatType === 'channel' && views > 0 && (
+        <span className="msg-views">
+          <Icon name="eye" size={13} />
+          {formatCount(views)}
+        </span>
+      )}
       {msg.editedAt && <span className="msg-edited">{t('chat.edited')}</span>}
       {date && formatTime(date, i18n.language)}
       {own && chatType !== 'saved' && (
@@ -98,6 +114,7 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
         {showSender && first && (
           <button className="msg-sender plain" style={{ color: nameColor(msg.senderId) }} onClick={() => onOpenProfile(msg.senderId)}>
             {displayNameOf(sender, '…')}
+            <Badges verified={sender?.verified} scam={sender?.scam} premium={isPremium(sender)} size={14} />
           </button>
         )}
         {msg.forwardedFrom && (
@@ -131,14 +148,10 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
         )}
         {reactions.length > 0 && (
           <div className="reactions">
-            {reactions.map(([emoji, uids]) => (
-              <button
-                key={emoji}
-                className={uids.includes(me) ? 'reaction mine' : 'reaction'}
-                onClick={() => onReact(msg, emoji)}
-              >
-                <span>{emoji}</span>
-                <span>{uids.length}</span>
+            {reactions.map((r) => (
+              <button key={r.emoji} className={r.mine ? 'reaction mine' : 'reaction'} onClick={() => onReact(msg, r.emoji)}>
+                <span>{r.emoji}</span>
+                <span>{formatCount(r.count)}</span>
               </button>
             ))}
           </div>

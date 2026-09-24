@@ -132,6 +132,29 @@ async function pushCall(id: string) {
   });
 }
 
+/**
+ * Временные логин и пароль для своего TURN-сервера (coturn, use-auth-secret):
+ * логин «<истекает>:<uid>», пароль — base64(HMAC-SHA1(секрет, логин)).
+ */
+export async function turnCredentials(secret: string, uid: string, ttlSeconds = 12 * 3600, now = Date.now()) {
+  const username = `${Math.floor(now / 1000) + ttlSeconds}:${uid}`;
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-1' },
+    false,
+    ['sign'],
+  );
+  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(username)));
+  return { username, credential: btoa(String.fromCharCode(...sig)) };
+}
+
+async function callerId(req: Request): Promise<string | null> {
+  const jwt = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') ?? '';
+  const { data } = await admin.auth.getUser(jwt);
+  return data.user?.id ?? null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   try {
@@ -139,6 +162,25 @@ Deno.serve(async (req) => {
 
     if (body.action === 'vapid') {
       return json({ publicKey: (await getVapid()).publicKey });
+    }
+
+    if (body.action === 'turn') {
+      const uid = await callerId(req);
+      if (!uid) return json({ error: 'unauthorized' }, 401);
+      const [secret, host] = await Promise.all([config('turn_secret'), config('turn_host')]);
+      const stun: { urls: string[] } = { urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] };
+      if (!secret || !host) return json({ iceServers: [stun] });
+      const cred = await turnCredentials(secret, uid);
+      return json({
+        iceServers: [
+          { urls: [`stun:${host}:3478`, ...stun.urls] },
+          {
+            urls: [`turn:${host}:3478?transport=udp`, `turn:${host}:3478?transport=tcp`, `turn:${host}:443?transport=tcp`],
+            ...cred,
+          },
+        ],
+        ttl: 12 * 3600,
+      });
     }
 
     if (body.action === 'push') {

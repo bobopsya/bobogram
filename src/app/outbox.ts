@@ -27,6 +27,9 @@ export function queueMessage(m: OutgoingMessage, me: string) {
     reactions: {},
     system: null,
     call: m.call ?? null,
+    views: 0,
+    boostViews: 0,
+    boostReactions: {},
     pending: true,
   };
   useApp.setState((s) => ({ outbox: [...s.outbox, msg] }));

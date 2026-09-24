@@ -5,6 +5,8 @@ import { useApp, useMe, useMyProfile, type ThemeMode } from '../../app/store';
 import { changePassword, errorKey, logout, updateProfile } from '../../supabase/api';
 import { disablePush, enablePush, pushState, type PushState } from '../../supabase/push';
 import { Modal } from '../../ui/Modal';
+import { PremiumIcon } from '../../ui/Badges';
+import { isPremium } from '../../supabase/types';
 import { isIos, isStandalone } from '../../app/effects';
 import { Avatar } from '../../ui/Avatar';
 import { Icon } from '../../ui/Icon';
@@ -80,10 +82,23 @@ export function SettingsScreen() {
               <option value="dark">{t('settings.themeDark')}</option>
             </select>
           </div>
+          <button className="setting-row" onClick={() => navigate('/settings/appearance')}>
+            <Icon name="edit" />
+            <span>{t('appearance.title')}</span>
+            <Icon name="forward" size={18} />
+          </button>
           <div className="setting-row">
             <Icon name="globe" />
             <LanguagePicker />
           </div>
+        </Section>
+
+        <Section>
+          <button className="setting-row premium-row" onClick={() => navigate('/settings/premium')}>
+            <PremiumIcon size={22} />
+            <span>{t('premium.title')}</span>
+            <span className="muted small">{isPremium(profile) ? t('premium.active') : ''}</span>
+          </button>
         </Section>
 
         <Section title={t('settings.notifications')}>

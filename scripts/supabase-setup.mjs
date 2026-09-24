@@ -108,6 +108,22 @@ await query(`
   on conflict (key) do update set value = excluded.value;
 `);
 
+// Свой TURN-сервер для звонков (scripts/turn-setup.sh на VPS): секрет и адрес.
+const turnSecret = process.env.TURN_SECRET?.trim();
+const turnHost = process.env.TURN_HOST?.trim();
+if (turnSecret && turnHost) {
+  if (!/^[A-Za-z0-9_-]{16,128}$/.test(turnSecret) || !/^[A-Za-z0-9.:-]{3,253}$/.test(turnHost)) {
+    fail('TURN_SECRET или TURN_HOST в неверном формате.');
+  }
+  await query(`
+    insert into private.config (key, value) values ('turn_secret', '${turnSecret}'), ('turn_host', '${turnHost}')
+    on conflict (key) do update set value = excluded.value;
+  `);
+  console.log(`TURN-сервер: ${turnHost}`);
+} else {
+  console.log('TURN_SECRET не задан — звонки идут без своего TURN-сервера.');
+}
+
 // ---------- 3. вход по юзернейму: без писем и подтверждений ----------
 await api(`/projects/${ref}/config/auth`, {
   method: 'PATCH',

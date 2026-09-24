@@ -1,20 +1,26 @@
 import { useEffect } from 'react';
 import { useApp } from './store';
+import { appearanceVars } from './themes';
+import { isPremium } from '../supabase/types';
 
 /** Применяет тему: data-theme на <html> и цвет строки состояния. */
 export function useThemeEffect() {
   const theme = useApp((s) => s.theme);
+  const appearance = useApp((s) => s.appearance);
+  const premium = useApp((s) => isPremium(s.profile));
   useEffect(() => {
     const media = window.matchMedia('(prefers-color-scheme: dark)');
     const apply = () => {
       const dark = theme === 'dark' || (theme === 'system' && media.matches);
-      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+      const root = document.documentElement;
+      root.dataset.theme = dark ? 'dark' : 'light';
+      for (const [k, v] of Object.entries(appearanceVars(appearance, dark, premium))) root.style.setProperty(k, v);
       document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#17212b' : '#ffffff');
     };
     apply();
     media.addEventListener('change', apply);
     return () => media.removeEventListener('change', apply);
-  }, [theme]);
+  }, [theme, appearance, premium]);
 }
 
 /**

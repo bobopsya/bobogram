@@ -3,7 +3,8 @@ import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useApp, useMe } from '../../app/store';
 import { errorKey, openPrivateChat, openSavedChat, searchUsers } from '../../supabase/api';
-import type { Chat, UserProfile } from '../../supabase/types';
+import { isPremium, type Chat, type UserProfile } from '../../supabase/types';
+import { Badges } from '../../ui/Badges';
 import { Icon } from '../../ui/Icon';
 import { Menu, type MenuItem } from '../../ui/Menu';
 import { Avatar } from '../../ui/Avatar';
@@ -166,7 +167,10 @@ export function ChatList() {
                 >
                   <Avatar name={p.displayName} seed={p.uid} src={p.avatar} size={46} />
                   <div className="list-item-body">
-                    <div className="list-item-title">{p.displayName}</div>
+                    <div className="list-item-title">
+                      <span className="ellipsis">{p.displayName}</span>
+                      <Badges verified={p.verified} scam={p.scam} premium={isPremium(p)} size={15} />
+                    </div>
                     <div className="list-item-sub accent">@{p.username}</div>
                   </div>
                 </button>

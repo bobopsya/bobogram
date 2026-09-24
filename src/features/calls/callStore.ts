@@ -4,6 +4,7 @@ import {
   createCall,
   fetchCall,
   fetchCandidates,
+  fetchIceServers,
   toCall,
   updateCall,
 } from '../../supabase/api';
@@ -34,8 +35,17 @@ export interface CallState {
 export const useCall = create<{ call: CallState | null }>(() => ({ call: null }));
 
 const RING_TIMEOUT = 45_000;
-/** Публичные STUN-серверы. TURN можно добавить позже (см. docs/SETUP.md). */
-const ICE_SERVERS: RTCIceServer[] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }];
+
+/** STUN/TURN-серверы; логины к TURN живут 12 часов, поэтому кэшируем на час. */
+let iceCache: { servers: RTCIceServer[]; at: number } | null = null;
+async function iceServers(): Promise<RTCIceServer[]> {
+  if (iceCache && Date.now() - iceCache.at < 3600_000) return iceCache.servers;
+  const servers = await fetchIceServers();
+  iceCache = { servers, at: Date.now() };
+  return servers;
+}
+/** Отладка: ?relay в адресе — соединяться только через TURN (проверка сервера). */
+const relayOnly = /[?&]relay\b/.test(window.location.search);
 
 // Объекты WebRTC живут вне React-состояния.
 let pc: RTCPeerConnection | null = null;
@@ -91,8 +101,8 @@ async function finish(reason: EndReason, remoteStatus?: CallRow['status']) {
   }
 }
 
-function createPeer(callId: () => string | null, fromCaller: boolean): RTCPeerConnection {
-  const peer = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+function createPeer(callId: () => string | null, fromCaller: boolean, servers: RTCIceServer[]): RTCPeerConnection {
+  const peer = new RTCPeerConnection({ iceServers: servers, iceTransportPolicy: relayOnly ? 'relay' : 'all' });
   const remote = new MediaStream();
   patch({ remote });
   const queued: RTCIceCandidateInit[] = [];
@@ -181,7 +191,7 @@ export async function startCall(chatId: string, peerUid: string, video: boolean)
 
   try {
     let callId: string | null = null;
-    const peer = createPeer(() => callId, true);
+    const peer = createPeer(() => callId, true, await iceServers());
     pc = peer;
     local.getTracks().forEach((t) => peer.addTrack(t, local));
     const offer = await peer.createOffer();
@@ -272,7 +282,7 @@ export async function acceptCall() {
       await finish('ended');
       return;
     }
-    const peer = createPeer(() => callId, false);
+    const peer = createPeer(() => callId, false, await iceServers());
     pc = peer;
     local.getTracks().forEach((t) => peer.addTrack(t, local));
     await peer.setRemoteDescription(row.offer);

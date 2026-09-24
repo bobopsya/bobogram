@@ -247,3 +247,108 @@ describe('серверная функция', () => {
     expect(loginErr).toBeNull();
   });
 });
+
+describe('v2: значки, накрутки, премиум, просмотры, TURN', () => {
+  let boss: User;
+  let fan: User;
+  let reader: User;
+
+  beforeAll(async () => {
+    boss = await user('boss');
+    fan = await user('fan');
+    reader = await user('reader');
+    await admin.from('profiles').update({ role: 'admin' }).eq('id', boss.id);
+  });
+
+  it('обычный пользователь не может выдать себе значки и премиум', async () => {
+    for (const field of ['verified', 'scam', 'premium_until']) {
+      const { error } = await fan.db
+        .from('profiles')
+        .update({ [field]: field === 'premium_until' ? '9999-12-31' : true })
+        .eq('id', fan.id);
+      expect(error, field).not.toBeNull();
+    }
+    await fails(rpc(fan, 'admin_set_user_badges', { p_user: fan.id, p_verified: true, p_scam: null }));
+    await fails(rpc(fan, 'admin_set_premium', { p_user: fan.id, p_until: '9999-12-31' }));
+  });
+
+  it('админ выдаёт галочку, SCAM и премиум', async () => {
+    await rpc(boss, 'admin_set_user_badges', { p_user: fan.id, p_verified: true, p_scam: null });
+    await rpc(boss, 'admin_set_user_badges', { p_user: reader.id, p_verified: null, p_scam: true });
+    await rpc(boss, 'admin_set_premium', { p_user: fan.id, p_until: '9999-12-31T00:00:00Z' });
+    const { data } = await reader.db.from('profiles').select('id, verified, scam, premium_until').in('id', [fan.id, reader.id]);
+    const byId = Object.fromEntries(data!.map((r) => [r.id, r]));
+    expect(byId[fan.id]).toMatchObject({ verified: true, scam: false });
+    expect(byId[fan.id].premium_until).toMatch(/^9999/);
+    expect(byId[reader.id]).toMatchObject({ scam: true });
+  });
+
+  it('канал: накрутка подписчиков, реальные просмотры и накрутка поста', async () => {
+    const ch = await rpc<string>(boss, 'create_chat', { p_type: 'channel', p_title: 'Новости', p_members: [reader.id] });
+    await fails(rpc(fan, 'admin_boost_members', { p_chat: ch, p_boost: 1000 }));
+    await rpc(boss, 'admin_boost_members', { p_chat: ch, p_boost: 1000 });
+    await rpc(boss, 'admin_set_chat_badges', { p_chat: ch, p_verified: true, p_scam: null });
+    const [info] = await rpc<Record<string, unknown>[]>(reader, 'get_chats', { p_chat: ch });
+    expect(info).toMatchObject({ member_count: 1002, verified: true, scam: false });
+
+    const post = await send(boss, ch, 'Пост');
+    await rpc(reader, 'mark_read', { p_chat: ch });
+    await rpc(reader, 'mark_read', { p_chat: ch }); // повторное открытие не накручивает
+    await fails(rpc(fan, 'admin_boost_message', { p_msg: post, p_views: 5, p_reactions: {} }));
+    await rpc(boss, 'admin_boost_message', { p_msg: post, p_views: 5000, p_reactions: { '🔥': 300, '👍': 0, x: 'bad' } });
+    const { data } = await reader.db.from('messages').select('views, boost_views, boost_reactions').eq('id', post).single();
+    expect(data).toEqual({ views: 1, boost_views: 5000, boost_reactions: { '🔥': 300 } });
+  });
+
+  it('лимиты: закреп 5 чатов без премиума, 10 с премиумом; «О себе» 70/200', async () => {
+    const chats: string[] = [];
+    for (let i = 0; i < 6; i++) {
+      chats.push(await rpc<string>(reader, 'create_chat', { p_type: 'group', p_title: `G${i}` }));
+    }
+    for (const c of chats.slice(0, 5)) await rpc(reader, 'set_chat_prefs', { p_chat: c, p_pinned: true });
+    await fails(rpc(reader, 'set_chat_prefs', { p_chat: chats[5], p_pinned: true }));
+    await rpc(boss, 'admin_set_premium', { p_user: reader.id, p_until: new Date(Date.now() + 86_400_000).toISOString() });
+    await rpc(reader, 'set_chat_prefs', { p_chat: chats[5], p_pinned: true });
+
+    const long = 'б'.repeat(150);
+    const { error: tooLong } = await carol.db.from('profiles').update({ bio: long }).eq('id', carol.id);
+    expect(tooLong).not.toBeNull();
+    const { error: ok } = await fan.db.from('profiles').update({ bio: long }).eq('id', fan.id);
+    expect(ok).toBeNull();
+  });
+
+  it('заявка на премиум: пользователь просит, админ одобряет', async () => {
+    await rpc(carol, 'request_premium', { p_note: 'хочу звёздочку' });
+    await rpc(carol, 'request_premium', { p_note: 'очень хочу' }); // вторая заявка обновляет первую
+    const { data: mine } = await carol.db.from('premium_requests').select('id, status, note');
+    expect(mine).toHaveLength(1);
+    const { data: others } = await fan.db.from('premium_requests').select('id');
+    expect(others).toEqual([]);
+    const { data: all } = await boss.db.from('premium_requests').select('id, user_id').eq('status', 'pending');
+    const req = all!.find((r) => r.user_id === carol.id)!;
+    await fails(rpc(fan, 'admin_resolve_premium_request', { p_id: req.id, p_approve: true, p_until: '9999-12-31' }));
+    await rpc(boss, 'admin_resolve_premium_request', { p_id: req.id, p_approve: true, p_until: '9999-12-31T00:00:00Z' });
+    const { data: p } = await carol.db.from('profiles').select('premium_until').eq('id', carol.id).single();
+    expect(p!.premium_until).toMatch(/^9999/);
+  });
+
+  it('TURN: временный логин и пароль по схеме coturn, без входа — отказ', async () => {
+    const secret = 'test-turn-secret-1234567890';
+    await admin.rpc('set_config_if_absent', { p_key: 'turn_secret', p_value: secret });
+    await admin.rpc('set_config_if_absent', { p_key: 'turn_host', p_value: '203.0.113.7' });
+    const anon = createClient(URL, ANON, { auth: { persistSession: false } });
+    const { error: denied } = await anon.functions.invoke('bobogram', { body: { action: 'turn' } });
+    expect(denied).not.toBeNull();
+
+    const { data, error } = await fan.db.functions.invoke('bobogram', { body: { action: 'turn' } });
+    expect(error).toBeNull();
+    const servers = (data as { iceServers: RTCIceServer[] }).iceServers;
+    const turn = servers.find((s) => String(s.urls).includes('turn:'))!;
+    expect(turn.urls).toContain('turn:203.0.113.7:3478?transport=udp');
+    const [expires, uid] = String(turn.username).split(':');
+    expect(uid).toBe(fan.id);
+    expect(Number(expires)).toBeGreaterThan(Date.now() / 1000 + 3600);
+    const { createHmac } = await import('node:crypto');
+    expect(turn.credential).toBe(createHmac('sha1', secret).update(String(turn.username)).digest('base64'));
+  });
+});

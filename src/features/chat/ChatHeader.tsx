@@ -8,6 +8,7 @@ import { displayNameOf, peekProfile, usePresence, type Presence } from '../../ap
 import { subscribeTyping } from '../../supabase/realtime';
 import { dayLabel, formatTime } from '../../lib/time';
 import { Icon } from '../../ui/Icon';
+import { Badges } from '../../ui/Badges';
 import { ChatAvatar, useChatMeta } from '../chats/chatMeta';
 
 export function lastSeenText(p: Presence | null | undefined, hideMine: boolean, t: TFunction, locale: string): string {
@@ -81,7 +82,10 @@ export function ChatHeader({ chat, me, onSearch, onCall, onMenu }: Props) {
       <button className="chat-header-main plain" onClick={openInfo}>
         <ChatAvatar meta={meta} size={40} />
         <div className="chat-header-text">
-          <div className="chat-header-title ellipsis">{meta.title}</div>
+          <div className="chat-header-title">
+            <span className="ellipsis">{meta.title}</span>
+            <Badges {...meta.badges} />
+          </div>
           {subtitle && <div className={accent ? 'chat-header-sub accent-text' : 'chat-header-sub'}>{subtitle}</div>}
         </div>
       </button>

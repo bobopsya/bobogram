@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useApp, useMe, useMyProfile } from '../../app/store';
 import { errorKey, updateProfile } from '../../supabase/api';
+import { BIO_MAX, BIO_MAX_PREMIUM, isPremium } from '../../supabase/types';
 import { makeAvatar } from '../../lib/image';
 import { Avatar } from '../../ui/Avatar';
 import { Icon } from '../../ui/Icon';
@@ -20,6 +21,7 @@ export function EditProfileScreen() {
   const [username, setUsername] = useState(profile.username);
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>('free');
   const [avatar, setAvatar] = useState(profile.avatar);
+  const bioMax = isPremium(profile) ? BIO_MAX_PREMIUM : BIO_MAX;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -107,11 +109,11 @@ export function EditProfileScreen() {
           <textarea
             value={bio}
             onChange={(e) => setBio(e.target.value)}
-            maxLength={200}
+            maxLength={bioMax}
             rows={3}
             placeholder={t('profile.bioPlaceholder')}
           />
-          <span className="field-hint">{200 - bio.length}</span>
+          <span className="field-hint">{bioMax - bio.length}</span>
         </label>
         {error && <p className="form-error">{error}</p>}
         <button className="btn btn-primary btn-block" onClick={save} disabled={!canSave || busy}>
