@@ -60,3 +60,14 @@ describe('текст сообщений', () => {
     expect(isEmojiOnly('123')).toBe(false);
   });
 });
+
+describe('кэш сообщений старой версии', () => {
+  it('дозаполняет новые поля', async () => {
+    const { normalizeMessage } = await import('../../src/supabase/types');
+    const old = { id: '1', chatId: 'c', senderId: 'u', text: 'hi', createdAt: 1, reactions: { '👍': ['u'] } };
+    const m = normalizeMessage(old as never);
+    expect(m.boostReactions).toEqual({});
+    expect(m.views + m.boostViews).toBe(0);
+    expect(m.reactions).toEqual({ '👍': ['u'] });
+  });
+});

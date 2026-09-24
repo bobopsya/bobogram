@@ -1854,3 +1854,21 @@ button.setting-row:hover {
   font-size: 16px;
   outline: none;
 }
+
+.crash-screen {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px 16px;
+  text-align: center;
+}
+.crash-screen pre {
+  max-width: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  opacity: 0.7;
+}

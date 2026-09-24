@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchChats, fetchMessages, PAGE_SIZE, toMessage } from '../../supabase/api';
-import type { Chat, Message } from '../../supabase/types';
+import { normalizeMessage, type Chat, type Message } from '../../supabase/types';
 import { onDbEvent, onResync } from '../../supabase/realtime';
 import { onLocalMessage } from '../../app/messageEvents';
 import { useApp, useChatById, write } from '../../app/store';
@@ -38,7 +38,7 @@ const cacheKey = (chatId: string) => `bobogram.msgs.${chatId}`;
 
 function readCache(chatId: string): Message[] {
   try {
-    return JSON.parse(localStorage.getItem(cacheKey(chatId)) ?? '[]') as Message[];
+    return (JSON.parse(localStorage.getItem(cacheKey(chatId)) ?? '[]') as Message[]).map(normalizeMessage);
   } catch {
     return [];
   }
