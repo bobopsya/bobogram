@@ -49,7 +49,15 @@ export function useSessionBootstrap() {
           ? { authReady: true }
           : s.userId === null && id
             ? { authReady: true, userId: id } // запуск приложения: кэш чатов и очередь сохраняем
-            : { authReady: true, userId: id, profile: undefined, chats: [], chatsLoaded: false, blocked: [], outbox: [] },
+            : {
+                authReady: true,
+                userId: id,
+                profile: undefined,
+                chats: [],
+                chatsLoaded: false,
+                blocked: [],
+                outbox: [],
+              },
       );
     });
     return () => data.subscription.unsubscribe();
@@ -88,11 +96,13 @@ export function useSessionBootstrap() {
         .catch(() => {
           // офлайн: пускаем с последним известным профилем
           const cached = localStorage.getItem('bobogram.profile');
-          if (!cancelled && cached) useApp.setState({ profile: JSON.parse(cached) });
+          if (!cancelled && cached) useApp.setState({ profile: { nftUsernames: [], ...JSON.parse(cached) } });
         });
     void load();
     const off = onDbEvent((e) => {
       if (e.table === 'profiles' && e.row.id === uid) void load();
+      // НФТ-имя выдали или отозвали (при отзыве владелец неизвестен — перечитываем).
+      if (e.table === 'nft_usernames' && (e.row.owner_id === uid || e.type === 'DELETE')) void load();
     });
     return () => {
       cancelled = true;

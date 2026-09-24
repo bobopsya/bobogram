@@ -95,6 +95,10 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
   const [search, setSearch] = useState('');
   const [searchIdx, setSearchIdx] = useState(0);
   const [atBottom, setAtBottom] = useState(true);
+  // Плавающая дата при прокрутке (вместо sticky: в Safari sticky в column-reverse съезжает).
+  const [floatDate, setFloatDate] = useState<string | null>(null);
+  const floatTimer = useRef<number | undefined>(undefined);
+  const scrollFrame = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const topRef = useRef<HTMLDivElement>(null);
   const pendingJump = useRef<{ id: string; tries: number } | null>(null);
@@ -361,6 +365,43 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
   }
 
   // ---------- строки списка ----------
+  const dateText = useCallback(
+    (d: Date) => {
+      const label = dayLabel(d, i18n.language);
+      return label.kind === 'today'
+        ? t('chat.today')
+        : label.kind === 'yesterday'
+          ? t('chat.yesterday')
+          : label.text;
+    },
+    [i18n.language, t],
+  );
+
+  const onListScroll = (el: HTMLDivElement) => {
+    const bottomNow = el.scrollTop > -120;
+    setAtBottom(bottomNow);
+    window.clearTimeout(floatTimer.current);
+    floatTimer.current = window.setTimeout(() => setFloatDate(null), 1200);
+    if (bottomNow) {
+      setFloatDate(null);
+      return;
+    }
+    if (scrollFrame.current) return;
+    scrollFrame.current = requestAnimationFrame(() => {
+      scrollFrame.current = 0;
+      const top = el.getBoundingClientRect().top;
+      let best: { top: number; date: number } | null = null;
+      for (const row of el.querySelectorAll<HTMLElement>('[data-date]')) {
+        const r = row.getBoundingClientRect();
+        if (r.bottom > top + 4 && (!best || r.top < best.top))
+          best = { top: r.top, date: Number(row.dataset.date) };
+      }
+      const d = best ? toDate(best.date) : null;
+      setFloatDate(d ? dateText(d) : null);
+    });
+  };
+  useEffect(() => () => window.clearTimeout(floatTimer.current), []);
+
   const rows = useMemo(() => {
     const out: {
       key: string;
@@ -376,17 +417,7 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
       const d = toDate(m.createdAt) ?? new Date();
       const pd = prev ? (toDate(prev.createdAt) ?? new Date()) : null;
       if (!pd || !isSameDay(d, pd)) {
-        const label = dayLabel(d, i18n.language);
-        out.push({
-          key: `d-${m.id}`,
-          node: 'date',
-          label:
-            label.kind === 'today'
-              ? t('chat.today')
-              : label.kind === 'yesterday'
-                ? t('chat.yesterday')
-                : label.text,
-        });
+        out.push({ key: `d-${m.id}`, node: 'date', label: dateText(d) });
       }
       const sameAsPrev =
         !!prev &&
@@ -406,7 +437,7 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
       out.push({ key: m.id, node: 'msg', msg: m, first: !sameAsPrev, last: !sameAsNext });
     });
     return out.reverse();
-  }, [visible, i18n.language, t]);
+  }, [visible, dateText]);
 
   // ---------- нижняя панель ----------
   let bottom: ReactNode;
@@ -507,42 +538,41 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
 
       {chat.pinnedMessageIds.length > 0 && <PinnedBar chat={chat} canUnpin={canPin} onJump={jumpTo} />}
 
-      <div
-        className="messages"
-        ref={scrollRef}
-        onScroll={(e) => setAtBottom(e.currentTarget.scrollTop > -120)}
-      >
-        {rows.map((row) =>
-          row.node === 'date' ? (
-            <div key={row.key} className="msg-row system date-sep">
-              <span className="pill">{row.label}</span>
+      <div className="messages-wrap">
+        {floatDate && <span className="pill floating-date">{floatDate}</span>}
+        <div className="messages" ref={scrollRef} onScroll={(e) => onListScroll(e.currentTarget)}>
+          {rows.map((row) =>
+            row.node === 'date' ? (
+              <div key={row.key} className="msg-row system date-sep">
+                <span className="pill">{row.label}</span>
+              </div>
+            ) : (
+              <Fragment key={row.key}>
+                <MessageBubble
+                  msg={row.msg!}
+                  me={me}
+                  chatType={chat.type}
+                  read={isReadByOthers(row.msg!.createdAt, chat.othersReadAt)}
+                  first={row.first!}
+                  last={row.last!}
+                  highlighted={highlight === row.msg!.id}
+                  search={q || undefined}
+                  onMenu={onMenu}
+                  onReact={onReact}
+                  onJump={jumpTo}
+                  onOpenProfile={openProfile}
+                />
+              </Fragment>
+            ),
+          )}
+          {loaded && visible.length === 0 && (
+            <div className="msg-row system">
+              <span className="pill">{chat.type === 'saved' ? t('chats.savedHint') : t('chat.empty')}</span>
             </div>
-          ) : (
-            <Fragment key={row.key}>
-              <MessageBubble
-                msg={row.msg!}
-                me={me}
-                chatType={chat.type}
-                read={isReadByOthers(row.msg!.createdAt, chat.othersReadAt)}
-                first={row.first!}
-                last={row.last!}
-                highlighted={highlight === row.msg!.id}
-                search={q || undefined}
-                onMenu={onMenu}
-                onReact={onReact}
-                onJump={jumpTo}
-                onOpenProfile={openProfile}
-              />
-            </Fragment>
-          ),
-        )}
-        {loaded && visible.length === 0 && (
-          <div className="msg-row system">
-            <span className="pill">{chat.type === 'saved' ? t('chats.savedHint') : t('chat.empty')}</span>
+          )}
+          <div ref={topRef} className="history-sentinel">
+            {(hasMore || !loaded) && <Spinner size={22} />}
           </div>
-        )}
-        <div ref={topRef} className="history-sentinel">
-          {(hasMore || !loaded) && <Spinner size={22} />}
         </div>
       </div>
 

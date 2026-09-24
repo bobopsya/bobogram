@@ -61,7 +61,7 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
 
   if (msg.system) {
     return (
-      <div className="msg-row system" id={`m-${msg.id}`}>
+      <div className="msg-row system" id={`m-${msg.id}`} data-date={msg.createdAt}>
         <span className="pill">{systemText(msg.system, msg.senderId, t, me)}</span>
       </div>
     );
@@ -111,7 +111,7 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
   if (highlighted) cls += ' highlighted';
 
   return (
-    <div className={cls} id={`m-${msg.id}`}>
+    <div className={cls} id={`m-${msg.id}`} data-date={msg.createdAt}>
       {showSender && (
         <div className="msg-avatar">
           {last && (

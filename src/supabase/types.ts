@@ -13,6 +13,16 @@ export interface UserProfile {
   scam: boolean;
   /** До какого момента действует премиум (мс), null — нет премиума. */
   premiumUntil: number | null;
+  /** Коллекционные (НФТ) юзернеймы, выданные админом. */
+  nftUsernames: string[];
+}
+
+/** Какое из имён человека совпало с поиском: основное или НФТ. */
+export function matchedUsername(p: UserProfile, query: string): { name: string; nft: boolean } {
+  const q = query.replace(/^@/, '').toLowerCase();
+  if (!q || p.username.toLowerCase().startsWith(q)) return { name: p.username, nft: false };
+  const nft = p.nftUsernames.find((n) => n.toLowerCase().startsWith(q));
+  return nft ? { name: nft, nft: true } : { name: p.username, nft: false };
 }
 
 export function isPremium(p: Pick<UserProfile, 'premiumUntil'> | null | undefined): boolean {

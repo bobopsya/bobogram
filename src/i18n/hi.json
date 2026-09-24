@@ -245,7 +245,9 @@
     "account": "खाता",
     "changePassword": "पासवर्ड बदलें",
     "newPassword": "नया पासवर्ड",
-    "passwordChanged": "पासवर्ड बदल गया"
+    "passwordChanged": "पासवर्ड बदल गया",
+    "enterToSend": "Enter से भेजें",
+    "enterToSendHint": "अन्यथा Enter नई पंक्ति जोड़ता है; बटन या Ctrl+Enter से भेजें"
   },
   "calls": {
     "calling": "कॉल हो रही है…",
@@ -385,5 +387,17 @@
     "sendPhotos_other": "{{count}} फ़ोटो भेजें",
     "micDenied": "माइक्रोफ़ोन की अनुमति नहीं है",
     "badPhoto": "फ़ोटो नहीं खुल सकी"
+  },
+  "nft": {
+    "collectible": "कलेक्टिबल यूज़रनेम",
+    "menu": "NFT यूज़रनेम",
+    "title": "@{{username}} के NFT यूज़रनेम",
+    "grant": "दें",
+    "revoke": "वापस लें",
+    "none": "अभी कोई कलेक्टिबल यूज़रनेम नहीं।",
+    "newName": "नया NFT यूज़रनेम",
+    "taken": "नाम पहले से लिया गया है",
+    "free": "नाम उपलब्ध है",
+    "hint": "इसे सामान्य यूज़रनेम के रूप में नहीं लिया जा सकेगा"
   }
 }

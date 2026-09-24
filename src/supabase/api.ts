@@ -48,6 +48,7 @@ export function toProfile(r: Row): UserProfile {
     verified: r.verified === true,
     scam: r.scam === true,
     premiumUntil: msOrNull(r.premium_until),
+    nftUsernames: ((r.nft_usernames as { username: string }[] | null) ?? []).map((n) => n.username).sort(),
   };
 }
 
@@ -112,6 +113,8 @@ export function keepUnchanged<T extends object>(
 export const PROFILE_LARGE_FIELDS: [string, keyof UserProfile][] = [
   ['avatar', 'avatar'],
   ['bio', 'bio'],
+  // Не колонка профиля: в realtime-событиях профиля её нет никогда.
+  ['nft_usernames', 'nftUsernames'],
 ];
 export const MESSAGE_LARGE_FIELDS: [string, keyof Message][] = [
   ['text', 'text'],
@@ -236,32 +239,44 @@ export async function touchLastSeen(uid: string): Promise<void> {
   await supabase.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', uid);
 }
 
+/** Профиль вместе с НФТ-юзернеймами. */
+const PROFILE_SELECT = '*, nft_usernames(username)';
+
 export async function fetchProfiles(ids: string[]): Promise<UserProfile[]> {
-  return (check(await supabase.from('profiles').select('*').in('id', ids)) as Row[]).map(toProfile);
+  return (check(await supabase.from('profiles').select(PROFILE_SELECT).in('id', ids)) as Row[]).map(
+    toProfile,
+  );
 }
 
+/** По основному или НФТ-юзернейму. */
 export async function findUserByUsername(name: string): Promise<UserProfile | null> {
-  const n = normalizeUsername(name);
   const rows = check(
-    await supabase
-      .from('profiles')
-      .select('*')
-      .ilike('username', n.replace(/[%_\\]/g, '\\$&')),
-  ) as Row[];
-  return rows[0] ? toProfile(rows[0]) : null;
+    await supabase.rpc('find_profile_by_username', { p_username: normalizeUsername(name) }),
+  ) as Row[] | null;
+  const id = rows?.[0]?.id as string | undefined;
+  if (!id) return null;
+  return (await fetchProfiles([id]))[0] ?? null;
 }
 
 export async function searchUsers(prefix: string): Promise<UserProfile[]> {
   const p = normalizeUsername(prefix).replace(/[%_\\]/g, '\\$&');
   if (!p) return [];
-  const rows = check(
-    await supabase.from('profiles').select('*').ilike('username', `${p}%`).limit(20),
-  ) as Row[];
-  return rows.map(toProfile);
+  const [byName, byNft] = await Promise.all([
+    supabase.from('profiles').select(PROFILE_SELECT).ilike('username', `${p}%`).limit(20),
+    supabase.from('nft_usernames').select('owner_id').ilike('username', `${p}%`).limit(20),
+  ]);
+  const found = (check(byName) as Row[]).map(toProfile);
+  const have = new Set(found.map((u) => u.uid));
+  const extra = [...new Set((check(byNft) as Row[]).map((r) => String(r.owner_id)))].filter(
+    (id) => !have.has(id),
+  );
+  return extra.length ? [...found, ...(await fetchProfiles(extra))] : found;
 }
 
 export async function listUsers(): Promise<UserProfile[]> {
-  const rows = check(await supabase.from('profiles').select('*').order('created_at').limit(500)) as Row[];
+  const rows = check(
+    await supabase.from('profiles').select(PROFILE_SELECT).order('created_at').limit(500),
+  ) as Row[];
   return rows.map(toProfile);
 }
 
@@ -536,6 +551,16 @@ export async function adminBoostMessage(msgId: string, views: number, reactions:
 
 /** Премиум «навсегда» — дата в далёком будущем. */
 export const PREMIUM_FOREVER = '9999-12-31T00:00:00Z';
+
+export async function adminGrantNft(uid: string, username: string): Promise<void> {
+  check(
+    await supabase.rpc('admin_grant_nft_username', { p_user: uid, p_username: normalizeUsername(username) }),
+  );
+}
+
+export async function adminRevokeNft(username: string): Promise<void> {
+  check(await supabase.rpc('admin_revoke_nft_username', { p_username: username }));
+}
 
 export async function adminSetPremium(uid: string, until: string | null) {
   check(await supabase.rpc('admin_set_premium', { p_user: uid, p_until: until }));
