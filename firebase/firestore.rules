@@ -1,0 +1,297 @@
+rules_version = '2';
+
+// Правила доступа Bobogram.
+// Всё, кроме регистрации, доступно только после подтверждения почты.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- общие функции ----------
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function verified() { return signedIn() && request.auth.token.email_verified == true; }
+    function chatPath(id) { return /databases/$(database)/documents/chats/$(id); }
+    function usernamePath(name) { return /databases/$(database)/documents/usernames/$(name); }
+    function callPath(id) { return /databases/$(database)/documents/calls/$(id); }
+    function userPath(id) { return /databases/$(database)/documents/users/$(id); }
+    function me() { return get(userPath(uid())).data; }
+    function active() { return verified() && exists(userPath(uid())) && me().banned != true; }
+    function isGlobalAdmin() { return active() && me().role == 'admin'; }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+    function isBlockedBy(other) {
+      let path = /databases/$(database)/documents/blocks/$(other);
+      return exists(path) && uid() in get(path).data.list;
+    }
+    function otherOf(members) { return members[0] == uid() ? members[1] : members[0]; }
+    function isModeratable(type) { return type == 'group' || type == 'channel'; }
+    function memberLimit(type) { return type == 'channel' ? 1000 : 50; }
+
+    // ---------- пользователи ----------
+    function validUsername(name) { return name is string && name.matches('^[a-z][a-z0-9_]{3,31}$'); }
+    function validProfile(d) {
+      return d.username is string
+        && d.username.lower() == d.usernameLower
+        && validUsername(d.usernameLower)
+        && d.displayName is string && d.displayName.size() > 0 && d.displayName.size() <= 64
+        && d.bio is string && d.bio.size() <= 200
+        && (d.avatar == null || (d.avatar is string && d.avatar.size() <= 70000))
+        && d.hideLastSeen is bool;
+    }
+    function profileKeys() {
+      return ['username', 'usernameLower', 'displayName', 'bio', 'avatar', 'createdAt', 'role', 'banned', 'hideLastSeen'];
+    }
+
+    match /users/{userId} {
+      allow get: if verified() || (signedIn() && uid() == userId);
+      allow list: if verified();
+      allow create: if signedIn() && uid() == userId
+        && request.resource.data.keys().hasOnly(profileKeys())
+        && request.resource.data.role == 'user'
+        && request.resource.data.banned == false
+        && request.resource.data.createdAt == request.time
+        && validProfile(request.resource.data)
+        && getAfter(usernamePath(request.resource.data.usernameLower)).data.uid == userId;
+      allow update: if signedIn() && uid() == userId
+        && !changed().hasAny(['role', 'banned', 'createdAt'])
+        && request.resource.data.keys().hasOnly(profileKeys())
+        && validProfile(request.resource.data)
+        && (!changed().hasAny(['usernameLower'])
+          || getAfter(usernamePath(request.resource.data.usernameLower)).data.uid == userId);
+      // Глобальный админ может только банить и разбанивать.
+      allow update: if isGlobalAdmin() && uid() != userId && changed().hasOnly(['banned'])
+        && request.resource.data.banned is bool;
+    }
+
+    // Уникальность юзернеймов: документ-«замок» на каждое имя.
+    match /usernames/{name} {
+      allow get: if true;
+      allow create: if signedIn()
+        && validUsername(name)
+        && request.resource.data.keys().hasOnly(['uid'])
+        && request.resource.data.uid == uid()
+        && getAfter(userPath(uid())).data.usernameLower == name;
+      allow delete: if signedIn()
+        && resource.data.uid == uid()
+        && getAfter(userPath(uid())).data.usernameLower != name;
+    }
+
+    // Чёрный список: читать и менять может только владелец.
+    match /blocks/{userId} {
+      allow read: if signedIn() && uid() == userId;
+      allow write: if signedIn() && uid() == userId
+        && request.resource.data.keys().hasOnly(['list'])
+        && request.resource.data.list is list
+        && request.resource.data.list.size() <= 1000;
+    }
+
+    // Личные настройки чатов (закреп, mute).
+    match /userChats/{userId}/items/{chatId} {
+      allow read, write: if signedIn() && uid() == userId;
+    }
+
+    // Токены пушей: один документ { tokens: { <token>: <время> } } на пользователя.
+    // Сервер (Worker) читает их с сервисным аккаунтом в обход правил.
+    match /pushTokens/{userId} {
+      allow read, delete: if signedIn() && uid() == userId;
+      allow create, update: if signedIn() && uid() == userId
+        && request.resource.data.keys().hasOnly(['tokens'])
+        && request.resource.data.tokens is map
+        && request.resource.data.tokens.size() <= 20;
+    }
+
+    // ---------- чаты ----------
+    function chatKeys() {
+      return ['type', 'members', 'admins', 'ownerId', 'title', 'avatar', 'description', 'inviteCode',
+              'lastMessage', 'updatedAt', 'createdAt', 'pinnedMessageIds', 'readBy', 'lastJoinCode'];
+    }
+    function validTitle(t) { return t is string && t.size() > 0 && t.size() <= 64; }
+    function validNewChat(chatId, d) {
+      return d.keys().hasOnly(chatKeys())
+        && d.createdAt == request.time
+        && d.members is list && d.admins is list
+        && uid() in d.members
+        && d.pinnedMessageIds == []
+        && (
+          (d.type == 'private'
+            && d.members.size() == 2
+            && d.members[0] < d.members[1]
+            && chatId == d.members[0] + '_' + d.members[1]
+            && d.admins.size() == 0
+            && !isBlockedBy(otherOf(d.members)))
+          || (d.type == 'saved' && chatId == 'saved_' + uid() && d.members.size() == 1 && d.admins.size() == 0)
+          || (isModeratable(d.type)
+            && d.ownerId == uid()
+            && uid() in d.admins
+            && d.members.hasAll(d.admins)
+            && d.members.size() <= memberLimit(d.type)
+            && validTitle(d.title))
+        );
+    }
+    function canPost(c) { return c.type != 'channel' || uid() in c.admins; }
+    function readByOk() {
+      return !('readBy' in changed())
+        || request.resource.data.readBy.diff(resource.data.readBy).affectedKeys().hasOnly([uid()]);
+    }
+    function lastMessageOk() {
+      return !changed().hasAny(['lastMessage', 'updatedAt'])
+        || (canPost(resource.data)
+          && (request.resource.data.lastMessage == null
+            || request.resource.data.lastMessage.senderId == uid()
+            || uid() in resource.data.admins));
+    }
+    // Обычный участник: последнее сообщение, прочитанность, закреп в личке.
+    function memberUpdate() {
+      return changed().hasOnly(['lastMessage', 'updatedAt', 'readBy', 'pinnedMessageIds'])
+        && readByOk()
+        && lastMessageOk()
+        && (!('pinnedMessageIds' in changed())
+          || !isModeratable(resource.data.type)
+          || uid() in resource.data.admins);
+    }
+    // Админ группы/канала: настройки, участники. Админов назначает только владелец.
+    function chatAdminUpdate() {
+      let d = request.resource.data;
+      return isModeratable(resource.data.type)
+        && uid() in resource.data.admins
+        && changed().hasOnly(['title', 'avatar', 'description', 'members', 'admins', 'inviteCode',
+                              'pinnedMessageIds', 'lastMessage', 'updatedAt', 'readBy'])
+        && readByOk()
+        && lastMessageOk()
+        && validTitle(d.title)
+        && d.members.size() <= memberLimit(resource.data.type)
+        && resource.data.ownerId in d.members
+        && resource.data.ownerId in d.admins
+        && d.members.hasAll(d.admins)
+        && (!('admins' in changed()) || uid() == resource.data.ownerId);
+    }
+    // Выход из группы/канала (владелец выйти не может, он удаляет чат).
+    function leaveUpdate() {
+      return isModeratable(resource.data.type)
+        && uid() != resource.data.ownerId
+        && changed().hasOnly(['members', 'admins'])
+        && request.resource.data.members == resource.data.members.removeAll([uid()])
+        && request.resource.data.admins == resource.data.admins.removeAll([uid()]);
+    }
+    // Вступление по ссылке-приглашению: нужно знать текущий inviteCode.
+    function joinUpdate() {
+      return active()
+        && isModeratable(resource.data.type)
+        && !(uid() in resource.data.members)
+        && resource.data.inviteCode is string
+        && request.resource.data.lastJoinCode == resource.data.inviteCode
+        && changed().hasOnly(['members', 'lastJoinCode'])
+        && request.resource.data.members == resource.data.members.concat([uid()])
+        && request.resource.data.members.size() <= memberLimit(resource.data.type);
+    }
+
+    match /chats/{chatId} {
+      allow get: if active() && (resource == null
+        || uid() in resource.data.members
+        || (isGlobalAdmin() && isModeratable(resource.data.type)));
+      allow list: if active() && (uid() in resource.data.members
+        || (isGlobalAdmin() && isModeratable(resource.data.type)));
+      allow create: if active() && validNewChat(chatId, request.resource.data);
+      allow update: if (active() && uid() in resource.data.members
+          && (memberUpdate() || chatAdminUpdate() || leaveUpdate()))
+        || joinUpdate()
+        || (isGlobalAdmin() && isModeratable(resource.data.type)
+          && changed().hasOnly(['lastMessage', 'pinnedMessageIds']));
+      allow delete: if active() && isModeratable(resource.data.type)
+        && (uid() == resource.data.ownerId || isGlobalAdmin());
+
+      // ---------- сообщения ----------
+      function chatNow() { return get(chatPath(chatId)).data; }
+      function chatAfter() { return getAfter(chatPath(chatId)).data; }
+      function messageKeys() {
+        return ['senderId', 'text', 'createdAt', 'editedAt', 'deleted', 'deletedFor', 'replyTo',
+                'forwardedFrom', 'reactions', 'system', 'call'];
+      }
+      function validNewMessage(m, c) {
+        return m.keys().hasOnly(messageKeys())
+          && uid() in c.members
+          && m.senderId == uid()
+          && m.createdAt == request.time
+          && m.text is string && m.text.size() <= 4096
+          && (m.text.size() > 0 || m.get('system', null) != null || m.get('call', null) != null)
+          && m.deleted == false
+          && m.deletedFor == []
+          && m.reactions == {}
+          && m.editedAt == null
+          && canPost(c)
+          && (c.type != 'private' || !isBlockedBy(otherOf(c.members)));
+      }
+      function deletionShape() {
+        return changed().hasOnly(['deleted', 'text', 'replyTo', 'forwardedFrom', 'reactions', 'editedAt'])
+          && request.resource.data.deleted == true
+          && request.resource.data.text == '';
+      }
+
+      match /messages/{msgId} {
+        allow read: if active() && (uid() in chatNow().members
+          || (isGlobalAdmin() && isModeratable(chatNow().type)));
+        allow create: if active() && validNewMessage(request.resource.data, chatAfter());
+        allow update: if active() && (
+          (uid() in chatNow().members && (
+            // правка своего сообщения
+            (resource.data.senderId == uid()
+              && resource.data.deleted == false
+              && resource.data.get('system', null) == null
+              && changed().hasOnly(['text', 'editedAt'])
+              && request.resource.data.editedAt == request.time
+              && request.resource.data.text is string
+              && request.resource.data.text.size() > 0
+              && request.resource.data.text.size() <= 4096)
+            // удаление у всех: автор или админ группы/канала
+            || ((resource.data.senderId == uid() || uid() in chatNow().admins) && deletionShape())
+            // реакции
+            || (changed().hasOnly(['reactions'])
+              && resource.data.deleted == false
+              && request.resource.data.reactions.size() <= 20)
+            // удаление только у себя
+            || (changed().hasOnly(['deletedFor'])
+              && request.resource.data.deletedFor == resource.data.deletedFor.concat([uid()]))
+          ))
+          // модерация глобальным админом
+          || (isGlobalAdmin() && isModeratable(chatNow().type) && deletionShape())
+        );
+        allow delete: if false;
+      }
+    }
+
+    // Приглашения в группы и каналы: знать код = иметь право вступить.
+    match /invites/{code} {
+      allow get: if active();
+      allow create, update: if active()
+        && request.resource.data.keys().hasOnly(['chatId', 'title', 'type', 'avatar'])
+        && uid() in getAfter(chatPath(request.resource.data.chatId)).data.admins
+        && getAfter(chatPath(request.resource.data.chatId)).data.inviteCode == code;
+      allow delete: if active()
+        && (uid() in get(chatPath(resource.data.chatId)).data.admins || isGlobalAdmin());
+    }
+
+    // ---------- звонки (сигнализация WebRTC) ----------
+    function callKeys() {
+      return ['callerId', 'calleeId', 'chatId', 'video', 'status', 'offer', 'answer', 'createdAt',
+              'answeredAt', 'endedAt'];
+    }
+    match /calls/{callId} {
+      function isParty(c) { return c.callerId == uid() || c.calleeId == uid(); }
+      allow read: if active() && (resource.data.callerId == uid() || resource.data.calleeId == uid());
+      allow create: if active()
+        && request.resource.data.keys().hasOnly(callKeys())
+        && request.resource.data.callerId == uid()
+        && request.resource.data.calleeId != uid()
+        && request.resource.data.status == 'ringing'
+        && request.resource.data.createdAt == request.time
+        && !isBlockedBy(request.resource.data.calleeId);
+      allow update: if active() && isParty(resource.data)
+        && request.resource.data.keys().hasOnly(callKeys())
+        && !changed().hasAny(['callerId', 'calleeId', 'chatId', 'video', 'createdAt']);
+
+      match /{side}/{candidateId} {
+        allow read, create: if active()
+          && (side == 'callerCandidates' || side == 'calleeCandidates')
+          && isParty(get(callPath(callId)).data);
+      }
+    }
+  }
+}

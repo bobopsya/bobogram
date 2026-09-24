@@ -1,0 +1,151 @@
+import { useEffect, useRef, useState } from 'react';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { useTranslation } from 'react-i18next';
+import { db } from '../../firebase/init';
+import { useMe } from '../../app/store';
+import type { CallDoc } from '../../firebase/types';
+import { displayNameOf, useProfile } from '../../app/profiles';
+import { toMillis, formatDuration } from '../../lib/time';
+import { beep } from '../../app/sounds';
+import { Avatar } from '../../ui/Avatar';
+import { Icon } from '../../ui/Icon';
+import {
+  acceptCall,
+  declineCall,
+  hangUp,
+  showIncoming,
+  switchCamera,
+  toggleCam,
+  toggleMic,
+  useCall,
+} from './callStore';
+
+function Video({ stream, muted, className }: { stream: MediaStream | null; muted?: boolean; className: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream;
+  }, [stream]);
+  return <video ref={ref} className={className} autoPlay playsInline muted={muted} />;
+}
+
+function Timer({ since }: { since: number }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => tick((x) => x + 1), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  return <>{formatDuration((Date.now() - since) / 1000)}</>;
+}
+
+/** Слушает входящие звонки и показывает экран звонка поверх приложения. */
+export function CallLayer() {
+  const me = useMe();
+  const call = useCall((s) => s.call);
+  const { t } = useTranslation();
+  const peer = useProfile(call?.peerUid ?? null);
+
+  useEffect(() => {
+    if (!me) return;
+    const q = query(collection(db, 'calls'), where('calleeId', '==', me), where('status', '==', 'ringing'));
+    return onSnapshot(
+      q,
+      (snap) => {
+        snap.docChanges().forEach((ch) => {
+          if (ch.type !== 'added') return;
+          const data = { id: ch.doc.id, ...ch.doc.data({ serverTimestamps: 'estimate' }) } as CallDoc;
+          // Старые «зависшие» звонки не показываем.
+          if (Date.now() - toMillis(data.createdAt) < 60_000) showIncoming(data);
+        });
+      },
+      () => undefined,
+    );
+  }, [me]);
+
+  // Мелодия вызова.
+  useEffect(() => {
+    if (!call || (call.phase !== 'incoming' && call.phase !== 'calling')) return;
+    const kind = call.phase === 'incoming' ? 'ring' : 'message';
+    beep(kind);
+    const id = window.setInterval(() => beep(kind), call.phase === 'incoming' ? 2000 : 3000);
+    return () => window.clearInterval(id);
+  }, [call?.phase, call]);
+
+  if (!call) return null;
+
+  const name = displayNameOf(peer, '…');
+  const hasRemoteVideo = call.video && (call.remote?.getVideoTracks().length ?? 0) > 0;
+  let status = '';
+  switch (call.phase) {
+    case 'incoming':
+      status = call.video ? t('calls.incomingVideo') : t('calls.incomingAudio');
+      break;
+    case 'calling':
+      status = t('calls.calling');
+      break;
+    case 'connecting':
+      status = t('calls.connecting');
+      break;
+    case 'ended':
+      status = t(`calls.${call.endReason === 'ended' || !call.endReason ? 'ended' : call.endReason}`);
+      break;
+  }
+
+  return (
+    <div className={call.video ? 'call-screen video' : 'call-screen'}>
+      {call.video && <Video stream={call.remote} className="call-remote" />}
+      {!call.video && <Video stream={call.remote} className="hidden" />}
+      {call.video && call.local && <Video stream={call.local} muted className="call-local" />}
+
+      {(!hasRemoteVideo || call.phase !== 'active') && (
+        <div className="call-info">
+          <Avatar name={name} seed={call.peerUid} src={peer?.avatar} size={120} />
+          <h2>{name}</h2>
+          <p>{call.phase === 'active' && call.startedAt ? <Timer since={call.startedAt} /> : status}</p>
+        </div>
+      )}
+      {hasRemoteVideo && call.phase === 'active' && call.startedAt && (
+        <div className="call-overlay-title">
+          {name} · <Timer since={call.startedAt} />
+        </div>
+      )}
+
+      <div className="call-controls">
+        {call.phase === 'incoming' ? (
+          <>
+            <button className="call-btn decline" onClick={declineCall} aria-label={t('calls.decline')}>
+              <Icon name="hangup" size={28} />
+              <span>{t('calls.decline')}</span>
+            </button>
+            <button className="call-btn accept" onClick={() => void acceptCall()} aria-label={t('calls.accept')}>
+              <Icon name={call.video ? 'video' : 'phone'} size={28} />
+              <span>{t('calls.accept')}</span>
+            </button>
+          </>
+        ) : call.phase !== 'ended' ? (
+          <>
+            <button className={call.micOn ? 'call-btn' : 'call-btn off'} onClick={toggleMic} aria-label={t('calls.mute')}>
+              <Icon name={call.micOn ? 'mic' : 'micOff'} size={26} />
+              <span>{t('calls.mute')}</span>
+            </button>
+            {call.video && (
+              <>
+                <button className={call.camOn ? 'call-btn' : 'call-btn off'} onClick={toggleCam} aria-label={t('calls.camera')}>
+                  <Icon name={call.camOn ? 'video' : 'videoOff'} size={26} />
+                  <span>{t('calls.camera')}</span>
+                </button>
+                <button className="call-btn" onClick={() => void switchCamera()} aria-label={t('calls.switchCamera')}>
+                  <Icon name="flip" size={26} />
+                  <span>{t('calls.switchCamera')}</span>
+                </button>
+              </>
+            )}
+            <button className="call-btn decline" onClick={hangUp} aria-label={t('calls.hangup')}>
+              <Icon name="hangup" size={28} />
+              <span>{t('calls.hangup')}</span>
+            </button>
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+}

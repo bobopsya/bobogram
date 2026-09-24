@@ -1,0 +1,11 @@
+# Cloudflare Worker для Bobogram: пуш-уведомления (FCM) и TURN-серверы для звонков.
+# Секреты задаются командой `npx wrangler secret put ИМЯ` (см. docs/SETUP.md).
+name = "bobogram-worker"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+[vars]
+# ID проекта Firebase (Project settings → General → Project ID)
+FIREBASE_PROJECT_ID = "your-project-id"
+# Откуда разрешены запросы (адрес сайта на GitHub Pages)
+ALLOWED_ORIGIN = "https://bobopsya.github.io"
