@@ -137,3 +137,15 @@ export const PINNED_CHATS_MAX = 5;
 export const PINNED_CHATS_MAX_PREMIUM = 10;
 export const CHANNEL_MAX_MEMBERS = 1000;
 export const MESSAGE_MAX_LENGTH = 4096;
+
+/** Дозаполняет поля сообщения, сохранённого старой версией приложения (кэш, офлайн-очередь). */
+export function normalizeMessage(m: Message): Message {
+  return {
+    ...m,
+    deletedFor: m.deletedFor ?? [],
+    reactions: m.reactions ?? {},
+    views: m.views ?? 0,
+    boostViews: m.boostViews ?? 0,
+    boostReactions: m.boostReactions ?? {},
+  };
+}

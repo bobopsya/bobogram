@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Chat, Message, UserProfile } from '../supabase/types';
+import { normalizeMessage, type Chat, type Message, type UserProfile } from '../supabase/types';
 import { DEFAULT_APPEARANCE, type Appearance } from './themes';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
@@ -52,7 +52,7 @@ export const useApp = create<AppState>((set) => ({
   blocked: [],
   chats: read<Chat[]>('bobogram.chats', []),
   chatsLoaded: false,
-  outbox: read<Message[]>('bobogram.outbox', []),
+  outbox: read<Message[]>('bobogram.outbox', []).map(normalizeMessage),
   online: navigator.onLine,
   theme: read<ThemeMode>('bobogram.theme', 'system'),
   appearance: { ...DEFAULT_APPEARANCE, ...read<Partial<Appearance>>('bobogram.appearance', {}) },

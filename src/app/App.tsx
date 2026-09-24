@@ -7,6 +7,7 @@ import { useThemeEffect, useViewportHeight } from './effects';
 import { AuthScreen } from '../features/auth/AuthScreen';
 import { BannedScreen, NoProfileScreen, SetupNeededScreen } from '../features/auth/Gates';
 import { Layout } from './Layout';
+import { ErrorBoundary } from './ErrorBoundary';
 import { ChatScreen } from '../features/chat/ChatScreen';
 import { EmptyMain } from './EmptyMain';
 import { ProfileRoute, UsernameRoute } from '../features/profile/ProfileView';
@@ -82,7 +83,9 @@ export function App() {
   return (
     <HashRouter>
       <OfflineBanner />
-      <Gate />
+      <ErrorBoundary>
+        <Gate />
+      </ErrorBoundary>
       <Toast />
     </HashRouter>
   );
