@@ -23,7 +23,15 @@ import {
   useCall,
 } from './callStore';
 
-function Video({ stream, muted, className }: { stream: MediaStream | null; muted?: boolean; className: string }) {
+function Video({
+  stream,
+  muted,
+  className,
+}: {
+  stream: MediaStream | null;
+  muted?: boolean;
+  className: string;
+}) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream;
@@ -57,7 +65,12 @@ export function CallLayer() {
     check();
     const offResync = onResync(check);
     const off = onDbEvent((e) => {
-      if (e.table === 'calls' && e.type === 'INSERT' && e.row.callee_id === me && e.row.status === 'ringing') {
+      if (
+        e.table === 'calls' &&
+        e.type === 'INSERT' &&
+        e.row.callee_id === me &&
+        e.row.status === 'ringing'
+      ) {
         showIncoming(toCall(e.row));
       }
     });
@@ -106,7 +119,9 @@ export function CallLayer() {
         stream={call.remote}
         className={showRemoteVideo ? (call.remoteScreen ? 'call-remote contain' : 'call-remote') : 'hidden'}
       />
-      {preview && <Video stream={preview} muted className={call.sharing ? 'call-local screen' : 'call-local'} />}
+      {preview && (
+        <Video stream={preview} muted className={call.sharing ? 'call-local screen' : 'call-local'} />
+      )}
 
       {(!hasRemoteVideo || call.phase !== 'active') && (
         <div className="call-info">
@@ -121,34 +136,62 @@ export function CallLayer() {
           {call.remoteScreen && <div className="small">{t('calls.remoteScreen', { name })}</div>}
         </div>
       )}
-      {call.sharing && call.phase === 'active' && <div className="call-sharing-note">{t('calls.sharingNow')}</div>}
+      {call.sharing && call.phase === 'active' && (
+        <div className="call-sharing-note">{t('calls.sharingNow')}</div>
+      )}
 
       <div className="call-controls">
         {call.phase === 'incoming' ? (
           <>
             <button className="call-btn decline" onClick={declineCall} aria-label={t('calls.decline')}>
-              <Icon name="hangup" size={28} />
+              <span className="call-btn-circle">
+                <Icon name="hangup" size={28} />
+              </span>
               <span>{t('calls.decline')}</span>
             </button>
-            <button className="call-btn accept" onClick={() => void acceptCall()} aria-label={t('calls.accept')}>
-              <Icon name={call.video ? 'video' : 'phone'} size={28} />
+            <button
+              className="call-btn accept"
+              onClick={() => void acceptCall()}
+              aria-label={t('calls.accept')}
+            >
+              <span className="call-btn-circle">
+                <Icon name={call.video ? 'video' : 'phone'} size={28} />
+              </span>
               <span>{t('calls.accept')}</span>
             </button>
           </>
         ) : call.phase !== 'ended' ? (
           <>
-            <button className={call.micOn ? 'call-btn' : 'call-btn off'} onClick={toggleMic} aria-label={t('calls.mute')}>
-              <Icon name={call.micOn ? 'mic' : 'micOff'} size={26} />
+            <button
+              className={call.micOn ? 'call-btn' : 'call-btn off'}
+              onClick={toggleMic}
+              aria-label={t('calls.mute')}
+            >
+              <span className="call-btn-circle">
+                <Icon name={call.micOn ? 'mic' : 'micOff'} size={26} />
+              </span>
               <span>{t('calls.mute')}</span>
             </button>
             {call.video && (
               <>
-                <button className={call.camOn ? 'call-btn' : 'call-btn off'} onClick={toggleCam} aria-label={t('calls.camera')}>
-                  <Icon name={call.camOn ? 'video' : 'videoOff'} size={26} />
+                <button
+                  className={call.camOn ? 'call-btn' : 'call-btn off'}
+                  onClick={toggleCam}
+                  aria-label={t('calls.camera')}
+                >
+                  <span className="call-btn-circle">
+                    <Icon name={call.camOn ? 'video' : 'videoOff'} size={26} />
+                  </span>
                   <span>{t('calls.camera')}</span>
                 </button>
-                <button className="call-btn" onClick={() => void switchCamera()} aria-label={t('calls.switchCamera')}>
-                  <Icon name="flip" size={26} />
+                <button
+                  className="call-btn"
+                  onClick={() => void switchCamera()}
+                  aria-label={t('calls.switchCamera')}
+                >
+                  <span className="call-btn-circle">
+                    <Icon name="flip" size={26} />
+                  </span>
                   <span>{t('calls.switchCamera')}</span>
                 </button>
               </>
@@ -160,7 +203,9 @@ export function CallLayer() {
                 aria-pressed={call.speaker}
                 aria-label={call.speaker ? t('calls.speakerLoud') : t('calls.speakerQuiet')}
               >
-                <Icon name={call.speaker ? 'speaker' : 'earpiece'} size={26} />
+                <span className="call-btn-circle">
+                  <Icon name={call.speaker ? 'speaker' : 'earpiece'} size={26} />
+                </span>
                 <span>{call.speaker ? t('calls.speakerLoud') : t('calls.speakerQuiet')}</span>
               </button>
             )}
@@ -171,12 +216,16 @@ export function CallLayer() {
                 aria-pressed={call.sharing}
                 aria-label={t('calls.screen')}
               >
-                <Icon name="screen" size={26} />
+                <span className="call-btn-circle">
+                  <Icon name="screen" size={26} />
+                </span>
                 <span>{t('calls.screen')}</span>
               </button>
             )}
             <button className="call-btn decline" onClick={hangUp} aria-label={t('calls.hangup')}>
-              <Icon name="hangup" size={28} />
+              <span className="call-btn-circle">
+                <Icon name="hangup" size={28} />
+              </span>
               <span>{t('calls.hangup')}</span>
             </button>
           </>

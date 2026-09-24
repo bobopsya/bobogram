@@ -90,6 +90,30 @@ export function toChat(r: Row): Chat {
   };
 }
 
+/**
+ * Realtime не присылает большие неизменённые поля (TOAST в Postgres): например, после
+ * смены last_seen в профиле нет аватарки, после реакции на длинное сообщение — текста.
+ * Недостающие поля берём из прежней версии.
+ */
+export function keepUnchanged<T extends object>(fresh: T, old: T | undefined, row: Row, fields: [string, keyof T][]): T {
+  if (!old) return fresh;
+  const out = { ...fresh };
+  for (const [col, key] of fields) if (!(col in row)) out[key] = old[key];
+  return out;
+}
+
+export const PROFILE_LARGE_FIELDS: [string, keyof UserProfile][] = [
+  ['avatar', 'avatar'],
+  ['bio', 'bio'],
+];
+export const MESSAGE_LARGE_FIELDS: [string, keyof Message][] = [
+  ['text', 'text'],
+  ['reactions', 'reactions'],
+  ['boost_reactions', 'boostReactions'],
+  ['reply_to', 'replyTo'],
+  ['forwarded_from', 'forwardedFrom'],
+];
+
 export function toMessage(r: Row): Message {
   return {
     id: String(r.id),

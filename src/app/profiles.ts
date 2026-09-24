@@ -1,5 +1,5 @@
 import { useEffect, useSyncExternalStore } from 'react';
-import { fetchProfiles, toProfile } from '../supabase/api';
+import { fetchProfiles, keepUnchanged, PROFILE_LARGE_FIELDS, toProfile } from '../supabase/api';
 import type { UserProfile } from '../supabase/types';
 import { getOnline, onDbEvent, onOnlineChange } from '../supabase/realtime';
 
@@ -42,7 +42,9 @@ function request(uid: string) {
 }
 
 onDbEvent((e) => {
-  if (e.table === 'profiles' && e.type !== 'DELETE') putProfile(toProfile(e.row));
+  if (e.table !== 'profiles' || e.type === 'DELETE') return;
+  const fresh = toProfile(e.row);
+  putProfile(keepUnchanged(fresh, cache.get(fresh.uid) ?? undefined, e.row, PROFILE_LARGE_FIELDS));
 });
 
 /** undefined — загружается, null — нет такого пользователя. */

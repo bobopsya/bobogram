@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Chat, Message } from '../../supabase/types';
-import { fetchMessage, setPinnedMessages, toMessage } from '../../supabase/api';
+import { fetchMessage, keepUnchanged, MESSAGE_LARGE_FIELDS, setPinnedMessages, toMessage } from '../../supabase/api';
 import { onDbEvent } from '../../supabase/realtime';
 import { refreshChats } from '../../app/session';
 import { Icon } from '../../ui/Icon';
@@ -21,7 +21,12 @@ export function PinnedBar({ chat, canUnpin, onJump }: { chat: Chat; canUnpin: bo
     if (!id) return;
     let cancelled = false;
     void fetchMessage(id).then((m) => !cancelled && setMsg(m));
-    const off = onDbEvent((e) => e.table === 'messages' && e.row.id === id && setMsg(toMessage(e.row)));
+    const off = onDbEvent(
+      (e) =>
+        e.table === 'messages' &&
+        e.row.id === id &&
+        setMsg((old) => keepUnchanged(toMessage(e.row), old ?? undefined, e.row, MESSAGE_LARGE_FIELDS)),
+    );
     return () => {
       cancelled = true;
       off();

@@ -1568,6 +1568,10 @@ button.setting-row:hover {
   flex-wrap: wrap;
   margin-top: auto;
 }
+.call-btn .icon {
+  overflow: visible;
+  flex-shrink: 0;
+}
 .call-btn {
   display: flex;
   flex-direction: column;
@@ -1576,23 +1580,26 @@ button.setting-row:hover {
   font-size: 0.75em;
   color: #fff;
 }
-.call-btn .icon {
+/* Круг — отдельный элемент: Safari обрезает SVG с padding по краям. */
+.call-btn-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 60px;
   height: 60px;
-  padding: 16px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 }
-.call-btn.off .icon {
+.call-btn.off .call-btn-circle {
   background: #fff;
   color: #222;
 }
-.call-btn.decline .icon {
+.call-btn.decline .call-btn-circle {
   background: #e53935;
 }
-.call-btn.accept .icon {
+.call-btn.accept .call-btn-circle {
   background: #4caf50;
   animation: pulse 1.2s infinite;
 }
