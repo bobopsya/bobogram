@@ -29,6 +29,9 @@ import { EmojiPicker } from './EmojiPicker';
 import { PinnedBar } from './PinnedBar';
 import { ForwardDialog } from './ForwardDialog';
 import { startCall } from '../calls/callStore';
+import { BoostDialog } from '../admin/BoostDialog';
+import { ScamWarning } from '../../ui/Badges';
+import { useProfile } from '../../app/profiles';
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👎', '🎉'];
 const GROUP_GAP_MS = 5 * 60 * 1000;
@@ -82,6 +85,9 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
   const [reactFor, setReactFor] = useState<Message | null>(null);
   const [deleting, setDeleting] = useState<Message | null>(null);
   const [forwarding, setForwarding] = useState<Message | null>(null);
+  const [boosting, setBoosting] = useState<Message | null>(null);
+  const other = useProfile(chat.type === 'private' ? chat.otherId : null);
+  const scam = chat.scam || (chat.type === 'private' && other?.scam === true);
   const [highlight, setHighlight] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -224,6 +230,9 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
       items.push({ icon: 'pin', label: pinned ? t('chat.unpin') : t('chat.pin'), onClick: () => togglePin(msg) });
     }
     if (own && !msg.call && isMember) items.push({ icon: 'edit', label: t('chat.edit'), onClick: () => setEditing(msg) });
+    if (isGlobalAdmin && moderatable && !msg.system) {
+      items.push({ icon: 'star', label: t('admin.boostPost'), onClick: () => setBoosting(msg) });
+    }
     items.push({ icon: 'trash', label: t('common.delete'), danger: true, onClick: () => setDeleting(msg) });
     return items;
   };
@@ -365,6 +374,8 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
         </div>
       )}
 
+      {scam && <ScamWarning />}
+
       {chat.pinnedMessageIds.length > 0 && (
         <PinnedBar chat={chat} canUnpin={canPin} onJump={jumpTo} />
       )}
@@ -498,6 +509,7 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
         </Modal>
       )}
 
+      {boosting && <BoostDialog msg={boosting} onClose={() => setBoosting(null)} />}
       {forwarding && <ForwardDialog msg={forwarding} fromChat={chat} onClose={() => setForwarding(null)} />}
     </div>
   );

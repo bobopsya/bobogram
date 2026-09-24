@@ -13,6 +13,8 @@ import { ProfileRoute, UsernameRoute } from '../features/profile/ProfileView';
 import { SettingsScreen } from '../features/settings/SettingsScreen';
 import { EditProfileScreen } from '../features/profile/EditProfile';
 import { BlocklistScreen } from '../features/settings/Blocklist';
+import { AppearanceScreen } from '../features/settings/Appearance';
+import { PremiumScreen } from '../features/settings/Premium';
 import { NewGroupScreen } from '../features/groups/NewGroup';
 import { ChatInfoRoute } from '../features/groups/ChatInfo';
 import { JoinScreen } from '../features/groups/Join';
@@ -49,6 +51,8 @@ function Messenger() {
           <Route path="settings" element={<SettingsScreen />} />
           <Route path="settings/profile" element={<EditProfileScreen />} />
           <Route path="settings/blocked" element={<BlocklistScreen />} />
+          <Route path="settings/appearance" element={<AppearanceScreen />} />
+          <Route path="settings/premium" element={<PremiumScreen />} />
           <Route path="new/group" element={<NewGroupScreen kind="group" />} />
           <Route path="new/channel" element={<NewGroupScreen kind="channel" />} />
           <Route path="join/:code" element={<JoinScreen />} />

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useApp } from '../../app/store';
 import { createChat, errorKey } from '../../supabase/api';
 import { refreshChats } from '../../app/session';
-import { CHANNEL_MAX_MEMBERS, GROUP_MAX_MEMBERS } from '../../supabase/types';
+import { CHANNEL_MAX_MEMBERS, GROUP_MAX_MEMBERS, GROUP_MAX_MEMBERS_PREMIUM, isPremium } from '../../supabase/types';
 import { makeAvatar } from '../../lib/image';
 import { Avatar } from '../../ui/Avatar';
 import { Icon } from '../../ui/Icon';
@@ -23,7 +23,8 @@ export function NewGroupScreen({ kind }: { kind: 'group' | 'channel' }) {
   const [avatar, setAvatar] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const max = (kind === 'group' ? GROUP_MAX_MEMBERS : CHANNEL_MAX_MEMBERS) - 1;
+  const premium = useApp((s) => isPremium(s.profile));
+  const max = (kind === 'group' ? (premium ? GROUP_MAX_MEMBERS_PREMIUM : GROUP_MAX_MEMBERS) : CHANNEL_MAX_MEMBERS) - 1;
 
   const create = async () => {
     if (!title.trim()) return;

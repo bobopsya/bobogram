@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Chat, Message, UserProfile } from '../supabase/types';
+import { DEFAULT_APPEARANCE, type Appearance } from './themes';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -32,10 +33,12 @@ interface AppState {
   outbox: Message[];
   online: boolean;
   theme: ThemeMode;
+  appearance: Appearance;
   sound: boolean;
   toast: string | null;
 
   setTheme: (t: ThemeMode) => void;
+  setAppearance: (patch: Partial<Appearance>) => void;
   setSound: (on: boolean) => void;
   showToast: (text: string) => void;
 }
@@ -52,6 +55,7 @@ export const useApp = create<AppState>((set) => ({
   outbox: read<Message[]>('bobogram.outbox', []),
   online: navigator.onLine,
   theme: read<ThemeMode>('bobogram.theme', 'system'),
+  appearance: { ...DEFAULT_APPEARANCE, ...read<Partial<Appearance>>('bobogram.appearance', {}) },
   sound: read<boolean>('bobogram.sound', true),
   toast: null,
 
@@ -59,6 +63,12 @@ export const useApp = create<AppState>((set) => ({
     write('bobogram.theme', theme);
     set({ theme });
   },
+  setAppearance: (patch) =>
+    set((s) => {
+      const appearance = { ...s.appearance, ...patch };
+      write('bobogram.appearance', appearance);
+      return { appearance };
+    }),
   setSound: (sound) => {
     write('bobogram.sound', sound);
     set({ sound });

@@ -13,6 +13,8 @@ import { FullScreenSpinner, PageHeader } from '../../ui/misc';
 import { lastSeenText } from '../chat/ChatHeader';
 import { startCall } from '../calls/callStore';
 import { ShareProfile } from './ShareProfile';
+import { Badges, ScamWarning } from '../../ui/Badges';
+import { isPremium } from '../../supabase/types';
 
 /** Открытие профиля по ссылке …/#/u/username */
 export function UsernameRoute() {
@@ -101,9 +103,13 @@ function ProfileScreen({ uid }: { uid: string }) {
         }
       />
       <div className="scroll">
+        {profile.scam && <ScamWarning />}
         <div className="profile-hero">
           <Avatar name={profile.displayName} seed={uid} src={profile.avatar} size={112} />
-          <h2>{profile.displayName}</h2>
+          <h2 className="name-with-badges">
+            {profile.displayName}
+            <Badges verified={profile.verified} scam={profile.scam} premium={isPremium(profile)} size={22} />
+          </h2>
           <p className={presence?.online ? 'accent-text' : 'muted'}>
             {isMe ? t('chats.online') : lastSeenText(presence, hideMine, t, i18n.language)}
           </p>

@@ -2,13 +2,14 @@ import { memo, useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Chat } from '../../supabase/types';
 import { useApp, useMe } from '../../app/store';
-import { setChatPrefs } from '../../supabase/api';
+import { errorKey, setChatPrefs } from '../../supabase/api';
 import { refreshChats } from '../../app/session';
 import { formatChatListTime, toDate } from '../../lib/time';
 import { Icon } from '../../ui/Icon';
 import { Menu, type MenuItem } from '../../ui/Menu';
 import { displayNameOf, usePresence, useProfile } from '../../app/profiles';
 import { useLongPress } from '../../ui/useLongPress';
+import { Badges } from '../../ui/Badges';
 import { callText, ChatAvatar, systemText, useChatMeta } from './chatMeta';
 
 interface Props {
@@ -45,8 +46,11 @@ export const ChatListItem = memo(function ChatListItem({ chat, active, onClick }
   const readByOther = !!last && last.senderId === me && chat.othersReadAt >= last.createdAt;
 
   const date = toDate(last?.createdAt ?? chat.updatedAt);
+  const showToast = useApp((s) => s.showToast);
   const setPrefs = (prefs: { pinned?: boolean; muted?: boolean }) =>
-    void setChatPrefs(chat.id, prefs).then(() => refreshChats(0));
+    void setChatPrefs(chat.id, prefs)
+      .then(() => refreshChats(0))
+      .catch((err) => showToast(t(errorKey(err))));
   const items: MenuItem[] = [
     { icon: 'pin', label: chat.pinned ? t('chats.unpin') : t('chats.pin'), onClick: () => setPrefs({ pinned: !chat.pinned }) },
     chat.muted
@@ -72,6 +76,7 @@ export const ChatListItem = memo(function ChatListItem({ chat, active, onClick }
               {chat.type === 'group' && <Icon name="users" size={15} className="title-icon" />}
               {chat.type === 'channel' && <Icon name="megaphone" size={15} className="title-icon" />}
               <span className="ellipsis">{meta.title}</span>
+              <Badges {...meta.badges} size={15} />
               {chat.muted && <Icon name="bellOff" size={14} className="muted-icon" />}
             </span>
             <span className="list-item-time">

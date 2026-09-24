@@ -44,6 +44,9 @@ export function toProfile(r: Row): UserProfile {
     hideLastSeen: r.hide_last_seen === true,
     lastSeen: msOrNull(r.last_seen),
     createdAt: ms(r.created_at),
+    verified: r.verified === true,
+    scam: r.scam === true,
+    premiumUntil: msOrNull(r.premium_until),
   };
 }
 
@@ -82,6 +85,8 @@ export function toChat(r: Row): Chat {
     memberCount: Number(r.member_count ?? 0),
     otherId: (r.other_id as string | null) ?? null,
     othersReadAt: ms(r.others_read_at),
+    verified: r.verified === true,
+    scam: r.scam === true,
   };
 }
 
@@ -100,6 +105,9 @@ export function toMessage(r: Row): Message {
     reactions: (r.reactions as Record<string, string[]> | null) ?? {},
     system: (r.system as Message['system']) ?? null,
     call: (r.call as Message['call']) ?? null,
+    views: Number(r.views ?? 0),
+    boostViews: Number(r.boost_views ?? 0),
+    boostReactions: (r.boost_reactions as Record<string, number> | null) ?? {},
     pending: false,
   };
 }
@@ -163,6 +171,8 @@ export function errorKey(err: unknown): string {
   if (code === 'over_request_rate_limit' || code === 'over_email_send_rate_limit') return 'errors.tooManyRequests';
   if (code === '42501') return /blocked/.test(msg) ? 'chat.blockedByThem' : 'errors.permission';
   if (msg.includes('too many members')) return 'errors.tooManyMembers';
+  if (msg.includes('pin limit')) return 'errors.pinLimit';
+  if (msg.includes('bio too long')) return 'errors.bioTooLong';
   if (msg.includes('invalid invite')) return 'groups.invalidInvite';
   if (err instanceof TypeError || /fetch|network/i.test(msg)) return 'errors.network';
   return 'errors.generic';
@@ -405,7 +415,103 @@ export async function adminListChats() {
     title: String(r.title ?? ''),
     avatar: (r.avatar as string | null) ?? null,
     memberCount: Number(r.member_count ?? 0),
+    boostMembers: Number(r.boost_members ?? 0),
+    verified: r.verified === true,
+    scam: r.scam === true,
   }));
+}
+
+export async function adminSetUserBadges(uid: string, badges: { verified?: boolean; scam?: boolean }) {
+  check(
+    await supabase.rpc('admin_set_user_badges', {
+      p_user: uid,
+      p_verified: badges.verified ?? null,
+      p_scam: badges.scam ?? null,
+    }),
+  );
+}
+
+export async function adminSetChatBadges(chatId: string, badges: { verified?: boolean; scam?: boolean }) {
+  check(
+    await supabase.rpc('admin_set_chat_badges', {
+      p_chat: chatId,
+      p_verified: badges.verified ?? null,
+      p_scam: badges.scam ?? null,
+    }),
+  );
+}
+
+export async function adminBoostMembers(chatId: string, boost: number) {
+  check(await supabase.rpc('admin_boost_members', { p_chat: chatId, p_boost: Math.max(0, Math.round(boost)) }));
+}
+
+export async function adminBoostMessage(msgId: string, views: number, reactions: Record<string, number>) {
+  check(
+    await supabase.rpc('admin_boost_message', {
+      p_msg: msgId,
+      p_views: Math.max(0, Math.round(views)),
+      p_reactions: reactions,
+    }),
+  );
+}
+
+/** Премиум «навсегда» — дата в далёком будущем. */
+export const PREMIUM_FOREVER = '9999-12-31T00:00:00Z';
+
+export async function adminSetPremium(uid: string, until: string | null) {
+  check(await supabase.rpc('admin_set_premium', { p_user: uid, p_until: until }));
+}
+
+export interface PremiumRequest {
+  id: number;
+  userId: string;
+  note: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: number;
+}
+
+function toRequest(r: Row): PremiumRequest {
+  return {
+    id: Number(r.id),
+    userId: String(r.user_id),
+    note: String(r.note ?? ''),
+    status: r.status as PremiumRequest['status'],
+    createdAt: ms(r.created_at),
+  };
+}
+
+export async function requestPremium(note: string) {
+  check(await supabase.rpc('request_premium', { p_note: note }));
+}
+
+export async function myPremiumRequest(uid: string): Promise<PremiumRequest | null> {
+  const rows = check(
+    await supabase.from('premium_requests').select('*').eq('user_id', uid).order('created_at', { ascending: false }).limit(1),
+  ) as Row[];
+  return rows[0] ? toRequest(rows[0]) : null;
+}
+
+export async function adminListPremiumRequests(): Promise<PremiumRequest[]> {
+  const rows = check(
+    await supabase.from('premium_requests').select('*').eq('status', 'pending').order('created_at').limit(200),
+  ) as Row[];
+  return rows.map(toRequest);
+}
+
+export async function adminResolvePremiumRequest(id: number, approve: boolean, until: string | null) {
+  check(await supabase.rpc('admin_resolve_premium_request', { p_id: id, p_approve: approve, p_until: until }));
+}
+
+/** Адреса STUN/TURN для звонков: временные логины к своему TURN-серверу выдаёт серверная функция. */
+export async function fetchIceServers(): Promise<RTCIceServer[]> {
+  const fallback: RTCIceServer[] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }];
+  try {
+    const { data, error } = await supabase.functions.invoke('bobogram', { body: { action: 'turn' } });
+    const servers = (data as { iceServers?: RTCIceServer[] } | null)?.iceServers;
+    return !error && servers?.length ? servers : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 export async function adminResetPassword(userId: string, password: string) {

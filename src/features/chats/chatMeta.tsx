@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import type { Chat, Message, SystemEvent } from '../../supabase/types';
+import { isPremium, type Chat, type Message, type SystemEvent } from '../../supabase/types';
+import type { BadgeFlags } from '../../ui/Badges';
 import { displayNameOf, peekProfile, useProfile } from '../../app/profiles';
 import { Avatar } from '../../ui/Avatar';
 import type { IconName } from '../../ui/Icon';
@@ -11,25 +12,35 @@ export interface ChatMeta {
   seed: string;
   icon?: IconName;
   otherUid: string | null;
+  badges: BadgeFlags;
 }
 
 /** Название и аватар чата: для лички — данные собеседника. */
-export function useChatMeta(chat: Pick<Chat, 'id' | 'type' | 'otherId' | 'title' | 'avatar'>): ChatMeta {
+export function useChatMeta(
+  chat: Pick<Chat, 'id' | 'type' | 'otherId' | 'title' | 'avatar'> & Partial<Pick<Chat, 'verified' | 'scam'>>,
+): ChatMeta {
   const { t } = useTranslation();
   const otherUid = chat.type === 'private' ? chat.otherId : null;
   const other = useProfile(otherUid);
   switch (chat.type) {
     case 'saved':
-      return { title: t('chats.savedMessages'), avatar: null, seed: chat.id, icon: 'bookmark', otherUid: null };
+      return { title: t('chats.savedMessages'), avatar: null, seed: chat.id, icon: 'bookmark', otherUid: null, badges: {} };
     case 'private':
       return {
         title: other === null ? t('chats.deletedAccount') : displayNameOf(other, '…'),
         avatar: other?.avatar ?? null,
         seed: otherUid ?? chat.id,
         otherUid,
+        badges: { verified: other?.verified, scam: other?.scam, premium: isPremium(other) },
       };
     default:
-      return { title: chat.title ?? '', avatar: chat.avatar, seed: chat.id, otherUid: null };
+      return {
+        title: chat.title ?? '',
+        avatar: chat.avatar,
+        seed: chat.id,
+        otherUid: null,
+        badges: { verified: chat.verified, scam: chat.scam },
+      };
   }
 }
 
