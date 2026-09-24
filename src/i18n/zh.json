@@ -176,7 +176,14 @@
     "changeAvatar": "更换头像",
     "removeAvatar": "删除头像",
     "notFound": "未找到用户",
-    "saved": "已保存"
+    "saved": "已保存",
+    "collectibles": "NFT 礼物",
+    "collectible": "NFT 礼物",
+    "collectibleGift": "gift",
+    "collectibleHint": "独特收藏礼物",
+    "collectibleModel": "模型",
+    "collectibleBackdrop": "背景",
+    "collectibleSymbol": "符号"
   },
   "groups": {
     "createGroup": "创建群组",

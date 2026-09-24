@@ -178,7 +178,14 @@
     "changeAvatar": "Change photo",
     "removeAvatar": "Remove photo",
     "notFound": "User not found",
-    "saved": "Changes saved"
+    "saved": "Changes saved",
+    "collectibles": "NFT gifts",
+    "collectible": "NFT gift",
+    "collectibleGift": "gift",
+    "collectibleHint": "Unique collectible gift",
+    "collectibleModel": "Model",
+    "collectibleBackdrop": "Backdrop",
+    "collectibleSymbol": "Symbol"
   },
   "groups": {
     "createGroup": "Create group",

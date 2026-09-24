@@ -15,6 +15,7 @@ import { startCall } from '../calls/callStore';
 import { ShareProfile } from './ShareProfile';
 import { Badges, ScamWarning } from '../../ui/Badges';
 import { isPremium } from '../../supabase/types';
+import { ProfileCollectibles } from './ProfileCollectibles';
 
 /** Открытие профиля по ссылке …/#/u/username */
 export function UsernameRoute() {
@@ -137,6 +138,8 @@ function ProfileScreen({ uid }: { uid: string }) {
             <span>{t('profile.qr')}</span>
           </button>
         </div>
+
+        <ProfileCollectibles profile={profile} />
 
         <div className="info-list">
           <button
