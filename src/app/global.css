@@ -1506,6 +1506,9 @@ button.setting-row:hover {
   height: 100%;
   object-fit: cover;
 }
+.call-remote.contain {
+  object-fit: contain;
+}
 .call-local {
   position: absolute;
   top: calc(16px + var(--safe-top));
@@ -1518,6 +1521,20 @@ button.setting-row:hover {
   box-shadow: var(--shadow);
   z-index: 2;
   background: #222;
+}
+.call-local.screen {
+  width: 200px;
+  height: 125px;
+  object-fit: contain;
+  transform: none;
+}
+.call-sharing-note {
+  position: relative;
+  z-index: 1;
+  background: #e53935;
+  padding: 6px 14px;
+  border-radius: 16px;
+  font-size: 0.85em;
 }
 .call-info {
   position: relative;

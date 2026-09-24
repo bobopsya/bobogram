@@ -262,7 +262,13 @@
     "noAnswer": "无人接听",
     "failed": "无法连接",
     "busy": "正在进行另一通通话",
-    "permissionDenied": "无法访问麦克风或摄像头"
+    "permissionDenied": "无法访问麦克风或摄像头",
+    "screen": "屏幕",
+    "speakerLoud": "扬声器",
+    "speakerQuiet": "听筒",
+    "screenUnsupported": "对方需要更新应用才能看到您的屏幕",
+    "remoteScreen": "{{name}} 正在共享屏幕",
+    "sharingNow": "您正在共享屏幕"
   },
   "admin": {
     "title": "管理面板",

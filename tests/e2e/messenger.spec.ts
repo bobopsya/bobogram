@@ -107,6 +107,37 @@ test('видеозвонок соединяется и пишет запись �
   await expect(alice.locator('.msg-call')).toContainText('Видеозвонок');
 });
 
+test('аудиозвонок: демонстрация экрана доходит до собеседника', async ({ browser }) => {
+  const alice = await signUp(browser, 'Алиса', `alices${run}`);
+  const bob = await signUp(browser, 'Боб', `bobs${run}`);
+  for (const page of [alice, bob]) await page.context().grantPermissions(['camera', 'microphone']);
+
+  await alice.getByPlaceholder('Поиск по @имени или чатам').fill(`@bobs${run}`);
+  await alice.locator('.list-item', { hasText: 'Боб' }).click();
+  await alice.getByPlaceholder('Сообщение').fill('Покажу экран');
+  await alice.keyboard.press('Enter');
+  await expect(bob.locator('.chat-item', { hasText: 'Алиса' })).toBeVisible();
+
+  await alice.getByRole('button', { name: 'Аудиозвонок' }).first().click();
+  await expect(bob.getByText('Входящий аудиозвонок')).toBeVisible();
+  await bob.getByRole('button', { name: 'Принять' }).click();
+  await expect(alice.locator('.call-screen')).toContainText(/\d:\d\d/, { timeout: 30_000 });
+
+  await alice.locator('.call-btn', { hasText: 'Экран' }).click();
+  await expect(alice.getByText('Вы показываете экран')).toBeVisible();
+  await expect(bob.getByText('Алиса показывает экран')).toBeVisible({ timeout: 15_000 });
+  // Кадры экрана реально приходят.
+  await expect
+    .poll(() => bob.locator('video.call-remote').evaluate((v: HTMLVideoElement) => v.videoWidth), { timeout: 15_000 })
+    .toBeGreaterThan(0);
+  await bob.screenshot({ path: 'test-results/screen-share.png' });
+
+  await alice.locator('.call-btn', { hasText: 'Экран' }).click();
+  await expect(bob.getByText('Алиса показывает экран')).toBeHidden({ timeout: 15_000 });
+  await bob.getByRole('button', { name: 'Завершить' }).click();
+  await expect(alice.locator('.call-screen')).toBeHidden({ timeout: 10_000 });
+});
+
 test('без сети сообщение ждёт с «часиками» и уходит, когда сеть появилась', async ({ browser }) => {
   const alice = await signUp(browser, 'Алиса', `aliceo${run}`);
   const bob = await signUp(browser, 'Боб', `bobo${run}`);

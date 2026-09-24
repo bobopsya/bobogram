@@ -10,12 +10,16 @@ import { Avatar } from '../../ui/Avatar';
 import { Icon } from '../../ui/Icon';
 import {
   acceptCall,
+  canShareScreen,
+  canSwitchSpeaker,
   declineCall,
   hangUp,
   showIncoming,
   switchCamera,
   toggleCam,
   toggleMic,
+  toggleScreenShare,
+  toggleSpeaker,
   useCall,
 } from './callStore';
 
@@ -75,7 +79,10 @@ export function CallLayer() {
   if (!call) return null;
 
   const name = displayNameOf(peer, '…');
-  const hasRemoteVideo = call.video && (call.remote?.getVideoTracks().length ?? 0) > 0;
+  const showRemoteVideo = call.video || call.remoteScreen;
+  const hasRemoteVideo = showRemoteVideo && (call.remote?.getVideoTracks().length ?? 0) > 0;
+  // Своё превью: экран, если показываю, иначе камера в видеозвонке.
+  const preview = call.sharing ? call.screen : call.video ? call.local : null;
   let status = '';
   switch (call.phase) {
     case 'incoming':
@@ -93,10 +100,13 @@ export function CallLayer() {
   }
 
   return (
-    <div className={call.video ? 'call-screen video' : 'call-screen'}>
-      {call.video && <Video stream={call.remote} className="call-remote" />}
-      {!call.video && <Video stream={call.remote} className="hidden" />}
-      {call.video && call.local && <Video stream={call.local} muted className="call-local" />}
+    <div className={showRemoteVideo ? 'call-screen video' : 'call-screen'}>
+      {/* Один элемент на всё время звонка: через него же идёт звук. */}
+      <Video
+        stream={call.remote}
+        className={showRemoteVideo ? (call.remoteScreen ? 'call-remote contain' : 'call-remote') : 'hidden'}
+      />
+      {preview && <Video stream={preview} muted className={call.sharing ? 'call-local screen' : 'call-local'} />}
 
       {(!hasRemoteVideo || call.phase !== 'active') && (
         <div className="call-info">
@@ -108,8 +118,10 @@ export function CallLayer() {
       {hasRemoteVideo && call.phase === 'active' && call.startedAt && (
         <div className="call-overlay-title">
           {name} · <Timer since={call.startedAt} />
+          {call.remoteScreen && <div className="small">{t('calls.remoteScreen', { name })}</div>}
         </div>
       )}
+      {call.sharing && call.phase === 'active' && <div className="call-sharing-note">{t('calls.sharingNow')}</div>}
 
       <div className="call-controls">
         {call.phase === 'incoming' ? (
@@ -140,6 +152,28 @@ export function CallLayer() {
                   <span>{t('calls.switchCamera')}</span>
                 </button>
               </>
+            )}
+            {canSwitchSpeaker && (
+              <button
+                className={call.speaker ? 'call-btn off' : 'call-btn'}
+                onClick={toggleSpeaker}
+                aria-pressed={call.speaker}
+                aria-label={call.speaker ? t('calls.speakerLoud') : t('calls.speakerQuiet')}
+              >
+                <Icon name={call.speaker ? 'speaker' : 'earpiece'} size={26} />
+                <span>{call.speaker ? t('calls.speakerLoud') : t('calls.speakerQuiet')}</span>
+              </button>
+            )}
+            {canShareScreen && call.phase === 'active' && (
+              <button
+                className={call.sharing ? 'call-btn off' : 'call-btn'}
+                onClick={() => void toggleScreenShare()}
+                aria-pressed={call.sharing}
+                aria-label={t('calls.screen')}
+              >
+                <Icon name="screen" size={26} />
+                <span>{t('calls.screen')}</span>
+              </button>
             )}
             <button className="call-btn decline" onClick={hangUp} aria-label={t('calls.hangup')}>
               <Icon name="hangup" size={28} />

@@ -264,7 +264,13 @@
     "noAnswer": "No answer",
     "failed": "Couldn't connect",
     "busy": "Another call is in progress",
-    "permissionDenied": "No access to microphone or camera"
+    "permissionDenied": "No access to microphone or camera",
+    "screen": "Screen",
+    "speakerLoud": "Speaker",
+    "speakerQuiet": "Earpiece",
+    "screenUnsupported": "The other person needs to update the app to see your screen",
+    "remoteScreen": "{{name}} is sharing their screen",
+    "sharingNow": "You are sharing your screen"
   },
   "admin": {
     "title": "Admin panel",

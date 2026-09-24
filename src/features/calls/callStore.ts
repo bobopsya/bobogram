@@ -30,6 +30,13 @@ export interface CallState {
   camOn: boolean;
   local: MediaStream | null;
   remote: MediaStream | null;
+  /** Я показываю свой экран. */
+  sharing: boolean;
+  screen: MediaStream | null;
+  /** Собеседник показывает экран. */
+  remoteScreen: boolean;
+  /** Громкая связь (true) или разговорный динамик (false). */
+  speaker: boolean;
 }
 
 export const useCall = create<{ call: CallState | null }>(() => ({ call: null }));
@@ -53,7 +60,28 @@ let unsubs: (() => void)[] = [];
 let ringTimer: number | undefined;
 let disconnectTimer: number | undefined;
 let facing: 'user' | 'environment' = 'user';
+let control: RTCDataChannel | null = null;
+let screenTrack: MediaStreamTrack | null = null;
 const seenCandidates = new Set<string>();
+
+type AudioSessionType = 'auto' | 'playback' | 'play-and-record';
+const audioSession = (navigator as Navigator & { audioSession?: { type: AudioSessionType } }).audioSession;
+
+/** Можно ли переключать громкую и обычную связь (Safari на iPhone, iOS 17+). */
+export const canSwitchSpeaker = !!audioSession && /iPhone|iPad|iPod/.test(navigator.userAgent);
+/** Демонстрация экрана есть только в браузерах на ПК. */
+export const canShareScreen =
+  typeof navigator.mediaDevices?.getDisplayMedia === 'function' && !/Android|iPhone|iPad|iPod/.test(navigator.userAgent);
+
+/** play-and-record без «громкой» — звук в разговорный динамик; auto — Safari выводит звонок на громкий. */
+function applyAudioRoute(speaker: boolean) {
+  if (!canSwitchSpeaker || !audioSession) return;
+  try {
+    audioSession.type = speaker ? 'auto' : 'play-and-record';
+  } catch {
+    // не поддерживается — остаётся как решит браузер
+  }
+}
 
 function patch(p: Partial<CallState>) {
   const call = useCall.getState().call;
@@ -73,6 +101,11 @@ async function getMedia(video: boolean): Promise<MediaStream> {
 
 function cleanup() {
   window.clearTimeout(ringTimer);
+  screenTrack?.stop();
+  screenTrack = null;
+  control?.close();
+  control = null;
+  applyAudioRoute(true);
   window.clearTimeout(disconnectTimer);
   unsubs.forEach((u) => u());
   unsubs = [];
@@ -88,7 +121,9 @@ async function finish(reason: EndReason, remoteStatus?: CallRow['status']) {
   if (!call || call.phase === 'ended') return;
   const duration = call.startedAt ? Math.round((Date.now() - call.startedAt) / 1000) : 0;
   cleanup();
-  useCall.setState({ call: { ...call, phase: 'ended', endReason: reason, local: null, remote: null } });
+  useCall.setState({
+    call: { ...call, phase: 'ended', endReason: reason, local: null, remote: null, screen: null, sharing: false, remoteScreen: false },
+  });
   window.setTimeout(() => {
     if (useCall.getState().call?.phase === 'ended') useCall.setState({ call: null });
   }, 1800);
@@ -106,6 +141,17 @@ function createPeer(callId: () => string | null, fromCaller: boolean, servers: R
   const remote = new MediaStream();
   patch({ remote });
   const queued: RTCIceCandidateInit[] = [];
+
+  // Служебный канал: собеседник сообщает, что показывает экран. negotiated — одинаковый у обеих сторон.
+  control = peer.createDataChannel('control', { negotiated: true, id: 0 });
+  control.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(String(e.data)) as { screen?: boolean };
+      if (typeof msg.screen === 'boolean') patch({ remoteScreen: msg.screen });
+    } catch {
+      // чужой формат — игнорируем
+    }
+  };
 
   peer.ontrack = (e) => {
     const tracks = e.streams[0]?.getTracks() ?? [e.track];
@@ -175,11 +221,16 @@ export async function startCall(chatId: string, peerUid: string, video: boolean)
       endReason: null,
       micOn: true,
       camOn: video,
+      sharing: false,
+      screen: null,
+      remoteScreen: false,
+      speaker: video,
       local: null,
       remote: null,
     },
   });
 
+  applyAudioRoute(video);
   let local: MediaStream;
   try {
     local = await getMedia(video);
@@ -194,6 +245,8 @@ export async function startCall(chatId: string, peerUid: string, video: boolean)
     const peer = createPeer(() => callId, true, await iceServers());
     pc = peer;
     local.getTracks().forEach((t) => peer.addTrack(t, local));
+    // В аудиозвонке заранее оставляем место под видео, чтобы потом можно было показать экран.
+    if (!video) peer.addTransceiver('video', { direction: 'sendrecv', streams: [local] });
     const offer = await peer.createOffer();
     await peer.setLocalDescription(offer);
     callId = await createCall({ chatId, calleeId: peerUid, video, offer: { type: offer.type, sdp: offer.sdp } });
@@ -245,6 +298,10 @@ export function showIncoming(row: CallRow) {
       endReason: null,
       micOn: true,
       camOn: row.video,
+      sharing: false,
+      screen: null,
+      remoteScreen: false,
+      speaker: row.video,
       local: null,
       remote: null,
     },
@@ -267,6 +324,7 @@ export async function acceptCall() {
   window.clearTimeout(ringTimer);
   patch({ phase: 'connecting' });
 
+  applyAudioRoute(call.speaker);
   let local: MediaStream;
   try {
     local = await getMedia(call.video);
@@ -286,6 +344,9 @@ export async function acceptCall() {
     pc = peer;
     local.getTracks().forEach((t) => peer.addTrack(t, local));
     await peer.setRemoteDescription(row.offer);
+    peer.getTransceivers().forEach((tr) => {
+      if (tr.receiver.track.kind === 'video' && tr.direction === 'recvonly') tr.direction = 'sendrecv';
+    });
     const answer = await peer.createAnswer();
     await peer.setLocalDescription(answer);
     await updateCall(callId, {
@@ -345,6 +406,69 @@ export async function switchCamera() {
   } catch {
     useApp.getState().showToast(i18n.t('calls.failed'));
   }
+}
+
+export function toggleSpeaker() {
+  const call = useCall.getState().call;
+  if (!call) return;
+  applyAudioRoute(!call.speaker);
+  patch({ speaker: !call.speaker });
+}
+
+function videoSender(): RTCRtpSender | undefined {
+  return pc
+    ?.getTransceivers()
+    .find((tr) => tr.receiver.track.kind === 'video' && (tr.currentDirection === 'sendrecv' || tr.currentDirection === 'sendonly'))
+    ?.sender;
+}
+
+function sendControl(msg: object) {
+  if (control?.readyState === 'open') control.send(JSON.stringify(msg));
+}
+
+export async function toggleScreenShare() {
+  const call = useCall.getState().call;
+  if (!call || !pc) return;
+  if (call.sharing) {
+    await stopScreenShare();
+    return;
+  }
+  const sender = videoSender();
+  if (!sender) {
+    // Собеседник на старой версии приложения — места под видео нет.
+    useApp.getState().showToast(i18n.t('calls.screenUnsupported'));
+    return;
+  }
+  let stream: MediaStream;
+  try {
+    stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 15 } }, audio: false });
+  } catch {
+    return; // передумали в окне выбора
+  }
+  const track = stream.getVideoTracks()[0];
+  if (!track || !useCall.getState().call || !pc) {
+    stream.getTracks().forEach((t) => t.stop());
+    return;
+  }
+  track.contentHint = 'detail';
+  // Кнопка браузера «Закрыть доступ».
+  track.onended = () => void stopScreenShare();
+  await sender.replaceTrack(track);
+  screenTrack = track;
+  patch({ sharing: true, screen: stream });
+  sendControl({ screen: true });
+}
+
+async function stopScreenShare() {
+  const call = useCall.getState().call;
+  screenTrack?.stop();
+  screenTrack = null;
+  if (!call) return;
+  await videoSender()
+    ?.replaceTrack(call.local?.getVideoTracks()[0] ?? null)
+    .catch(() => undefined);
+  patch({ sharing: false, screen: null });
+  sendControl({ screen: false });
 }
 
 // Закрыли вкладку во время звонка — сообщаем собеседнику.

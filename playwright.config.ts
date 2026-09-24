@@ -13,7 +13,13 @@ export default defineConfig({
     launchOptions: {
       ...(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {}),
       // Фейковые камера и микрофон для теста звонков.
-      args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
+      args: [
+        '--use-fake-device-for-media-stream',
+        '--use-fake-ui-for-media-stream',
+        // Демонстрация экрана без окна выбора.
+        '--auto-select-desktop-capture-source=Entire screen',
+        '--auto-accept-this-tab-capture',
+      ],
     },
   },
   webServer: {
