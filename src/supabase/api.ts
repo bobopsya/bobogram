@@ -1,0 +1,455 @@
+import { accountEmail, supabase } from './client';
+import type {
+  CallRow,
+  Chat,
+  ForwardRef,
+  LastMessage,
+  Member,
+  Message,
+  ReplyRef,
+  UserProfile,
+} from './types';
+import { normalizeUsername } from '../lib/username';
+
+type Row = Record<string, unknown>;
+
+const ms = (v: unknown): number => (v ? Date.parse(String(v)) : 0);
+const msOrNull = (v: unknown): number | null => (v ? Date.parse(String(v)) : null);
+
+/** Ошибка Supabase/PostgREST → понятный код. */
+export class ApiError extends Error {
+  constructor(
+    public code: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+function check<T>(res: { data: T; error: { code?: string; message: string } | null }): T {
+  if (res.error) throw new ApiError(res.error.code ?? 'unknown', res.error.message);
+  return res.data;
+}
+
+// ---------- преобразование строк ----------
+export function toProfile(r: Row): UserProfile {
+  return {
+    uid: String(r.id),
+    username: String(r.username ?? ''),
+    displayName: String(r.display_name ?? ''),
+    bio: String(r.bio ?? ''),
+    avatar: (r.avatar as string | null) ?? null,
+    role: r.role === 'admin' ? 'admin' : 'user',
+    banned: r.banned === true,
+    hideLastSeen: r.hide_last_seen === true,
+    lastSeen: msOrNull(r.last_seen),
+    createdAt: ms(r.created_at),
+  };
+}
+
+function toLast(v: unknown): LastMessage | null {
+  if (!v || typeof v !== 'object') return null;
+  const r = v as Row;
+  return {
+    id: String(r.id),
+    text: String(r.text ?? ''),
+    senderId: String(r.sender_id),
+    createdAt: ms(r.created_at),
+    deleted: r.deleted === true,
+    system: (r.system as LastMessage['system']) ?? null,
+    call: (r.call as LastMessage['call']) ?? null,
+  };
+}
+
+export function toChat(r: Row): Chat {
+  return {
+    id: String(r.id),
+    type: r.type as Chat['type'],
+    title: (r.title as string | null) ?? null,
+    description: String(r.description ?? ''),
+    avatar: (r.avatar as string | null) ?? null,
+    ownerId: (r.owner_id as string | null) ?? null,
+    inviteCode: (r.invite_code as string | null) ?? null,
+    pinnedMessageIds: (r.pinned_message_ids as string[] | null) ?? [],
+    lastMessage: toLast(r.last_message),
+    createdAt: ms(r.created_at),
+    updatedAt: ms(r.updated_at),
+    myRole: (r.my_role as Chat['myRole']) ?? null,
+    lastReadAt: ms(r.last_read_at),
+    pinned: r.pinned === true,
+    muted: r.muted === true,
+    unread: Number(r.unread ?? 0),
+    memberCount: Number(r.member_count ?? 0),
+    otherId: (r.other_id as string | null) ?? null,
+    othersReadAt: ms(r.others_read_at),
+  };
+}
+
+export function toMessage(r: Row): Message {
+  return {
+    id: String(r.id),
+    chatId: String(r.chat_id),
+    senderId: String(r.sender_id),
+    text: String(r.text ?? ''),
+    createdAt: ms(r.created_at),
+    editedAt: msOrNull(r.edited_at),
+    deleted: r.deleted === true,
+    deletedFor: (r.deleted_for as string[] | null) ?? [],
+    replyTo: (r.reply_to as ReplyRef | null) ?? null,
+    forwardedFrom: (r.forwarded_from as ForwardRef | null) ?? null,
+    reactions: (r.reactions as Record<string, string[]> | null) ?? {},
+    system: (r.system as Message['system']) ?? null,
+    call: (r.call as Message['call']) ?? null,
+    pending: false,
+  };
+}
+
+export function toCall(r: Row): CallRow {
+  return {
+    id: String(r.id),
+    callerId: String(r.caller_id),
+    calleeId: String(r.callee_id),
+    chatId: String(r.chat_id),
+    video: r.video === true,
+    status: r.status as CallRow['status'],
+    offer: (r.offer as RTCSessionDescriptionInit | null) ?? null,
+    answer: (r.answer as RTCSessionDescriptionInit | null) ?? null,
+    createdAt: ms(r.created_at),
+  };
+}
+
+// ---------- аккаунт ----------
+export async function isUsernameFree(name: string): Promise<boolean> {
+  return check(await supabase.rpc('username_available', { p_username: normalizeUsername(name) })) === true;
+}
+
+export async function register(username: string, displayName: string, password: string): Promise<void> {
+  const name = normalizeUsername(username);
+  const { error } = await supabase.auth.signUp({
+    email: accountEmail(),
+    password,
+    options: { data: { username: name, display_name: displayName.trim() } },
+  });
+  if (error) {
+    // Триггер не смог создать профиль — почти всегда это занятый юзернейм.
+    if (/database error/i.test(error.message)) throw new ApiError('username_taken', error.message);
+    throw new ApiError(error.code ?? 'auth', error.message);
+  }
+}
+
+export async function login(username: string, password: string): Promise<void> {
+  const email = check(await supabase.rpc('login_email', { p_username: normalizeUsername(username) })) as string | null;
+  if (!email) throw new ApiError('invalid_credentials', 'no such user');
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw new ApiError(error.code ?? 'invalid_credentials', error.message);
+}
+
+export async function logout(): Promise<void> {
+  await supabase.auth.signOut();
+}
+
+export async function changePassword(password: string): Promise<void> {
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) throw new ApiError(error.code ?? 'auth', error.message);
+}
+
+/** Код ошибки → ключ перевода. */
+export function errorKey(err: unknown): string {
+  const code = (err as { code?: string })?.code ?? '';
+  const msg = (err as { message?: string })?.message ?? '';
+  if (code === 'username_taken' || code === '23505') return 'auth.usernameTaken';
+  if (code === 'invalid_credentials') return 'errors.wrongCredentials';
+  if (code === 'weak_password') return 'errors.weakPassword';
+  if (code === 'over_request_rate_limit' || code === 'over_email_send_rate_limit') return 'errors.tooManyRequests';
+  if (code === '42501') return /blocked/.test(msg) ? 'chat.blockedByThem' : 'errors.permission';
+  if (msg.includes('too many members')) return 'errors.tooManyMembers';
+  if (msg.includes('invalid invite')) return 'groups.invalidInvite';
+  if (err instanceof TypeError || /fetch|network/i.test(msg)) return 'errors.network';
+  return 'errors.generic';
+}
+
+export async function updateProfile(
+  uid: string,
+  patch: Partial<{ displayName: string; bio: string; avatar: string | null; hideLastSeen: boolean; username: string }>,
+): Promise<void> {
+  const row: Row = {};
+  if (patch.displayName !== undefined) row.display_name = patch.displayName;
+  if (patch.bio !== undefined) row.bio = patch.bio;
+  if (patch.avatar !== undefined) row.avatar = patch.avatar;
+  if (patch.hideLastSeen !== undefined) row.hide_last_seen = patch.hideLastSeen;
+  if (patch.username !== undefined) row.username = normalizeUsername(patch.username);
+  check(await supabase.from('profiles').update(row).eq('id', uid));
+}
+
+export async function touchLastSeen(uid: string): Promise<void> {
+  await supabase.from('profiles').update({ last_seen: new Date().toISOString() }).eq('id', uid);
+}
+
+export async function fetchProfiles(ids: string[]): Promise<UserProfile[]> {
+  return (check(await supabase.from('profiles').select('*').in('id', ids)) as Row[]).map(toProfile);
+}
+
+export async function findUserByUsername(name: string): Promise<UserProfile | null> {
+  const n = normalizeUsername(name);
+  const rows = check(await supabase.from('profiles').select('*').ilike('username', n.replace(/[%_\\]/g, '\\$&'))) as Row[];
+  return rows[0] ? toProfile(rows[0]) : null;
+}
+
+export async function searchUsers(prefix: string): Promise<UserProfile[]> {
+  const p = normalizeUsername(prefix).replace(/[%_\\]/g, '\\$&');
+  if (!p) return [];
+  const rows = check(await supabase.from('profiles').select('*').ilike('username', `${p}%`).limit(20)) as Row[];
+  return rows.map(toProfile);
+}
+
+export async function listUsers(): Promise<UserProfile[]> {
+  const rows = check(await supabase.from('profiles').select('*').order('created_at').limit(500)) as Row[];
+  return rows.map(toProfile);
+}
+
+// ---------- чёрный список ----------
+export async function fetchBlocked(): Promise<string[]> {
+  return (check(await supabase.from('blocks').select('blocked_id')) as Row[]).map((r) => String(r.blocked_id));
+}
+
+export async function setBlocked(other: string, blocked: boolean): Promise<void> {
+  if (blocked) check(await supabase.from('blocks').upsert({ blocked_id: other }, { ignoreDuplicates: true }));
+  else check(await supabase.from('blocks').delete().eq('blocked_id', other));
+}
+
+// ---------- чаты ----------
+export async function fetchChats(chatId?: string): Promise<Chat[]> {
+  const rows = check(await supabase.rpc('get_chats', chatId ? { p_chat: chatId } : {})) as Row[];
+  return rows.map(toChat);
+}
+
+export async function openPrivateChat(other: string): Promise<string> {
+  return check(await supabase.rpc('get_or_create_private_chat', { p_other: other })) as string;
+}
+
+export async function openSavedChat(): Promise<string> {
+  return check(await supabase.rpc('get_saved_chat')) as string;
+}
+
+export async function fetchMembers(chatId: string): Promise<Member[]> {
+  const rows = check(
+    await supabase.from('chat_members').select('user_id, role, last_read_at').eq('chat_id', chatId).order('joined_at'),
+  ) as Row[];
+  return rows.map((r) => ({ userId: String(r.user_id), role: r.role as Member['role'], lastReadAt: ms(r.last_read_at) }));
+}
+
+export async function markRead(chatId: string): Promise<void> {
+  check(await supabase.rpc('mark_read', { p_chat: chatId }));
+}
+
+export async function setChatPrefs(chatId: string, prefs: { pinned?: boolean; muted?: boolean }): Promise<void> {
+  check(await supabase.rpc('set_chat_prefs', { p_chat: chatId, p_pinned: prefs.pinned ?? null, p_muted: prefs.muted ?? null }));
+}
+
+export async function setPinnedMessages(chatId: string, ids: string[]): Promise<void> {
+  check(await supabase.rpc('set_pinned_messages', { p_chat: chatId, p_ids: ids }));
+}
+
+// ---------- сообщения ----------
+export const PAGE_SIZE = 50;
+
+export async function fetchMessages(chatId: string, before?: number, count = PAGE_SIZE): Promise<Message[]> {
+  let q = supabase.from('messages').select('*').eq('chat_id', chatId).order('created_at', { ascending: false }).limit(count);
+  if (before) q = q.lt('created_at', new Date(before).toISOString());
+  return (check(await q) as Row[]).map(toMessage).reverse();
+}
+
+export async function fetchMessage(id: string): Promise<Message | null> {
+  const rows = check(await supabase.from('messages').select('*').eq('id', id)) as Row[];
+  return rows[0] ? toMessage(rows[0]) : null;
+}
+
+export interface OutgoingMessage {
+  id: string;
+  chatId: string;
+  text: string;
+  replyTo?: ReplyRef | null;
+  forwardedFrom?: ForwardRef | null;
+  call?: Message['call'];
+}
+
+export async function sendMessageNow(m: OutgoingMessage): Promise<void> {
+  check(
+    await supabase.rpc('send_message', {
+      p_id: m.id,
+      p_chat: m.chatId,
+      p_text: m.text,
+      p_reply_to: m.replyTo ?? null,
+      p_forwarded_from: m.forwardedFrom ?? null,
+      p_call: m.call ?? null,
+    }),
+  );
+}
+
+export async function editMessage(id: string, text: string): Promise<void> {
+  check(await supabase.rpc('edit_message', { p_id: id, p_text: text }));
+}
+
+export async function deleteMessage(id: string, forAll: boolean): Promise<void> {
+  check(await supabase.rpc('delete_message', { p_id: id, p_for_all: forAll }));
+}
+
+export async function toggleReaction(id: string, emoji: string): Promise<void> {
+  check(await supabase.rpc('toggle_reaction', { p_id: id, p_emoji: emoji }));
+}
+
+export function snippetOf(text: string, max = 120): string {
+  const oneLine = text.replace(/\s+/g, ' ').trim();
+  return oneLine.length > max ? oneLine.slice(0, max - 1) + '…' : oneLine;
+}
+
+// ---------- группы и каналы ----------
+export async function createChat(input: {
+  kind: 'group' | 'channel';
+  title: string;
+  description: string;
+  avatar: string | null;
+  members: string[];
+}): Promise<string> {
+  return check(
+    await supabase.rpc('create_chat', {
+      p_type: input.kind,
+      p_title: input.title.trim(),
+      p_description: input.description.trim(),
+      p_avatar: input.avatar,
+      p_members: input.members,
+    }),
+  ) as string;
+}
+
+export async function updateChatInfo(chatId: string, info: { title: string; description: string; avatar: string | null }) {
+  check(
+    await supabase.rpc('update_chat_info', {
+      p_chat: chatId,
+      p_title: info.title.trim(),
+      p_description: info.description.trim(),
+      p_avatar: info.avatar,
+    }),
+  );
+}
+
+export async function addMembers(chatId: string, users: string[]) {
+  check(await supabase.rpc('add_members', { p_chat: chatId, p_users: users }));
+}
+
+export async function removeMember(chatId: string, user: string) {
+  check(await supabase.rpc('remove_member', { p_chat: chatId, p_user: user }));
+}
+
+export async function setAdmin(chatId: string, user: string, admin: boolean) {
+  check(await supabase.rpc('set_admin', { p_chat: chatId, p_user: user, p_admin: admin }));
+}
+
+export async function leaveChat(chatId: string) {
+  check(await supabase.rpc('leave_chat', { p_chat: chatId }));
+}
+
+export async function deleteChat(chatId: string) {
+  check(await supabase.rpc('delete_chat', { p_chat: chatId }));
+}
+
+export async function resetInvite(chatId: string): Promise<string> {
+  return check(await supabase.rpc('reset_invite', { p_chat: chatId })) as string;
+}
+
+export interface InvitePreview {
+  chatId: string;
+  type: 'group' | 'channel';
+  title: string;
+  avatar: string | null;
+  memberCount: number;
+  isMember: boolean;
+}
+
+export async function getInvite(code: string): Promise<InvitePreview | null> {
+  const rows = check(await supabase.rpc('invite_preview', { p_code: code })) as Row[];
+  const r = rows[0];
+  if (!r) return null;
+  return {
+    chatId: String(r.id),
+    type: r.type as InvitePreview['type'],
+    title: String(r.title ?? ''),
+    avatar: (r.avatar as string | null) ?? null,
+    memberCount: Number(r.member_count ?? 0),
+    isMember: r.is_member === true,
+  };
+}
+
+export async function joinByInvite(code: string): Promise<string> {
+  return check(await supabase.rpc('join_by_invite', { p_code: code })) as string;
+}
+
+export function inviteLink(code: string): string {
+  return `${window.location.origin}${import.meta.env.BASE_URL}#/join/${code}`;
+}
+
+export function profileLink(username: string): string {
+  return `${window.location.origin}${import.meta.env.BASE_URL}#/u/${username}`;
+}
+
+// ---------- админ сервиса ----------
+export async function setBanned(uid: string, banned: boolean) {
+  check(await supabase.rpc('set_banned', { p_user: uid, p_banned: banned }));
+}
+
+export async function adminListChats() {
+  const rows = check(await supabase.rpc('admin_list_chats')) as Row[];
+  return rows.map((r) => ({
+    id: String(r.id),
+    type: r.type as 'group' | 'channel',
+    title: String(r.title ?? ''),
+    avatar: (r.avatar as string | null) ?? null,
+    memberCount: Number(r.member_count ?? 0),
+  }));
+}
+
+export async function adminResetPassword(userId: string, password: string) {
+  const { data, error } = await supabase.functions.invoke('bobogram', {
+    body: { action: 'reset_password', userId, password },
+  });
+  if (error || (data as { error?: string })?.error) throw new ApiError('generic', error?.message ?? 'failed');
+}
+
+// ---------- звонки ----------
+export async function createCall(call: { chatId: string; calleeId: string; video: boolean; offer: RTCSessionDescriptionInit }) {
+  const rows = check(
+    await supabase
+      .from('calls')
+      .insert({ chat_id: call.chatId, callee_id: call.calleeId, video: call.video, offer: call.offer })
+      .select('id'),
+  ) as Row[];
+  return String(rows[0].id);
+}
+
+export async function fetchCall(id: string): Promise<CallRow | null> {
+  const rows = check(await supabase.from('calls').select('*').eq('id', id)) as Row[];
+  return rows[0] ? toCall(rows[0]) : null;
+}
+
+export async function updateCall(id: string, patch: Row) {
+  check(await supabase.from('calls').update(patch).eq('id', id));
+}
+
+export async function addCandidate(callId: string, fromCaller: boolean, candidate: RTCIceCandidateInit) {
+  await supabase.from('call_candidates').insert({ call_id: callId, from_caller: fromCaller, candidate });
+}
+
+export async function fetchCandidates(callId: string, fromCaller: boolean): Promise<RTCIceCandidateInit[]> {
+  const rows = check(
+    await supabase.from('call_candidates').select('candidate').eq('call_id', callId).eq('from_caller', fromCaller).order('id'),
+  ) as Row[];
+  return rows.map((r) => r.candidate as RTCIceCandidateInit);
+}
+
+export async function fetchRingingCalls(me: string): Promise<CallRow[]> {
+  const since = new Date(Date.now() - 60_000).toISOString();
+  const rows = check(
+    await supabase.from('calls').select('*').eq('callee_id', me).eq('status', 'ringing').gt('created_at', since),
+  ) as Row[];
+  return rows.map(toCall);
+}
