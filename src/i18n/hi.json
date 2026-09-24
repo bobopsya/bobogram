@@ -178,14 +178,7 @@
     "changeAvatar": "फ़ोटो बदलें",
     "removeAvatar": "फ़ोटो हटाएँ",
     "notFound": "उपयोगकर्ता नहीं मिला",
-    "saved": "बदलाव सहेजे गए",
-    "collectibles": "NFT उपहार",
-    "collectible": "NFT उपहार",
-    "collectibleGift": "gift",
-    "collectibleHint": "अनोखा collectible उपहार",
-    "collectibleModel": "मॉडल",
-    "collectibleBackdrop": "बैकड्रॉप",
-    "collectibleSymbol": "सिंबल"
+    "saved": "बदलाव सहेजे गए"
   },
   "groups": {
     "createGroup": "समूह बनाएँ",

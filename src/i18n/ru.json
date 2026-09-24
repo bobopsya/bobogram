@@ -182,14 +182,7 @@
     "changeAvatar": "Сменить фото",
     "removeAvatar": "Удалить фото",
     "notFound": "Пользователь не найден",
-    "saved": "Изменения сохранены",
-    "collectibles": "NFT-подарки",
-    "collectible": "NFT-подарок",
-    "collectibleGift": "gift",
-    "collectibleHint": "Уникальный коллекционный подарок",
-    "collectibleModel": "Модель",
-    "collectibleBackdrop": "Фон",
-    "collectibleSymbol": "Символ"
+    "saved": "Изменения сохранены"
   },
   "groups": {
     "createGroup": "Создать группу",
