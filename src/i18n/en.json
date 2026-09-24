@@ -65,7 +65,8 @@
     "tooLong": "Message is too long",
     "tooManyMembers": "Too many members",
     "pinLimit": "You can pin up to 5 chats (10 with Premium)",
-    "bioTooLong": "Bio is limited to 70 characters (200 with Premium)"
+    "bioTooLong": "Bio is limited to 70 characters (200 with Premium)",
+    "upload": "Could not upload the file"
   },
   "chats": {
     "title": "Chats",
@@ -264,7 +265,13 @@
     "noAnswer": "No answer",
     "failed": "Couldn't connect",
     "busy": "Another call is in progress",
-    "permissionDenied": "No access to microphone or camera"
+    "permissionDenied": "No access to microphone or camera",
+    "screen": "Screen",
+    "speakerLoud": "Speaker",
+    "speakerQuiet": "Earpiece",
+    "screenUnsupported": "The other person needs to update the app to see your screen",
+    "remoteScreen": "{{name}} is sharing their screen",
+    "sharingNow": "You are sharing your screen"
   },
   "admin": {
     "title": "Admin panel",
@@ -365,5 +372,18 @@
     "requestSent": "Request sent to the administrator",
     "pending": "Your request is waiting for the administrator",
     "rejected": "Your previous request was rejected. You can send a new one."
+  },
+  "media": {
+    "photo": "Photo",
+    "voice": "Voice message",
+    "attach": "Attach photo",
+    "record": "Record voice message",
+    "play": "Play",
+    "pause": "Pause",
+    "caption": "Caption",
+    "sendPhotos_one": "Send photo",
+    "sendPhotos_other": "Send {{count}} photos",
+    "micDenied": "No access to the microphone",
+    "badPhoto": "Could not open the photo"
   }
 }

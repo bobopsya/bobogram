@@ -52,7 +52,10 @@ export const useApp = create<AppState>((set) => ({
   blocked: [],
   chats: read<Chat[]>('bobogram.chats', []),
   chatsLoaded: false,
-  outbox: read<Message[]>('bobogram.outbox', []).map(normalizeMessage),
+  // Недогруженные файлы после перезагрузки не восстановить — такие сообщения выбрасываем.
+  outbox: read<Message[]>('bobogram.outbox', [])
+    .filter((m) => !m.uploading)
+    .map((m) => ({ ...normalizeMessage(m), localUrl: undefined })),
   online: navigator.onLine,
   theme: read<ThemeMode>('bobogram.theme', 'system'),
   appearance: { ...DEFAULT_APPEARANCE, ...read<Partial<Appearance>>('bobogram.appearance', {}) },

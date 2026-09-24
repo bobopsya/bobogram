@@ -1,11 +1,12 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 
-
 const run = Date.now().toString(36).slice(-6);
 
 async function signUp(browser: Browser, name: string, username: string, mobile = false): Promise<Page> {
   const context = await browser.newContext(
-    mobile ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ru-RU' } : { locale: 'ru-RU' },
+    mobile
+      ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ru-RU' }
+      : { locale: 'ru-RU' },
   );
   const page = await context.newPage();
   page.on('console', (m) => m.type() === 'error' && console.log('[browser]', m.text()));
@@ -62,7 +63,9 @@ test('регистрация, личная переписка, реакции, �
   await alice.getByRole('menuitem', { name: 'Ответить' }).click();
   await alice.getByPlaceholder('Сообщение').fill('Отлично!');
   await alice.keyboard.press('Enter');
-  await expect(bob.locator('.bubble', { hasText: 'Отлично!' }).locator('.msg-reply')).toContainText('Привет, Алиса');
+  await expect(bob.locator('.bubble', { hasText: 'Отлично!' }).locator('.msg-reply')).toContainText(
+    'Привет, Алиса',
+  );
 
   await bob.screenshot({ path: 'test-results/mobile-chat.png' });
 
@@ -78,7 +81,7 @@ test('регистрация, личная переписка, реакции, �
   await bob.getByRole('button', { name: 'Назад' }).first().click();
   await bob.locator('.chat-item', { hasText: 'Друзья' }).click();
   await expect(bob.locator('.bubble', { hasText: 'Всем привет в группе' })).toBeVisible();
-  await expect(bob.getByText('Алиса создал(а) «Друзья»')).toBeVisible();
+  await expect(bob.locator('.msg-row.system', { hasText: 'Алиса создал(а) «Друзья»' })).toBeVisible();
   await alice.screenshot({ path: 'test-results/desktop-group.png' });
 });
 
@@ -107,6 +110,87 @@ test('видеозвонок соединяется и пишет запись �
   await expect(alice.locator('.msg-call')).toContainText('Видеозвонок');
 });
 
+test('аудиозвонок: демонстрация экрана доходит до собеседника', async ({ browser }) => {
+  const alice = await signUp(browser, 'Алиса', `alices${run}`);
+  const bob = await signUp(browser, 'Боб', `bobs${run}`);
+  for (const page of [alice, bob]) await page.context().grantPermissions(['camera', 'microphone']);
+
+  await alice.getByPlaceholder('Поиск по @имени или чатам').fill(`@bobs${run}`);
+  await alice.locator('.list-item', { hasText: 'Боб' }).click();
+  await alice.getByPlaceholder('Сообщение').fill('Покажу экран');
+  await alice.keyboard.press('Enter');
+  await expect(bob.locator('.chat-item', { hasText: 'Алиса' })).toBeVisible();
+
+  await alice.getByRole('button', { name: 'Аудиозвонок' }).first().click();
+  await expect(bob.getByText('Входящий аудиозвонок')).toBeVisible();
+  await bob.getByRole('button', { name: 'Принять' }).click();
+  await expect(alice.locator('.call-screen')).toContainText(/\d:\d\d/, { timeout: 30_000 });
+
+  await alice.locator('.call-btn', { hasText: 'Экран' }).click();
+  await expect(alice.getByText('Вы показываете экран')).toBeVisible();
+  await expect(bob.getByText('Алиса показывает экран')).toBeVisible({ timeout: 15_000 });
+  // Кадры экрана реально приходят.
+  await expect
+    .poll(() => bob.locator('video.call-remote').evaluate((v: HTMLVideoElement) => v.videoWidth), {
+      timeout: 15_000,
+    })
+    .toBeGreaterThan(0);
+  await bob.screenshot({ path: 'test-results/screen-share.png' });
+
+  await alice.locator('.call-btn', { hasText: 'Экран' }).click();
+  await expect(bob.getByText('Алиса показывает экран')).toBeHidden({ timeout: 15_000 });
+  await bob.getByRole('button', { name: 'Завершить' }).click();
+  await expect(alice.locator('.call-screen')).toBeHidden({ timeout: 10_000 });
+});
+
+test('фото с подписью и голосовое доходят до собеседника', async ({ browser }) => {
+  const alice = await signUp(browser, 'Алиса', `alicem${run}`);
+  const bob = await signUp(browser, 'Боб', `bobm${run}`, true);
+  await alice.context().grantPermissions(['microphone']);
+
+  await alice.getByPlaceholder('Поиск по @имени или чатам').fill(`@bobm${run}`);
+  await alice.locator('.list-item', { hasText: 'Боб' }).click();
+  await alice.getByPlaceholder('Сообщение').fill('Смотри');
+
+  // Картинка 400×300, нарисованная прямо в браузере.
+  const png = await alice.evaluate(async () => {
+    const c = document.createElement('canvas');
+    c.width = 400;
+    c.height = 300;
+    const ctx = c.getContext('2d')!;
+    ctx.fillStyle = '#3a8';
+    ctx.fillRect(0, 0, 400, 300);
+    return c.toDataURL('image/png').split(',')[1];
+  });
+  await alice.locator('input[type="file"]').setInputFiles({
+    name: 'pic.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(png, 'base64'),
+  });
+  await expect(alice.getByPlaceholder('Подпись')).toHaveValue('Смотри');
+  await alice.getByRole('dialog').getByRole('button', { name: 'Отправить' }).click();
+
+  await bob.locator('.chat-item', { hasText: 'Алиса' }).click();
+  const photo = bob.locator('.msg-photo img');
+  await expect(photo).toHaveClass(/loaded/, { timeout: 20_000 });
+  expect(await photo.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(400);
+  await expect(bob.locator('.bubble.has-photo')).toContainText('Смотри');
+
+  // Голосовое (фейковый микрофон Chromium).
+  await alice.getByRole('button', { name: 'Записать голосовое' }).click();
+  await expect(alice.locator('.rec-time')).toHaveText(/0:01/, { timeout: 5_000 });
+  await alice.waitForTimeout(600);
+  await alice.locator('.composer.recording').getByRole('button', { name: 'Отправить' }).click();
+  const voice = bob.locator('.voice');
+  await expect(voice).toBeVisible({ timeout: 20_000 });
+  await expect(voice.locator('.voice-time')).toHaveText(/0:0[12]/);
+  await expect(voice.locator('.voice-play')).toBeEnabled();
+  await voice.locator('.voice-play').click();
+  await expect(voice.locator('.voice-wave span.on').first()).toBeVisible({ timeout: 10_000 });
+  await expect(bob.locator('.chat-item', { hasText: 'Алиса' })).toContainText('Голосовое сообщение');
+  await bob.screenshot({ path: 'test-results/media.png' });
+});
+
 test('без сети сообщение ждёт с «часиками» и уходит, когда сеть появилась', async ({ browser }) => {
   const alice = await signUp(browser, 'Алиса', `aliceo${run}`);
   const bob = await signUp(browser, 'Боб', `bobo${run}`);
@@ -127,5 +211,7 @@ test('без сети сообщение ждёт с «часиками» и у�
   await expect(bob.locator('.chat-item', { hasText: 'Алиса' })).not.toContainText('Отправлено без сети');
 
   await alice.context().setOffline(false);
-  await expect(bob.locator('.chat-item', { hasText: 'Алиса' })).toContainText('Отправлено без сети', { timeout: 30_000 });
+  await expect(bob.locator('.chat-item', { hasText: 'Алиса' })).toContainText('Отправлено без сети', {
+    timeout: 30_000,
+  });
 });

@@ -10,7 +10,7 @@ import { Menu, type MenuItem } from '../../ui/Menu';
 import { displayNameOf, usePresence, useProfile } from '../../app/profiles';
 import { useLongPress } from '../../ui/useLongPress';
 import { Badges } from '../../ui/Badges';
-import { callText, ChatAvatar, systemText, useChatMeta } from './chatMeta';
+import { callText, ChatAvatar, systemText, useChatMeta , mediaLabel } from './chatMeta';
 
 interface Props {
   chat: Chat;
@@ -36,6 +36,7 @@ export const ChatListItem = memo(function ChatListItem({ chat, active, onClick }
     if (last.deleted) preview = t('chats.deletedMessage');
     else if (last.system) preview = systemText(last.system, last.senderId, t, me);
     else if (last.call) preview = callText({ call: last.call, senderId: last.senderId }, t, me);
+    else if (last.media) preview = last.text ? `${mediaLabel(last, t)}, ${last.text}` : mediaLabel(last, t);
     else preview = last.text;
   }
   let prefix = '';

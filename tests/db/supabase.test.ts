@@ -126,14 +126,22 @@ describe('личные чаты', () => {
     await rpc(alice, 'edit_message', { p_id: id, p_text: 'исправлено' });
     await rpc(bob, 'toggle_reaction', { p_id: id, p_emoji: '👍' });
     await rpc(bob, 'toggle_reaction', { p_id: id, p_emoji: '🔥' }); // заменяет 👍
-    const { data } = await alice.db.from('messages').select('text, edited_at, reactions').eq('id', id).single();
+    const { data } = await alice.db
+      .from('messages')
+      .select('text, edited_at, reactions')
+      .eq('id', id)
+      .single();
     expect(data!.text).toBe('исправлено');
     expect(data!.edited_at).not.toBeNull();
     expect(data!.reactions).toEqual({ '🔥': [bob.id] });
     await fails(rpc(bob, 'delete_message', { p_id: id, p_for_all: true }));
     await rpc(bob, 'delete_message', { p_id: id, p_for_all: false });
     await rpc(alice, 'delete_message', { p_id: id, p_for_all: true });
-    const { data: d2 } = await alice.db.from('messages').select('text, deleted, deleted_for').eq('id', id).single();
+    const { data: d2 } = await alice.db
+      .from('messages')
+      .select('text, deleted, deleted_for')
+      .eq('id', id)
+      .single();
     expect(d2).toMatchObject({ text: '', deleted: true, deleted_for: [bob.id] });
   });
 
@@ -141,7 +149,10 @@ describe('личные чаты', () => {
     const id = crypto.randomUUID();
     await rpc(alice, 'send_message', { p_id: id, p_chat: chat, p_text: 'один раз' });
     await rpc(alice, 'send_message', { p_id: id, p_chat: chat, p_text: 'один раз' });
-    const { count } = await alice.db.from('messages').select('*', { count: 'exact', head: true }).eq('id', id);
+    const { count } = await alice.db
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .eq('id', id);
     expect(count).toBe(1);
   });
 
@@ -164,7 +175,11 @@ describe('личные чаты', () => {
 
 describe('группы и каналы', () => {
   it('группа: создание, лимит, роли, выход', async () => {
-    const g = await rpc<string>(alice, 'create_chat', { p_type: 'group', p_title: 'Друзья', p_members: [bob.id] });
+    const g = await rpc<string>(alice, 'create_chat', {
+      p_type: 'group',
+      p_title: 'Друзья',
+      p_members: [bob.id],
+    });
     const { data: msgs } = await bob.db.from('messages').select('system').eq('chat_id', g);
     expect(msgs![0].system).toMatchObject({ kind: 'created', title: 'Друзья' });
 
@@ -181,7 +196,11 @@ describe('группы и каналы', () => {
   });
 
   it('в канале пишут только админы, подписчики читают', async () => {
-    const ch = await rpc<string>(alice, 'create_chat', { p_type: 'channel', p_title: 'Новости', p_members: [bob.id] });
+    const ch = await rpc<string>(alice, 'create_chat', {
+      p_type: 'channel',
+      p_title: 'Новости',
+      p_members: [bob.id],
+    });
     await send(alice, ch, 'Выпуск №1');
     await fails(send(bob, ch, 'можно мне?'));
     await rpc(bob, 'mark_read', { p_chat: ch });
@@ -205,7 +224,11 @@ describe('группы и каналы', () => {
     const { data: first } = await admin.from('profiles').select('id').eq('role', 'admin').limit(1).single();
     // Делаем alice админом сервиса, если она не первая в этой базе.
     await admin.from('profiles').update({ role: 'admin' }).eq('id', alice.id);
-    const g = await rpc<string>(bob, 'create_chat', { p_type: 'group', p_title: 'Боба', p_members: [carol.id] });
+    const g = await rpc<string>(bob, 'create_chat', {
+      p_type: 'group',
+      p_title: 'Боба',
+      p_members: [carol.id],
+    });
     const priv = await rpc<string>(bob, 'get_or_create_private_chat', { p_other: carol.id });
     await send(bob, priv, 'секрет');
     const { data: groupMsgs } = await alice.db.from('messages').select('id').eq('chat_id', g);
@@ -228,7 +251,9 @@ describe('серверная функция', () => {
   });
 
   it('без секрета рассылку не запустить', async () => {
-    const { error } = await bob.db.functions.invoke('bobogram', { body: { action: 'push', id: crypto.randomUUID() } });
+    const { error } = await bob.db.functions.invoke('bobogram', {
+      body: { action: 'push', id: crypto.randomUUID() },
+    });
     expect(error).not.toBeNull();
   });
 
@@ -276,7 +301,10 @@ describe('v2: значки, накрутки, премиум, просмотры
     await rpc(boss, 'admin_set_user_badges', { p_user: fan.id, p_verified: true, p_scam: null });
     await rpc(boss, 'admin_set_user_badges', { p_user: reader.id, p_verified: null, p_scam: true });
     await rpc(boss, 'admin_set_premium', { p_user: fan.id, p_until: '9999-12-31T00:00:00Z' });
-    const { data } = await reader.db.from('profiles').select('id, verified, scam, premium_until').in('id', [fan.id, reader.id]);
+    const { data } = await reader.db
+      .from('profiles')
+      .select('id, verified, scam, premium_until')
+      .in('id', [fan.id, reader.id]);
     const byId = Object.fromEntries(data!.map((r) => [r.id, r]));
     expect(byId[fan.id]).toMatchObject({ verified: true, scam: false });
     expect(byId[fan.id].premium_until).toMatch(/^9999/);
@@ -284,7 +312,11 @@ describe('v2: значки, накрутки, премиум, просмотры
   });
 
   it('канал: накрутка подписчиков, реальные просмотры и накрутка поста', async () => {
-    const ch = await rpc<string>(boss, 'create_chat', { p_type: 'channel', p_title: 'Новости', p_members: [reader.id] });
+    const ch = await rpc<string>(boss, 'create_chat', {
+      p_type: 'channel',
+      p_title: 'Новости',
+      p_members: [reader.id],
+    });
     await fails(rpc(fan, 'admin_boost_members', { p_chat: ch, p_boost: 1000 }));
     await rpc(boss, 'admin_boost_members', { p_chat: ch, p_boost: 1000 });
     await rpc(boss, 'admin_set_chat_badges', { p_chat: ch, p_verified: true, p_scam: null });
@@ -295,8 +327,16 @@ describe('v2: значки, накрутки, премиум, просмотры
     await rpc(reader, 'mark_read', { p_chat: ch });
     await rpc(reader, 'mark_read', { p_chat: ch }); // повторное открытие не накручивает
     await fails(rpc(fan, 'admin_boost_message', { p_msg: post, p_views: 5, p_reactions: {} }));
-    await rpc(boss, 'admin_boost_message', { p_msg: post, p_views: 5000, p_reactions: { '🔥': 300, '👍': 0, x: 'bad' } });
-    const { data } = await reader.db.from('messages').select('views, boost_views, boost_reactions').eq('id', post).single();
+    await rpc(boss, 'admin_boost_message', {
+      p_msg: post,
+      p_views: 5000,
+      p_reactions: { '🔥': 300, '👍': 0, x: 'bad' },
+    });
+    const { data } = await reader.db
+      .from('messages')
+      .select('views, boost_views, boost_reactions')
+      .eq('id', post)
+      .single();
     expect(data).toEqual({ views: 1, boost_views: 5000, boost_reactions: { '🔥': 300 } });
   });
 
@@ -307,7 +347,10 @@ describe('v2: значки, накрутки, премиум, просмотры
     }
     for (const c of chats.slice(0, 5)) await rpc(reader, 'set_chat_prefs', { p_chat: c, p_pinned: true });
     await fails(rpc(reader, 'set_chat_prefs', { p_chat: chats[5], p_pinned: true }));
-    await rpc(boss, 'admin_set_premium', { p_user: reader.id, p_until: new Date(Date.now() + 86_400_000).toISOString() });
+    await rpc(boss, 'admin_set_premium', {
+      p_user: reader.id,
+      p_until: new Date(Date.now() + 86_400_000).toISOString(),
+    });
     await rpc(reader, 'set_chat_prefs', { p_chat: chats[5], p_pinned: true });
 
     const long = 'б'.repeat(150);
@@ -324,10 +367,19 @@ describe('v2: значки, накрутки, премиум, просмотры
     expect(mine).toHaveLength(1);
     const { data: others } = await fan.db.from('premium_requests').select('id');
     expect(others).toEqual([]);
-    const { data: all } = await boss.db.from('premium_requests').select('id, user_id').eq('status', 'pending');
+    const { data: all } = await boss.db
+      .from('premium_requests')
+      .select('id, user_id')
+      .eq('status', 'pending');
     const req = all!.find((r) => r.user_id === carol.id)!;
-    await fails(rpc(fan, 'admin_resolve_premium_request', { p_id: req.id, p_approve: true, p_until: '9999-12-31' }));
-    await rpc(boss, 'admin_resolve_premium_request', { p_id: req.id, p_approve: true, p_until: '9999-12-31T00:00:00Z' });
+    await fails(
+      rpc(fan, 'admin_resolve_premium_request', { p_id: req.id, p_approve: true, p_until: '9999-12-31' }),
+    );
+    await rpc(boss, 'admin_resolve_premium_request', {
+      p_id: req.id,
+      p_approve: true,
+      p_until: '9999-12-31T00:00:00Z',
+    });
     const { data: p } = await carol.db.from('profiles').select('premium_until').eq('id', carol.id).single();
     expect(p!.premium_until).toMatch(/^9999/);
   });
@@ -350,5 +402,63 @@ describe('v2: значки, накрутки, премиум, просмотры
     expect(Number(expires)).toBeGreaterThan(Date.now() / 1000 + 3600);
     const { createHmac } = await import('node:crypto');
     expect(turn.credential).toBe(createHmac('sha1', secret).update(String(turn.username)).digest('base64'));
+  });
+});
+
+describe('фото и голосовые', () => {
+  const jpeg = new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4])], { type: 'image/jpeg' });
+
+  async function upload(u: User, folder = u.id) {
+    const path = `${folder}/${crypto.randomUUID()}.jpg`;
+    const { error } = await u.db.storage.from('media').upload(path, jpeg, { contentType: 'image/jpeg' });
+    return { path, error };
+  }
+  const canDownload = async (u: User, path: string) =>
+    !(await u.db.storage.from('media').download(path)).error;
+
+  it('загрузка только в свою папку; файл видят только участники чата', async () => {
+    const chat = await rpc<string>(alice, 'get_or_create_private_chat', { p_other: bob.id });
+    expect((await upload(alice, bob.id)).error).not.toBeNull();
+
+    const { path, error } = await upload(alice);
+    expect(error).toBeNull();
+    // Пока файл ни в каком сообщении — видит только автор.
+    expect(await canDownload(alice, path)).toBe(true);
+    expect(await canDownload(bob, path)).toBe(false);
+
+    const id = await send(alice, chat, '', {
+      p_media: { kind: 'photo', path, width: 10, height: 20, evil: 'x' },
+    });
+    const { data: msg } = await bob.db.from('messages').select('media, text').eq('id', id).single();
+    expect(msg!.media).toMatchObject({ kind: 'photo', path, width: 10, height: 20 });
+    expect(msg!.media).not.toHaveProperty('evil');
+    expect(await canDownload(bob, path)).toBe(true);
+    expect(await canDownload(carol, path)).toBe(false);
+    const { data: chats } = await bob.db.rpc('get_chats', { p_chat: chat });
+    expect((chats as { last_message: { media: unknown } }[])[0].last_message.media).toEqual({
+      kind: 'photo',
+    });
+
+    // Чужой файл, которого не видишь, в своё сообщение не вставить.
+    const carolChat = await rpc<string>(carol, 'get_saved_chat');
+    await fails(send(carol, carolChat, '', { p_media: { kind: 'photo', path } }));
+    // А пересланное вместе с сообщением видно в новом чате.
+    const bobCarol = await rpc<string>(bob, 'get_or_create_private_chat', { p_other: carol.id });
+    await send(bob, bobCarol, '', { p_media: { kind: 'photo', path } });
+    expect(await canDownload(carol, path)).toBe(true);
+
+    // Удалили у всех — вложение исчезло из сообщения.
+    await rpc(alice, 'delete_message', { p_id: id, p_for_all: true });
+    const { data: gone } = await bob.db.from('messages').select('media').eq('id', id).single();
+    expect(gone!.media).toBeNull();
+  });
+
+  it('без файла и текста не отправить; несуществующий путь — отказ', async () => {
+    const chat = await rpc<string>(alice, 'get_saved_chat');
+    await fails(send(alice, chat, ''));
+    await fails(
+      send(alice, chat, '', { p_media: { kind: 'photo', path: `${alice.id}/${crypto.randomUUID()}.jpg` } }),
+    );
+    await fails(send(alice, chat, '', { p_media: { kind: 'video', path: 'x' } }));
   });
 });

@@ -78,3 +78,9 @@ export function callText(msg: Pick<Message, 'call' | 'senderId'>, t: TFunction, 
   if (msg.call.duration > 0) return msg.call.video ? t('chat.callVideo') : t('chat.callAudio');
   return outgoing ? t('chat.callCancelled') : t('chat.callMissed');
 }
+
+/** «📷 Фото» / «🎤 Голосовое сообщение» — для превью, ответов и закрепов. */
+export function mediaLabel(msg: { media: { kind: string } | null }, t: TFunction): string {
+  if (!msg.media) return '';
+  return msg.media.kind === 'voice' ? '🎤 ' + t('media.voice') : '📷 ' + t('media.photo');
+}

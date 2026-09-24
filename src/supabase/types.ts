@@ -44,6 +44,7 @@ export interface LastMessage {
   deleted: boolean;
   system: SystemEvent | null;
   call: CallInfo | null;
+  media: { kind: MediaKind } | null;
 }
 
 export interface Chat {
@@ -90,6 +91,22 @@ export interface ForwardRef {
   chatTitle: string | null;
 }
 
+export type MediaKind = 'photo' | 'voice';
+
+export interface MediaInfo {
+  kind: MediaKind;
+  /** Путь в бакете media: <uid>/<uuid>.<ext>. */
+  path: string;
+  mime?: string;
+  size?: number;
+  width?: number;
+  height?: number;
+  /** Длительность голосового, секунды. */
+  duration?: number;
+  /** Громкость по отрезкам голосового, 0..31. */
+  waveform?: number[];
+}
+
 export interface Message {
   id: string;
   chatId: string;
@@ -109,6 +126,11 @@ export interface Message {
   boostViews: number;
   /** Накрутка реакций: эмодзи → сколько прибавить. */
   boostReactions: Record<string, number>;
+  media: MediaInfo | null;
+  /** Локальный адрес файла, пока он загружается (только у своих неотправленных). */
+  localUrl?: string;
+  /** Файл ещё загружается в хранилище. */
+  uploading?: boolean;
   /** Ещё не дошло до сервера (офлайн-очередь). */
   pending: boolean;
   /** Сервер отказал (например, собеседник заблокировал). */
@@ -147,5 +169,6 @@ export function normalizeMessage(m: Message): Message {
     views: m.views ?? 0,
     boostViews: m.boostViews ?? 0,
     boostReactions: m.boostReactions ?? {},
+    media: m.media ?? null,
   };
 }

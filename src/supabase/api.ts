@@ -4,6 +4,7 @@ import type {
   Chat,
   ForwardRef,
   LastMessage,
+  MediaInfo,
   Member,
   Message,
   ReplyRef,
@@ -61,6 +62,7 @@ function toLast(v: unknown): LastMessage | null {
     deleted: r.deleted === true,
     system: (r.system as LastMessage['system']) ?? null,
     call: (r.call as LastMessage['call']) ?? null,
+    media: (r.media as LastMessage['media']) ?? null,
   };
 }
 
@@ -90,6 +92,36 @@ export function toChat(r: Row): Chat {
   };
 }
 
+/**
+ * Realtime не присылает большие неизменённые поля (TOAST в Postgres): например, после
+ * смены last_seen в профиле нет аватарки, после реакции на длинное сообщение — текста.
+ * Недостающие поля берём из прежней версии.
+ */
+export function keepUnchanged<T extends object>(
+  fresh: T,
+  old: T | undefined,
+  row: Row,
+  fields: [string, keyof T][],
+): T {
+  if (!old) return fresh;
+  const out = { ...fresh };
+  for (const [col, key] of fields) if (!(col in row)) out[key] = old[key];
+  return out;
+}
+
+export const PROFILE_LARGE_FIELDS: [string, keyof UserProfile][] = [
+  ['avatar', 'avatar'],
+  ['bio', 'bio'],
+];
+export const MESSAGE_LARGE_FIELDS: [string, keyof Message][] = [
+  ['text', 'text'],
+  ['reactions', 'reactions'],
+  ['boost_reactions', 'boostReactions'],
+  ['reply_to', 'replyTo'],
+  ['forwarded_from', 'forwardedFrom'],
+  ['media', 'media'],
+];
+
 export function toMessage(r: Row): Message {
   return {
     id: String(r.id),
@@ -108,6 +140,7 @@ export function toMessage(r: Row): Message {
     views: Number(r.views ?? 0),
     boostViews: Number(r.boost_views ?? 0),
     boostReactions: (r.boost_reactions as Record<string, number> | null) ?? {},
+    media: (r.media as MediaInfo | null) ?? null,
     pending: false,
   };
 }
@@ -146,7 +179,8 @@ export async function register(username: string, displayName: string, password: 
 }
 
 export async function login(username: string, password: string): Promise<void> {
-  const email = check(await supabase.rpc('login_email', { p_username: normalizeUsername(username) })) as string | null;
+  const email = check(await supabase.rpc('login_email', { p_username: normalizeUsername(username) })) as
+    string | null;
   if (!email) throw new ApiError('invalid_credentials', 'no such user');
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw new ApiError(error.code ?? 'invalid_credentials', error.message);
@@ -168,7 +202,8 @@ export function errorKey(err: unknown): string {
   if (code === 'username_taken' || code === '23505') return 'auth.usernameTaken';
   if (code === 'invalid_credentials') return 'errors.wrongCredentials';
   if (code === 'weak_password') return 'errors.weakPassword';
-  if (code === 'over_request_rate_limit' || code === 'over_email_send_rate_limit') return 'errors.tooManyRequests';
+  if (code === 'over_request_rate_limit' || code === 'over_email_send_rate_limit')
+    return 'errors.tooManyRequests';
   if (code === '42501') return /blocked/.test(msg) ? 'chat.blockedByThem' : 'errors.permission';
   if (msg.includes('too many members')) return 'errors.tooManyMembers';
   if (msg.includes('pin limit')) return 'errors.pinLimit';
@@ -180,7 +215,13 @@ export function errorKey(err: unknown): string {
 
 export async function updateProfile(
   uid: string,
-  patch: Partial<{ displayName: string; bio: string; avatar: string | null; hideLastSeen: boolean; username: string }>,
+  patch: Partial<{
+    displayName: string;
+    bio: string;
+    avatar: string | null;
+    hideLastSeen: boolean;
+    username: string;
+  }>,
 ): Promise<void> {
   const row: Row = {};
   if (patch.displayName !== undefined) row.display_name = patch.displayName;
@@ -201,14 +242,21 @@ export async function fetchProfiles(ids: string[]): Promise<UserProfile[]> {
 
 export async function findUserByUsername(name: string): Promise<UserProfile | null> {
   const n = normalizeUsername(name);
-  const rows = check(await supabase.from('profiles').select('*').ilike('username', n.replace(/[%_\\]/g, '\\$&'))) as Row[];
+  const rows = check(
+    await supabase
+      .from('profiles')
+      .select('*')
+      .ilike('username', n.replace(/[%_\\]/g, '\\$&')),
+  ) as Row[];
   return rows[0] ? toProfile(rows[0]) : null;
 }
 
 export async function searchUsers(prefix: string): Promise<UserProfile[]> {
   const p = normalizeUsername(prefix).replace(/[%_\\]/g, '\\$&');
   if (!p) return [];
-  const rows = check(await supabase.from('profiles').select('*').ilike('username', `${p}%`).limit(20)) as Row[];
+  const rows = check(
+    await supabase.from('profiles').select('*').ilike('username', `${p}%`).limit(20),
+  ) as Row[];
   return rows.map(toProfile);
 }
 
@@ -219,7 +267,9 @@ export async function listUsers(): Promise<UserProfile[]> {
 
 // ---------- чёрный список ----------
 export async function fetchBlocked(): Promise<string[]> {
-  return (check(await supabase.from('blocks').select('blocked_id')) as Row[]).map((r) => String(r.blocked_id));
+  return (check(await supabase.from('blocks').select('blocked_id')) as Row[]).map((r) =>
+    String(r.blocked_id),
+  );
 }
 
 export async function setBlocked(other: string, blocked: boolean): Promise<void> {
@@ -243,17 +293,34 @@ export async function openSavedChat(): Promise<string> {
 
 export async function fetchMembers(chatId: string): Promise<Member[]> {
   const rows = check(
-    await supabase.from('chat_members').select('user_id, role, last_read_at').eq('chat_id', chatId).order('joined_at'),
+    await supabase
+      .from('chat_members')
+      .select('user_id, role, last_read_at')
+      .eq('chat_id', chatId)
+      .order('joined_at'),
   ) as Row[];
-  return rows.map((r) => ({ userId: String(r.user_id), role: r.role as Member['role'], lastReadAt: ms(r.last_read_at) }));
+  return rows.map((r) => ({
+    userId: String(r.user_id),
+    role: r.role as Member['role'],
+    lastReadAt: ms(r.last_read_at),
+  }));
 }
 
 export async function markRead(chatId: string): Promise<void> {
   check(await supabase.rpc('mark_read', { p_chat: chatId }));
 }
 
-export async function setChatPrefs(chatId: string, prefs: { pinned?: boolean; muted?: boolean }): Promise<void> {
-  check(await supabase.rpc('set_chat_prefs', { p_chat: chatId, p_pinned: prefs.pinned ?? null, p_muted: prefs.muted ?? null }));
+export async function setChatPrefs(
+  chatId: string,
+  prefs: { pinned?: boolean; muted?: boolean },
+): Promise<void> {
+  check(
+    await supabase.rpc('set_chat_prefs', {
+      p_chat: chatId,
+      p_pinned: prefs.pinned ?? null,
+      p_muted: prefs.muted ?? null,
+    }),
+  );
 }
 
 export async function setPinnedMessages(chatId: string, ids: string[]): Promise<void> {
@@ -264,7 +331,12 @@ export async function setPinnedMessages(chatId: string, ids: string[]): Promise<
 export const PAGE_SIZE = 50;
 
 export async function fetchMessages(chatId: string, before?: number, count = PAGE_SIZE): Promise<Message[]> {
-  let q = supabase.from('messages').select('*').eq('chat_id', chatId).order('created_at', { ascending: false }).limit(count);
+  let q = supabase
+    .from('messages')
+    .select('*')
+    .eq('chat_id', chatId)
+    .order('created_at', { ascending: false })
+    .limit(count);
   if (before) q = q.lt('created_at', new Date(before).toISOString());
   return (check(await q) as Row[]).map(toMessage).reverse();
 }
@@ -281,6 +353,7 @@ export interface OutgoingMessage {
   replyTo?: ReplyRef | null;
   forwardedFrom?: ForwardRef | null;
   call?: Message['call'];
+  media?: MediaInfo | null;
 }
 
 export async function sendMessageNow(m: OutgoingMessage): Promise<void> {
@@ -292,6 +365,7 @@ export async function sendMessageNow(m: OutgoingMessage): Promise<void> {
       p_reply_to: m.replyTo ?? null,
       p_forwarded_from: m.forwardedFrom ?? null,
       p_call: m.call ?? null,
+      p_media: m.media ?? null,
     }),
   );
 }
@@ -332,7 +406,10 @@ export async function createChat(input: {
   ) as string;
 }
 
-export async function updateChatInfo(chatId: string, info: { title: string; description: string; avatar: string | null }) {
+export async function updateChatInfo(
+  chatId: string,
+  info: { title: string; description: string; avatar: string | null },
+) {
   check(
     await supabase.rpc('update_chat_info', {
       p_chat: chatId,
@@ -442,7 +519,9 @@ export async function adminSetChatBadges(chatId: string, badges: { verified?: bo
 }
 
 export async function adminBoostMembers(chatId: string, boost: number) {
-  check(await supabase.rpc('admin_boost_members', { p_chat: chatId, p_boost: Math.max(0, Math.round(boost)) }));
+  check(
+    await supabase.rpc('admin_boost_members', { p_chat: chatId, p_boost: Math.max(0, Math.round(boost)) }),
+  );
 }
 
 export async function adminBoostMessage(msgId: string, views: number, reactions: Record<string, number>) {
@@ -486,25 +565,39 @@ export async function requestPremium(note: string) {
 
 export async function myPremiumRequest(uid: string): Promise<PremiumRequest | null> {
   const rows = check(
-    await supabase.from('premium_requests').select('*').eq('user_id', uid).order('created_at', { ascending: false }).limit(1),
+    await supabase
+      .from('premium_requests')
+      .select('*')
+      .eq('user_id', uid)
+      .order('created_at', { ascending: false })
+      .limit(1),
   ) as Row[];
   return rows[0] ? toRequest(rows[0]) : null;
 }
 
 export async function adminListPremiumRequests(): Promise<PremiumRequest[]> {
   const rows = check(
-    await supabase.from('premium_requests').select('*').eq('status', 'pending').order('created_at').limit(200),
+    await supabase
+      .from('premium_requests')
+      .select('*')
+      .eq('status', 'pending')
+      .order('created_at')
+      .limit(200),
   ) as Row[];
   return rows.map(toRequest);
 }
 
 export async function adminResolvePremiumRequest(id: number, approve: boolean, until: string | null) {
-  check(await supabase.rpc('admin_resolve_premium_request', { p_id: id, p_approve: approve, p_until: until }));
+  check(
+    await supabase.rpc('admin_resolve_premium_request', { p_id: id, p_approve: approve, p_until: until }),
+  );
 }
 
 /** Адреса STUN/TURN для звонков: временные логины к своему TURN-серверу выдаёт серверная функция. */
 export async function fetchIceServers(): Promise<RTCIceServer[]> {
-  const fallback: RTCIceServer[] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }];
+  const fallback: RTCIceServer[] = [
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] },
+  ];
   try {
     const { data, error } = await supabase.functions.invoke('bobogram', { body: { action: 'turn' } });
     const servers = (data as { iceServers?: RTCIceServer[] } | null)?.iceServers;
@@ -522,7 +615,12 @@ export async function adminResetPassword(userId: string, password: string) {
 }
 
 // ---------- звонки ----------
-export async function createCall(call: { chatId: string; calleeId: string; video: boolean; offer: RTCSessionDescriptionInit }) {
+export async function createCall(call: {
+  chatId: string;
+  calleeId: string;
+  video: boolean;
+  offer: RTCSessionDescriptionInit;
+}) {
   const rows = check(
     await supabase
       .from('calls')
@@ -547,7 +645,12 @@ export async function addCandidate(callId: string, fromCaller: boolean, candidat
 
 export async function fetchCandidates(callId: string, fromCaller: boolean): Promise<RTCIceCandidateInit[]> {
   const rows = check(
-    await supabase.from('call_candidates').select('candidate').eq('call_id', callId).eq('from_caller', fromCaller).order('id'),
+    await supabase
+      .from('call_candidates')
+      .select('candidate')
+      .eq('call_id', callId)
+      .eq('from_caller', fromCaller)
+      .order('id'),
   ) as Row[];
   return rows.map((r) => r.candidate as RTCIceCandidateInit);
 }
@@ -555,7 +658,12 @@ export async function fetchCandidates(callId: string, fromCaller: boolean): Prom
 export async function fetchRingingCalls(me: string): Promise<CallRow[]> {
   const since = new Date(Date.now() - 60_000).toISOString();
   const rows = check(
-    await supabase.from('calls').select('*').eq('callee_id', me).eq('status', 'ringing').gt('created_at', since),
+    await supabase
+      .from('calls')
+      .select('*')
+      .eq('callee_id', me)
+      .eq('status', 'ringing')
+      .gt('created_at', since),
   ) as Row[];
   return rows.map(toCall);
 }

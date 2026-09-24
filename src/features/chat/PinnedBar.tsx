@@ -1,13 +1,28 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { mediaLabel } from '../chats/chatMeta';
 import type { Chat, Message } from '../../supabase/types';
-import { fetchMessage, setPinnedMessages, toMessage } from '../../supabase/api';
+import {
+  fetchMessage,
+  keepUnchanged,
+  MESSAGE_LARGE_FIELDS,
+  setPinnedMessages,
+  toMessage,
+} from '../../supabase/api';
 import { onDbEvent } from '../../supabase/realtime';
 import { refreshChats } from '../../app/session';
 import { Icon } from '../../ui/Icon';
 
 /** Плашка закреплённого сообщения; клик перебирает закрепы от новых к старым. */
-export function PinnedBar({ chat, canUnpin, onJump }: { chat: Chat; canUnpin: boolean; onJump: (id: string) => void }) {
+export function PinnedBar({
+  chat,
+  canUnpin,
+  onJump,
+}: {
+  chat: Chat;
+  canUnpin: boolean;
+  onJump: (id: string) => void;
+}) {
   const { t } = useTranslation();
   const ids = chat.pinnedMessageIds;
   const [index, setIndex] = useState(ids.length - 1);
@@ -21,7 +36,12 @@ export function PinnedBar({ chat, canUnpin, onJump }: { chat: Chat; canUnpin: bo
     if (!id) return;
     let cancelled = false;
     void fetchMessage(id).then((m) => !cancelled && setMsg(m));
-    const off = onDbEvent((e) => e.table === 'messages' && e.row.id === id && setMsg(toMessage(e.row)));
+    const off = onDbEvent(
+      (e) =>
+        e.table === 'messages' &&
+        e.row.id === id &&
+        setMsg((old) => keepUnchanged(toMessage(e.row), old ?? undefined, e.row, MESSAGE_LARGE_FIELDS)),
+    );
     return () => {
       cancelled = true;
       off();
@@ -29,7 +49,7 @@ export function PinnedBar({ chat, canUnpin, onJump }: { chat: Chat; canUnpin: bo
   }, [id]);
 
   if (!id) return null;
-  const text = msg?.deleted ? t('chats.deletedMessage') : (msg?.text ?? '…');
+  const text = msg?.deleted ? t('chats.deletedMessage') : msg ? msg.text || mediaLabel(msg, t) : '…';
 
   return (
     <div className="pinned-bar">

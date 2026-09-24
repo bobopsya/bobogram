@@ -10,6 +10,7 @@ import { useLongPress } from '../../ui/useLongPress';
 import { Badges } from '../../ui/Badges';
 import { callText, systemText } from '../chats/chatMeta';
 import { isEmojiOnly, MessageText } from './MessageText';
+import { PhotoMedia, VoiceMedia } from './MediaViews';
 
 const NAME_COLORS = ['#e17076', '#eda86c', '#a695e7', '#7bc862', '#6ec9cb', '#65aadd', '#ee7aae'];
 function nameColor(uid: string): string {
@@ -36,7 +37,20 @@ interface Props {
 }
 
 export const MessageBubble = memo(function MessageBubble(props: Props) {
-  const { msg, me, chatType, read, first, last, highlighted, search, onMenu, onReact, onJump, onOpenProfile } = props;
+  const {
+    msg,
+    me,
+    chatType,
+    read,
+    first,
+    last,
+    highlighted,
+    search,
+    onMenu,
+    onReact,
+    onJump,
+    onOpenProfile,
+  } = props;
   const { t, i18n } = useTranslation();
   const own = msg.senderId === me && chatType !== 'channel';
   const showSender = chatType === 'group' && !own;
@@ -67,7 +81,9 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
     .filter((r) => r.count > 0)
     .sort((a, b) => b.count - a.count);
   const views = msg.views + msg.boostViews;
-  const big = !msg.replyTo && !msg.forwardedFrom && isEmojiOnly(msg.text);
+  const big = !msg.replyTo && !msg.forwardedFrom && !msg.media && isEmojiOnly(msg.text);
+  const photo = msg.media?.kind === 'photo' ? msg.media : null;
+  const voice = msg.media?.kind === 'voice' ? msg.media : null;
 
   const meta = (
     <span className="msg-meta">
@@ -106,13 +122,25 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
         </div>
       )}
       <div
-        className={big ? 'bubble big-emoji' : 'bubble'}
+        className={
+          big
+            ? 'bubble big-emoji'
+            : photo
+              ? msg.text
+                ? 'bubble has-photo'
+                : 'bubble has-photo only-photo'
+              : 'bubble'
+        }
         onContextMenu={onContext}
         onDoubleClick={(e) => onMenu(msg, e.clientX, e.clientY)}
         {...longPress}
       >
         {showSender && first && (
-          <button className="msg-sender plain" style={{ color: nameColor(msg.senderId) }} onClick={() => onOpenProfile(msg.senderId)}>
+          <button
+            className="msg-sender plain"
+            style={{ color: nameColor(msg.senderId) }}
+            onClick={() => onOpenProfile(msg.senderId)}
+          >
             {displayNameOf(sender, '…')}
             <Badges verified={sender?.verified} scam={sender?.scam} premium={isPremium(sender)} size={14} />
           </button>
@@ -135,21 +163,40 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
             </span>
             <div>
               <div>{callText(msg, t, me)}</div>
-              {msg.call.duration > 0 && <div className="muted small">{formatDuration(msg.call.duration)}</div>}
+              {msg.call.duration > 0 && (
+                <div className="muted small">{formatDuration(msg.call.duration)}</div>
+              )}
             </div>
             <Icon name={msg.call.video ? 'video' : 'phone'} size={20} />
             {meta}
           </div>
         ) : (
-          <div className="msg-text">
-            <MessageText text={msg.text} highlight={search} />
-            {meta}
-          </div>
+          <>
+            {photo && <PhotoMedia media={photo} uploading={msg.uploading} />}
+            {voice ? (
+              <div className="msg-voice">
+                <VoiceMedia media={voice} own={own} />
+                {!msg.text && meta}
+              </div>
+            ) : null}
+            {msg.text || !msg.media ? (
+              <div className="msg-text">
+                <MessageText text={msg.text} highlight={search} />
+                {meta}
+              </div>
+            ) : (
+              photo && <div className="msg-photo-meta">{meta}</div>
+            )}
+          </>
         )}
         {reactions.length > 0 && (
           <div className="reactions">
             {reactions.map((r) => (
-              <button key={r.emoji} className={r.mine ? 'reaction mine' : 'reaction'} onClick={() => onReact(msg, r.emoji)}>
+              <button
+                key={r.emoji}
+                className={r.mine ? 'reaction mine' : 'reaction'}
+                onClick={() => onReact(msg, r.emoji)}
+              >
                 <span>{r.emoji}</span>
                 <span>{formatCount(r.count)}</span>
               </button>

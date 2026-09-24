@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { fetchChats, fetchMessages, PAGE_SIZE, toMessage } from '../../supabase/api';
+import { fetchChats, fetchMessages, keepUnchanged, MESSAGE_LARGE_FIELDS, PAGE_SIZE, toMessage } from '../../supabase/api';
 import { normalizeMessage, type Chat, type Message } from '../../supabase/types';
 import { onDbEvent, onResync } from '../../supabase/realtime';
 import { onLocalMessage } from '../../app/messageEvents';
@@ -84,7 +84,12 @@ export function useMessages(chatId: string) {
     void loadLatest();
     const offDb = onDbEvent((e) => {
       if (e.table === 'messages' && e.row.chat_id === chatId) {
-        setMessages((prev) => mergeInto(prev, [toMessage(e.row)]));
+        setMessages((prev) => {
+          const old = prev.find((m) => m.id === e.row.id);
+          // Изменилось сообщение, которого нет на экране, и текст не пришёл — не показываем пустышку.
+          if (!old && !('text' in e.row)) return prev;
+          return mergeInto(prev, [keepUnchanged(toMessage(e.row), old, e.row, MESSAGE_LARGE_FIELDS)]);
+        });
       }
     });
     const offLocal = onLocalMessage((m) => m.chatId === chatId && setMessages((prev) => mergeInto(prev, [m])));
