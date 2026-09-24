@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { useApp, useMe } from '../../app/store';
-import { createGroup } from '../../firebase/groups';
-import { authErrorKey } from '../../firebase/auth';
-import { CHANNEL_MAX_MEMBERS, GROUP_MAX_MEMBERS } from '../../firebase/types';
+import { useApp } from '../../app/store';
+import { createChat, errorKey } from '../../supabase/api';
+import { refreshChats } from '../../app/session';
+import { CHANNEL_MAX_MEMBERS, GROUP_MAX_MEMBERS } from '../../supabase/types';
 import { makeAvatar } from '../../lib/image';
 import { Avatar } from '../../ui/Avatar';
 import { Icon } from '../../ui/Icon';
@@ -15,7 +15,6 @@ import { PeoplePicker } from './PeoplePicker';
 export function NewGroupScreen({ kind }: { kind: 'group' | 'channel' }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const me = useMe();
   const showToast = useApp((s) => s.showToast);
   const [step, setStep] = useState<'members' | 'info'>(kind === 'group' ? 'members' : 'info');
   const [members, setMembers] = useState<string[]>([]);
@@ -30,10 +29,11 @@ export function NewGroupScreen({ kind }: { kind: 'group' | 'channel' }) {
     if (!title.trim()) return;
     setBusy(true);
     try {
-      const id = await createGroup(me, { kind, title, description, avatar, members });
+      const id = await createChat({ kind, title, description, avatar, members });
+      refreshChats(0);
       navigate(`/c/${id}`, { replace: true });
     } catch (err) {
-      showToast(t(authErrorKey(err)));
+      showToast(t(errorKey(err)));
       setBusy(false);
     }
   };

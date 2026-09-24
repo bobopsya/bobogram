@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { useApp, useMe } from '../../app/store';
-import { getInvite, joinByInvite, type InvitePreview } from '../../firebase/groups';
-import { authErrorKey } from '../../firebase/auth';
+import { errorKey, getInvite, joinByInvite, type InvitePreview } from '../../supabase/api';
+import { refreshChats } from '../../app/session';
 import { Avatar } from '../../ui/Avatar';
 import { FullScreenSpinner, PageHeader } from '../../ui/misc';
 
@@ -11,8 +10,6 @@ export function JoinScreen() {
   const { code = '' } = useParams();
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const me = useMe();
-  const chats = useApp((s) => s.chats);
   const [invite, setInvite] = useState<InvitePreview | null | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,18 +26,15 @@ export function JoinScreen() {
 
   if (invite === undefined) return <FullScreenSpinner />;
 
-  const already = invite && chats.some((c) => c.id === invite.chatId);
-
   const join = async () => {
-    if (!invite) return;
     setBusy(true);
     setError(null);
     try {
-      await joinByInvite(code, invite, me);
-      navigate(`/c/${invite.chatId}`, { replace: true });
+      const id = await joinByInvite(code);
+      refreshChats(0);
+      navigate(`/c/${id}`, { replace: true });
     } catch (err) {
-      const c = (err as { code?: string }).code;
-      setError(c === 'permission-denied' ? t('groups.invalidInvite') : t(authErrorKey(err)));
+      setError(t(errorKey(err)));
       setBusy(false);
     }
   };
@@ -57,14 +51,18 @@ export function JoinScreen() {
           <div className="profile-hero">
             <Avatar name={invite.title} seed={invite.chatId} src={invite.avatar} size={112} />
             <h2>{invite.title}</h2>
-            <p className="muted">{invite.type === 'channel' ? t('groups.channel') : t('groups.group')}</p>
+            <p className="muted">
+              {invite.type === 'channel'
+                ? t('chats.subscribers', { count: invite.memberCount })
+                : t('chats.members', { count: invite.memberCount })}
+            </p>
             {error && <p className="form-error">{error}</p>}
-            {already ? (
+            {invite.isMember ? (
               <button className="btn btn-primary" onClick={() => navigate(`/c/${invite.chatId}`)}>
                 {t('groups.alreadyMember')}
               </button>
             ) : (
-              <button className="btn btn-primary" onClick={join} disabled={busy}>
+              <button className="btn btn-primary" onClick={() => void join()} disabled={busy}>
                 {invite.type === 'channel' ? t('groups.subscribe') : t('groups.join')}
               </button>
             )}

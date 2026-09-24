@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApp, useMe } from '../../app/store';
-import { searchUsers } from '../../firebase/db';
-import type { UserProfile } from '../../firebase/types';
+import { searchUsers } from '../../supabase/api';
+import type { UserProfile } from '../../supabase/types';
 import { displayNameOf, peekProfile, useProfile } from '../../app/profiles';
-import { otherMember } from '../../lib/ids';
 import { Avatar } from '../../ui/Avatar';
 import { Icon } from '../../ui/Icon';
 
@@ -49,8 +48,8 @@ export function PeoplePicker({ selected, onChange, max, exclude = [] }: Props) {
   const [found, setFound] = useState<UserProfile[]>([]);
 
   const contacts = useMemo(
-    () => chats.filter((c) => c.type === 'private').map((c) => otherMember(c.members, me)),
-    [chats, me],
+    () => chats.filter((c) => c.type === 'private' && c.otherId).map((c) => c.otherId!),
+    [chats],
   );
 
   useEffect(() => {

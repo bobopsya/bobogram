@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useApp } from '../../app/store';
 import { Modal } from '../../ui/Modal';
 import { Icon } from '../../ui/Icon';
+import { profileLink } from '../../supabase/api';
 
 /** QR-код и ссылка на профиль или приглашение. */
 export function ShareLink({ link, title, onClose }: { link: string; title: string; onClose: () => void }) {
@@ -43,6 +44,5 @@ export function ShareLink({ link, title, onClose }: { link: string; title: strin
 }
 
 export function ShareProfile({ username, onClose }: { username: string; onClose: () => void }) {
-  const link = `${window.location.origin}${import.meta.env.BASE_URL}#/u/${username}`;
-  return <ShareLink link={link} title={'@' + username} onClose={onClose} />;
+  return <ShareLink link={profileLink(username)} title={'@' + username} onClose={onClose} />;
 }

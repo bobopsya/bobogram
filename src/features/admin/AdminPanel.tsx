@@ -1,18 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { collection, getDocs, limit, query, updateDoc, where } from 'firebase/firestore';
-import { db } from '../../firebase/init';
-import { toChat, toProfile, userRef } from '../../firebase/db';
-import { deleteGroup } from '../../firebase/groups';
-import { authErrorKey } from '../../firebase/auth';
-import type { Chat, UserProfile } from '../../firebase/types';
+import { adminListChats, adminResetPassword, deleteChat, errorKey, listUsers, setBanned } from '../../supabase/api';
+import type { UserProfile } from '../../supabase/types';
 import { useApp, useMe } from '../../app/store';
 import { Avatar } from '../../ui/Avatar';
-import { Confirm } from '../../ui/Modal';
+import { Confirm, Modal } from '../../ui/Modal';
 import { PageHeader, Section, Spinner } from '../../ui/misc';
 
-/** Админ-панель: бан пользователей и модерация групп/каналов. Личные чаты недоступны. */
+type AdminChat = Awaited<ReturnType<typeof adminListChats>>[number];
+
+/** Админ-панель: бан, новый пароль и модерация групп/каналов. Личные чаты недоступны. */
 export default function AdminPanel() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -20,18 +18,18 @@ export default function AdminPanel() {
   const role = useApp((s) => s.profile?.role);
   const showToast = useApp((s) => s.showToast);
   const [users, setUsers] = useState<UserProfile[] | null>(null);
-  const [chats, setChats] = useState<Chat[] | null>(null);
+  const [chats, setChats] = useState<AdminChat[] | null>(null);
   const [q, setQ] = useState('');
-  const [deleting, setDeleting] = useState<Chat | null>(null);
+  const [deleting, setDeleting] = useState<AdminChat | null>(null);
+  const [resetFor, setResetFor] = useState<UserProfile | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const fail = (e: unknown) => showToast(t(errorKey(e)));
 
   useEffect(() => {
     if (role !== 'admin') return;
-    void getDocs(query(collection(db, 'users'), limit(500))).then((snap) =>
-      setUsers(snap.docs.map((d) => toProfile(d)!).filter(Boolean)),
-    );
-    void getDocs(query(collection(db, 'chats'), where('type', 'in', ['group', 'channel']), limit(500))).then((snap) =>
-      setChats(snap.docs.map((d) => toChat(d)!).filter(Boolean)),
-    );
+    void listUsers().then(setUsers).catch(fail);
+    void adminListChats().then(setChats).catch(fail);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role]);
 
   if (role !== 'admin') {
@@ -46,12 +44,19 @@ export default function AdminPanel() {
   }
 
   const ql = q.trim().toLowerCase().replace(/^@/, '');
-  const fail = (e: unknown) => showToast(t(authErrorKey(e)));
 
   const setBan = (u: UserProfile, banned: boolean) => {
-    void updateDoc(userRef(u.uid), { banned })
+    void setBanned(u.uid, banned)
       .then(() => setUsers((list) => list?.map((x) => (x.uid === u.uid ? { ...x, banned } : x)) ?? null))
       .catch(fail);
+  };
+
+  const doReset = () => {
+    const u = resetFor!;
+    void adminResetPassword(u.uid, newPassword)
+      .then(() => showToast(t('admin.passwordReset')))
+      .catch(fail);
+    setResetFor(null);
   };
 
   return (
@@ -59,7 +64,9 @@ export default function AdminPanel() {
       <PageHeader title={t('admin.title')} back="/" />
       <div className="scroll">
         <p className="setting-hint">{t('admin.hint')}</p>
-        <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('common.search')} />
+        <div className="pad-x">
+          <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('common.search')} />
+        </div>
 
         <Section title={t('admin.users')}>
           {!users ? (
@@ -68,7 +75,7 @@ export default function AdminPanel() {
             </div>
           ) : (
             users
-              .filter((u) => !ql || u.usernameLower.includes(ql) || u.displayName.toLowerCase().includes(ql))
+              .filter((u) => !ql || u.username.toLowerCase().includes(ql) || u.displayName.toLowerCase().includes(ql))
               .map((u) => (
                 <div key={u.uid} className="list-item">
                   <button className="plain row gap grow min0" onClick={() => navigate(`/profile/${u.uid}`)}>
@@ -83,9 +90,23 @@ export default function AdminPanel() {
                     </div>
                   </button>
                   {u.uid !== me && (
-                    <button className={u.banned ? 'btn btn-text' : 'btn btn-text danger'} onClick={() => setBan(u, !u.banned)}>
-                      {u.banned ? t('admin.unban') : t('admin.ban')}
-                    </button>
+                    <>
+                      <button
+                        className="btn btn-text small"
+                        onClick={() => {
+                          setNewPassword('');
+                          setResetFor(u);
+                        }}
+                      >
+                        {t('admin.resetPassword')}
+                      </button>
+                      <button
+                        className={u.banned ? 'btn btn-text small' : 'btn btn-text small danger'}
+                        onClick={() => setBan(u, !u.banned)}
+                      >
+                        {u.banned ? t('admin.unban') : t('admin.ban')}
+                      </button>
+                    </>
                   )}
                 </div>
               ))
@@ -99,21 +120,21 @@ export default function AdminPanel() {
             </div>
           ) : (
             chats
-              .filter((c) => !ql || (c.title ?? '').toLowerCase().includes(ql))
+              .filter((c) => !ql || c.title.toLowerCase().includes(ql))
               .map((c) => (
                 <div key={c.id} className="list-item">
                   <button className="plain row gap grow min0" onClick={() => navigate(`/c/${c.id}`)}>
-                    <Avatar name={c.title ?? ''} seed={c.id} src={c.avatar} size={40} icon={c.type === 'channel' ? 'megaphone' : undefined} />
+                    <Avatar name={c.title} seed={c.id} src={c.avatar} size={40} icon={c.type === 'channel' ? 'megaphone' : undefined} />
                     <div className="list-item-body">
                       <div className="list-item-title ellipsis">{c.title}</div>
                       <div className="list-item-sub">
                         {c.type === 'channel'
-                          ? t('chats.subscribers', { count: c.members.length })
-                          : t('chats.members', { count: c.members.length })}
+                          ? t('chats.subscribers', { count: c.memberCount })
+                          : t('chats.members', { count: c.memberCount })}
                       </div>
                     </div>
                   </button>
-                  <button className="btn btn-text danger" onClick={() => setDeleting(c)}>
+                  <button className="btn btn-text small danger" onClick={() => setDeleting(c)}>
                     {t('admin.deleteChat')}
                   </button>
                 </div>
@@ -121,6 +142,7 @@ export default function AdminPanel() {
           )}
         </Section>
       </div>
+
       {deleting && (
         <Confirm
           text={t('groups.deleteConfirm', { title: deleting.title })}
@@ -128,12 +150,30 @@ export default function AdminPanel() {
           cancelLabel={t('common.cancel')}
           danger
           onConfirm={() =>
-            void deleteGroup(deleting)
+            void deleteChat(deleting.id)
               .then(() => setChats((list) => list?.filter((x) => x.id !== deleting.id) ?? null))
               .catch(fail)
           }
           onClose={() => setDeleting(null)}
         />
+      )}
+
+      {resetFor && (
+        <Modal
+          title={t('admin.resetPasswordFor', { username: resetFor.username })}
+          onClose={() => setResetFor(null)}
+          footer={
+            <button className="btn btn-primary" disabled={newPassword.length < 6} onClick={doReset}>
+              {t('common.save')}
+            </button>
+          }
+        >
+          <label className="field">
+            <span className="field-label">{t('settings.newPassword')}</span>
+            <input value={newPassword} onChange={(e) => setNewPassword(e.target.value)} autoComplete="off" />
+            <span className="field-hint">{t('auth.passwordHint')}</span>
+          </label>
+        </Modal>
       )}
     </div>
   );

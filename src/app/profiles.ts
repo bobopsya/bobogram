@@ -1,80 +1,90 @@
 import { useEffect, useSyncExternalStore } from 'react';
-import { onSnapshot } from 'firebase/firestore';
-import { toProfile, userRef } from '../firebase/db';
-import type { UserProfile } from '../firebase/types';
-import { subscribePresence, type Presence } from '../firebase/rtdb';
+import { fetchProfiles, toProfile } from '../supabase/api';
+import type { UserProfile } from '../supabase/types';
+import { getOnline, onDbEvent, onOnlineChange } from '../supabase/realtime';
 
 /**
- * Общий кэш профилей: на каждого пользователя одна подписка Firestore,
- * сколько бы компонентов его ни показывали.
+ * Общий кэш профилей. Профили запрашиваются пачками, обновления приходят через realtime.
  */
-type Entry<T> = { value: T | undefined; refs: number; unsub: (() => void) | null; listeners: Set<() => void> };
+const cache = new Map<string, UserProfile | null>();
+const listeners = new Map<string, Set<() => void>>();
+let queue = new Set<string>();
+let flushTimer: number | undefined;
 
-function createCache<T>(subscribe: (id: string, cb: (v: T) => void) => () => void) {
-  const map = new Map<string, Entry<T>>();
-
-  const entry = (id: string): Entry<T> => {
-    let e = map.get(id);
-    if (!e) {
-      e = { value: undefined, refs: 0, unsub: null, listeners: new Set() };
-      map.set(id, e);
-    }
-    return e;
-  };
-
-  const retain = (id: string) => {
-    const e = entry(id);
-    e.refs++;
-    if (!e.unsub) {
-      e.unsub = subscribe(id, (v) => {
-        e.value = v;
-        e.listeners.forEach((l) => l());
-      });
-    }
-    return () => {
-      e.refs--;
-      // Отписываемся с задержкой: при переходах между экранами подписка часто нужна снова.
-      window.setTimeout(() => {
-        if (e.refs === 0 && e.unsub) {
-          e.unsub();
-          e.unsub = null;
-        }
-      }, 30_000);
-    };
-  };
-
-  const useValue = (id: string | null | undefined): T | undefined => {
-    const key = id ?? '';
-    useEffect(() => (key ? retain(key) : undefined), [key]);
-    return useSyncExternalStore(
-      (l) => {
-        if (!key) return () => undefined;
-        const e = entry(key);
-        e.listeners.add(l);
-        return () => e.listeners.delete(l);
-      },
-      () => (key ? entry(key).value : undefined),
-    );
-  };
-
-  const peek = (id: string) => map.get(id)?.value;
-  return { useValue, peek, retain };
+function notify(uid: string) {
+  listeners.get(uid)?.forEach((l) => l());
 }
 
-const profiles = createCache<UserProfile | null>((uid, cb) =>
-  onSnapshot(
-    userRef(uid),
-    (snap) => cb(toProfile(snap)),
-    () => cb(null),
-  ),
-);
+export function putProfile(p: UserProfile) {
+  cache.set(p.uid, p);
+  notify(p.uid);
+}
 
-const presences = createCache<Presence | null>((uid, cb) => subscribePresence(uid, cb));
+function request(uid: string) {
+  if (cache.has(uid) || queue.has(uid)) return;
+  queue.add(uid);
+  window.clearTimeout(flushTimer);
+  flushTimer = window.setTimeout(async () => {
+    const ids = [...queue];
+    queue = new Set();
+    try {
+      const found = await fetchProfiles(ids);
+      const got = new Set(found.map((p) => p.uid));
+      found.forEach(putProfile);
+      ids.filter((id) => !got.has(id)).forEach((id) => {
+        cache.set(id, null);
+        notify(id);
+      });
+    } catch {
+      // нет сети — попробуем при следующем обращении
+    }
+  }, 20);
+}
+
+onDbEvent((e) => {
+  if (e.table === 'profiles' && e.type !== 'DELETE') putProfile(toProfile(e.row));
+});
 
 /** undefined — загружается, null — нет такого пользователя. */
-export const useProfile = profiles.useValue;
-export const peekProfile = profiles.peek;
-export const usePresence = presences.useValue;
+export function useProfile(uid: string | null | undefined): UserProfile | null | undefined {
+  const key = uid ?? '';
+  useEffect(() => {
+    if (key) request(key);
+  }, [key]);
+  return useSyncExternalStore(
+    (l) => {
+      if (!key) return () => undefined;
+      let set = listeners.get(key);
+      if (!set) listeners.set(key, (set = new Set()));
+      set.add(l);
+      return () => set.delete(l);
+    },
+    () => (key ? cache.get(key) : undefined),
+  );
+}
+
+export function peekProfile(uid: string): UserProfile | null | undefined {
+  if (!cache.has(uid)) request(uid);
+  return cache.get(uid);
+}
+
+export interface Presence {
+  online: boolean;
+  lastSeen: number | null;
+  hidden: boolean;
+}
+
+function subscribeOnline(l: () => void) {
+  return onOnlineChange(() => l());
+}
+
+/** Статус «в сети»: из канала присутствия + время последнего визита из профиля. */
+export function usePresence(uid: string | null | undefined): Presence | null {
+  const profile = useProfile(uid);
+  const online = useSyncExternalStore(subscribeOnline, () => (uid ? getOnline().has(uid) : false));
+  if (!uid || !profile) return null;
+  return { online, lastSeen: profile.lastSeen, hidden: profile.hideLastSeen };
+}
 
 export function displayNameOf(p: UserProfile | null | undefined, fallback = ''): string {
   if (p === null) return fallback;

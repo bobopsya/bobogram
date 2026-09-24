@@ -4,7 +4,7 @@
 
 ## Возможности
 
-- Регистрация по почте с подтверждением, сброс пароля
+- Регистрация и вход по **@юзернейму и паролю**, без почты и телефона
 - Уникальные **@юзернеймы** (как в Telegram), поиск людей, ссылка на профиль и QR-код
 - **Личные чаты**, **группы** (до 50 человек), **каналы**, «Избранное»
 - Ответы, пересылка, правка, удаление у себя или у всех, реакции, закреп сообщений
@@ -19,28 +19,30 @@
 ## Как устроено
 
 ```
-Браузер (React PWA) ──► Firebase: Auth · Firestore · Realtime DB   (доступ защищён правилами)
-        └──► Cloudflare Worker ──► FCM (пуши) · Cloudflare TURN (звонки)
-GitHub Actions ──► сборка Vite ──► GitHub Pages
+Браузер (React PWA) ──► Supabase: Postgres + RLS · Auth · Realtime
+                              └── триггер ──► Edge Function ──► Web Push (уведомления)
+GitHub Actions ──► настройка Supabase + сборка Vite ──► GitHub Pages
 ```
 
 | Папка | Что там |
 |---|---|
 | `src/` | приложение (React + TypeScript + Vite) |
 | `src/sw.ts` | service worker: офлайн-кэш и фоновые пуши |
-| `firebase/` | правила безопасности Firestore и Realtime Database |
-| `worker/` | Cloudflare Worker: рассылка пушей, TURN |
-| `tests/` | юнит-тесты, тесты правил, сквозные тесты (Playwright) |
-| `docs/SETUP.md` | **пошаговая инструкция по настройке** |
+| `supabase/migrations/` | таблицы, правила доступа (RLS), серверные функции на SQL |
+| `supabase/functions/` | Edge Function: пуши, VAPID-ключи, сброс пароля админом |
+| `scripts/supabase-setup.mjs` | автоматическая настройка Supabase из GitHub Actions |
+| `tests/` | юнит-тесты, тесты базы, сквозные тесты (Playwright) |
+| `docs/SETUP.md` | **инструкция по запуску (5 шагов с телефона)** |
 
 ## Запуск
 
-Настройка Firebase, Cloudflare и GitHub Pages описана в [docs/SETUP.md](docs/SETUP.md).
+Всё делается с телефона за ~10 минут, см. [docs/SETUP.md](docs/SETUP.md):
+создать проект Supabase → получить токен → вставить его в секреты GitHub → включить Pages → смержить.
 
-Локально (с эмуляторами Firebase, нужна Java):
+Локально (нужен Docker):
 
 ```bash
 npm install
-npm run emulators   # терминал 1
-npm run dev:emu     # терминал 2 → http://127.0.0.1:5173/bobogram/
+npm run db:start
+npm run dev
 ```

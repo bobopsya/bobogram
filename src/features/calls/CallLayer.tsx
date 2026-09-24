@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
-import { db } from '../../firebase/init';
 import { useMe } from '../../app/store';
-import type { CallDoc } from '../../firebase/types';
+import { fetchRingingCalls, toCall } from '../../supabase/api';
+import { onDbEvent, onResync } from '../../supabase/realtime';
 import { displayNameOf, useProfile } from '../../app/profiles';
-import { toMillis, formatDuration } from '../../lib/time';
+import { formatDuration } from '../../lib/time';
 import { beep } from '../../app/sounds';
 import { Avatar } from '../../ui/Avatar';
 import { Icon } from '../../ui/Icon';
@@ -46,19 +45,22 @@ export function CallLayer() {
 
   useEffect(() => {
     if (!me) return;
-    const q = query(collection(db, 'calls'), where('calleeId', '==', me), where('status', '==', 'ringing'));
-    return onSnapshot(
-      q,
-      (snap) => {
-        snap.docChanges().forEach((ch) => {
-          if (ch.type !== 'added') return;
-          const data = { id: ch.doc.id, ...ch.doc.data({ serverTimestamps: 'estimate' }) } as CallDoc;
-          // Старые «зависшие» звонки не показываем.
-          if (Date.now() - toMillis(data.createdAt) < 60_000) showIncoming(data);
-        });
-      },
-      () => undefined,
-    );
+    // Открыли приложение по пушу о звонке — звонок уже идёт.
+    const check = () =>
+      void fetchRingingCalls(me)
+        .then((list) => list.forEach(showIncoming))
+        .catch(() => undefined);
+    check();
+    const offResync = onResync(check);
+    const off = onDbEvent((e) => {
+      if (e.table === 'calls' && e.type === 'INSERT' && e.row.callee_id === me && e.row.status === 'ringing') {
+        showIncoming(toCall(e.row));
+      }
+    });
+    return () => {
+      off();
+      offResync();
+    };
   }, [me]);
 
   // Мелодия вызова.

@@ -2,16 +2,16 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import type { Chat } from '../../firebase/types';
+import type { Chat } from '../../supabase/types';
 import { useApp } from '../../app/store';
-import { displayNameOf, peekProfile, usePresence } from '../../app/profiles';
-import { subscribeTyping, type Presence } from '../../firebase/rtdb';
+import { displayNameOf, peekProfile, usePresence, type Presence } from '../../app/profiles';
+import { subscribeTyping } from '../../supabase/realtime';
 import { dayLabel, formatTime } from '../../lib/time';
 import { Icon } from '../../ui/Icon';
 import { ChatAvatar, useChatMeta } from '../chats/chatMeta';
 
 export function lastSeenText(p: Presence | null | undefined, hideMine: boolean, t: TFunction, locale: string): string {
-  if (!p) return t('chats.lastSeenRecently');
+  if (!p || p.hidden) return t('chats.lastSeenRecently');
   if (p.online) return t('chats.online');
   if (hideMine || !p.lastSeen) return t('chats.lastSeenRecently');
   const d = new Date(p.lastSeen);
@@ -30,7 +30,7 @@ function useTyping(chatId: string, me: string, enabled: boolean): string[] {
   const [uids, setUids] = useState<string[]>([]);
   useEffect(() => {
     if (!enabled) return;
-    return subscribeTyping(chatId, me, setUids);
+    return subscribeTyping(chatId, (list) => setUids(list.filter((u) => u !== me)));
   }, [chatId, me, enabled]);
   return uids;
 }
@@ -46,7 +46,7 @@ interface Props {
 export function ChatHeader({ chat, me, onSearch, onCall, onMenu }: Props) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const meta = useChatMeta(chat, me);
+  const meta = useChatMeta(chat);
   const presence = usePresence(meta.otherUid);
   const hideMine = useApp((s) => s.profile?.hideLastSeen ?? false);
   const typing = useTyping(chat.id, me, chat.type === 'private' || chat.type === 'group');
@@ -62,9 +62,9 @@ export function ChatHeader({ chat, me, onSearch, onCall, onMenu }: Props) {
     subtitle = lastSeenText(presence, hideMine, t, i18n.language);
     accent = presence?.online === true;
   } else if (chat.type === 'group') {
-    subtitle = t('chats.members', { count: chat.members.length });
+    subtitle = t('chats.members', { count: chat.memberCount });
   } else if (chat.type === 'channel') {
-    subtitle = t('chats.subscribers', { count: chat.members.length });
+    subtitle = t('chats.subscribers', { count: chat.memberCount });
   }
 
   const openInfo = () => {

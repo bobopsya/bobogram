@@ -1,16 +1,11 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { HashRouter, Navigate, Route, Routes } from 'react-router';
-import { isConfigured } from '../firebase/init';
+import { isConfigured } from '../supabase/client';
 import { useApp } from './store';
 import { useSessionBootstrap } from './session';
 import { useThemeEffect, useViewportHeight } from './effects';
 import { AuthScreen } from '../features/auth/AuthScreen';
-import {
-  BannedScreen,
-  PickUsernameScreen,
-  SetupNeededScreen,
-  VerifyEmailScreen,
-} from '../features/auth/Gates';
+import { BannedScreen, NoProfileScreen, SetupNeededScreen } from '../features/auth/Gates';
 import { Layout } from './Layout';
 import { ChatScreen } from '../features/chat/ChatScreen';
 import { EmptyMain } from './EmptyMain';
@@ -24,18 +19,17 @@ import { JoinScreen } from '../features/groups/Join';
 import { FullScreenSpinner, OfflineBanner, Toast } from '../ui/misc';
 import { CallLayer } from '../features/calls/CallLayer';
 import { useIncomingSounds } from './sounds';
-import { usePushRegistration } from '../firebase/messaging';
+import { usePushRegistration } from '../supabase/push';
 
 const AdminPanel = lazy(() => import('../features/admin/AdminPanel'));
 
 function Gate() {
-  const { authReady, user, emailVerified, profile } = useApp();
+  const { authReady, userId, profile } = useApp();
   if (!isConfigured) return <SetupNeededScreen />;
   if (!authReady) return <FullScreenSpinner />;
-  if (!user) return <AuthScreen />;
+  if (!userId) return <AuthScreen />;
   if (profile === undefined) return <FullScreenSpinner />;
-  if (profile === null) return <PickUsernameScreen />;
-  if (!emailVerified) return <VerifyEmailScreen />;
+  if (profile === null) return <NoProfileScreen />;
   if (profile.banned) return <BannedScreen />;
   return <Messenger />;
 }

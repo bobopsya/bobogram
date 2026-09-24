@@ -1,88 +1,146 @@
 import { useEffect } from 'react';
-import { onIdTokenChanged } from 'firebase/auth';
-import { onSnapshot, query, where, collection } from 'firebase/firestore';
-import { auth, db } from '../firebase/init';
-import { blocksRef, toChat, toPrefs, toProfile, userChatsCol, userRef } from '../firebase/db';
-import type { Chat, UserChatPrefs } from '../firebase/types';
-import { startPresence } from '../firebase/rtdb';
+import { supabase } from '../supabase/client';
+import { fetchBlocked, fetchChats, fetchProfiles, touchLastSeen } from '../supabase/api';
+import { emitResync, onDbEvent, onResync, startDbChannel, startPresence } from '../supabase/realtime';
+import { putProfile } from './profiles';
+import { flushOutbox } from './outbox';
 import { useApp } from './store';
 
-/** Следит за входом, профилем, списком чатов и статусом «в сети». */
+let refreshTimer: number | undefined;
+
+/** Перечитывает список чатов (с задержкой, чтобы пачка событий дала один запрос). */
+export function refreshChats(delay = 250) {
+  window.clearTimeout(refreshTimer);
+  refreshTimer = window.setTimeout(async () => {
+    try {
+      const chats = await fetchChats();
+      useApp.setState({ chats, chatsLoaded: true });
+    } catch {
+      useApp.setState({ chatsLoaded: true });
+    }
+  }, delay);
+}
+
+export async function refreshBlocked() {
+  try {
+    useApp.setState({ blocked: await fetchBlocked() });
+  } catch {
+    // ignore
+  }
+}
+
+/** Следит за входом, профилем, списком чатов, статусом «в сети» и офлайн-очередью. */
 export function useSessionBootstrap() {
-  const uid = useApp((s) => s.user?.uid);
-  const verified = useApp((s) => s.emailVerified);
+  const uid = useApp((s) => s.userId);
   const hideLastSeen = useApp((s) => s.profile?.hideLastSeen);
   const banned = useApp((s) => s.profile?.banned);
   const hasProfile = useApp((s) => !!s.profile);
 
-  // Вход/выход и обновление токена (например, после подтверждения почты).
-  useEffect(
-    () =>
-      onIdTokenChanged(auth, (user) => {
-        useApp.setState((s) => ({
-          authReady: true,
-          user,
-          emailVerified: user?.emailVerified ?? false,
-          ...(user?.uid !== s.user?.uid
-            ? { profile: undefined, chats: [], chatsLoaded: false, prefs: {}, blocked: [] }
-            : {}),
-        }));
-      }),
-    [],
-  );
-
-  // Сеть.
+  // Вход и выход.
   useEffect(() => {
-    const update = () => useApp.setState({ online: navigator.onLine });
+    void supabase.auth.getSession().then(({ data }) => {
+      const id = data.session?.user.id ?? null;
+      useApp.setState((s) => (s.userId === id ? { authReady: true } : { authReady: true, userId: id }));
+    });
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      const id = session?.user.id ?? null;
+      useApp.setState((s) =>
+        s.userId === id
+          ? { authReady: true }
+          : s.userId === null && id
+            ? { authReady: true, userId: id } // запуск приложения: кэш чатов и очередь сохраняем
+            : { authReady: true, userId: id, profile: undefined, chats: [], chatsLoaded: false, blocked: [], outbox: [] },
+      );
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
+
+  // Сеть: при появлении — отправить очередь и перечитать пропущенное.
+  useEffect(() => {
+    const update = () => {
+      useApp.setState({ online: navigator.onLine });
+      if (navigator.onLine) {
+        void flushOutbox();
+        emitResync();
+      }
+    };
     window.addEventListener('online', update);
     window.addEventListener('offline', update);
+    const retry = window.setInterval(() => navigator.onLine && void flushOutbox(), 15_000);
     return () => {
       window.removeEventListener('online', update);
       window.removeEventListener('offline', update);
+      window.clearInterval(retry);
     };
   }, []);
 
-  // Собственный профиль.
+  // Свой профиль.
   useEffect(() => {
     if (!uid) return;
-    return onSnapshot(
-      userRef(uid),
-      (snap) => useApp.setState({ profile: snap.exists() ? toProfile(snap) : null }),
-      () => useApp.setState({ profile: null }),
-    );
+    let cancelled = false;
+    const load = () =>
+      fetchProfiles([uid])
+        .then(([p]) => {
+          if (cancelled) return;
+          if (p) putProfile(p);
+          useApp.setState({ profile: p ?? null });
+        })
+        .catch(() => {
+          // офлайн: пускаем с последним известным профилем
+          const cached = localStorage.getItem('bobogram.profile');
+          if (!cancelled && cached) useApp.setState({ profile: JSON.parse(cached) });
+        });
+    void load();
+    const off = onDbEvent((e) => {
+      if (e.table === 'profiles' && e.row.id === uid) void load();
+    });
+    return () => {
+      cancelled = true;
+      off();
+    };
   }, [uid]);
 
-  const ready = !!uid && verified && hasProfile && !banned;
-
-  // Чаты, личные настройки и чёрный список.
+  const profile = useApp((s) => s.profile);
   useEffect(() => {
-    if (!ready || !uid) return;
-    const unsubChats = onSnapshot(
-      query(collection(db, 'chats'), where('members', 'array-contains', uid)),
-      (snap) => {
-        const chats = snap.docs.map((d) => toChat(d)).filter((c): c is Chat => c !== null);
-        useApp.setState({ chats, chatsLoaded: true });
-      },
-      () => useApp.setState({ chatsLoaded: true }),
-    );
-    const unsubPrefs = onSnapshot(userChatsCol(uid), (snap) => {
-      const prefs: Record<string, UserChatPrefs> = {};
-      snap.docs.forEach((d) => (prefs[d.id] = toPrefs(d.data())));
-      useApp.setState({ prefs });
-    });
-    const unsubBlocks = onSnapshot(blocksRef(uid), (snap) =>
-      useApp.setState({ blocked: (snap.data()?.list as string[] | undefined) ?? [] }),
-    );
-    return () => {
-      unsubChats();
-      unsubPrefs();
-      unsubBlocks();
-    };
-  }, [ready, uid]);
+    if (profile) localStorage.setItem('bobogram.profile', JSON.stringify(profile));
+  }, [profile]);
 
-  // Статус «в сети».
+  const ready = !!uid && hasProfile && !banned;
+
+  // Realtime, чаты, чёрный список.
+  useEffect(() => {
+    if (!ready) return;
+    const stop = startDbChannel();
+    refreshChats(0);
+    void refreshBlocked();
+    void flushOutbox();
+    const off = onDbEvent((e) => {
+      if (e.table === 'messages' || e.table === 'chats' || e.table === 'chat_members') refreshChats();
+    });
+    const offResync = onResync(() => refreshChats(0));
+    const onVisible = () => document.visibilityState === 'visible' && refreshChats(0);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      stop();
+      off();
+      offResync();
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [ready]);
+
+  // «В сети» и «был(а) в сети».
   useEffect(() => {
     if (!ready || !uid || hideLastSeen === undefined) return;
-    return startPresence(uid, hideLastSeen);
+    const stop = startPresence(uid, hideLastSeen);
+    if (hideLastSeen) return stop;
+    const touch = () => void touchLastSeen(uid).catch(() => undefined);
+    touch();
+    const timer = window.setInterval(() => document.visibilityState === 'visible' && touch(), 60_000);
+    document.addEventListener('visibilitychange', touch);
+    return () => {
+      stop();
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', touch);
+    };
   }, [ready, uid, hideLastSeen]);
 }

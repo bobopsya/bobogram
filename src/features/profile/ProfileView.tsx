@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useApp, useMe } from '../../app/store';
-import { findUserByUsername, setBlocked } from '../../firebase/db';
+import { errorKey, findUserByUsername, openPrivateChat, profileLink, setBlocked } from '../../supabase/api';
 import { usePresence, useProfile } from '../../app/profiles';
-import { privateChatId, savedChatId } from '../../lib/ids';
+import { refreshBlocked } from '../../app/session';
+import { useOpenChatWith } from '../chats/ChatList';
 import { Avatar } from '../../ui/Avatar';
 import { Icon } from '../../ui/Icon';
 import { Confirm } from '../../ui/Modal';
@@ -12,10 +13,6 @@ import { FullScreenSpinner, PageHeader } from '../../ui/misc';
 import { lastSeenText } from '../chat/ChatHeader';
 import { startCall } from '../calls/callStore';
 import { ShareProfile } from './ShareProfile';
-
-export function profileLink(username: string): string {
-  return `${window.location.origin}${import.meta.env.BASE_URL}#/u/${username}`;
-}
 
 /** Открытие профиля по ссылке …/#/u/username */
 export function UsernameRoute() {
@@ -63,6 +60,11 @@ function ProfileScreen({ uid }: { uid: string }) {
   const showToast = useApp((s) => s.showToast);
   const [confirmBlock, setConfirmBlock] = useState(false);
   const [share, setShare] = useState(false);
+  const openChatWith = useOpenChatWith();
+  const block = (b: boolean) =>
+    void setBlocked(uid, b)
+      .then(refreshBlocked)
+      .catch((e) => showToast(t(errorKey(e))));
 
   if (profile === undefined) return <FullScreenSpinner />;
   if (profile === null) {
@@ -77,7 +79,13 @@ function ProfileScreen({ uid }: { uid: string }) {
   }
 
   const isMe = uid === me;
-  const chatId = isMe ? savedChatId(me) : privateChatId(me, uid);
+  const call = async (video: boolean) => {
+    try {
+      startCall(await openPrivateChat(uid), uid, video);
+    } catch (e) {
+      showToast(t(errorKey(e)));
+    }
+  };
 
   return (
     <div className="screen">
@@ -102,17 +110,17 @@ function ProfileScreen({ uid }: { uid: string }) {
         </div>
 
         <div className="action-row">
-          <button className="action-btn" onClick={() => navigate(`/c/${chatId}`)}>
+          <button className="action-btn" onClick={() => void openChatWith(uid)}>
             <Icon name={isMe ? 'bookmark' : 'send'} />
             <span>{isMe ? t('chats.savedMessages') : t('profile.sendMessage')}</span>
           </button>
           {!isMe && !blocked && (
             <>
-              <button className="action-btn" onClick={() => startCall(chatId, uid, false)}>
+              <button className="action-btn" onClick={() => void call(false)}>
                 <Icon name="phone" />
                 <span>{t('chat.callAudio')}</span>
               </button>
-              <button className="action-btn" onClick={() => startCall(chatId, uid, true)}>
+              <button className="action-btn" onClick={() => void call(true)}>
                 <Icon name="video" />
                 <span>{t('chat.callVideo')}</span>
               </button>
@@ -161,7 +169,7 @@ function ProfileScreen({ uid }: { uid: string }) {
           {!isMe && (
             <button
               className="info-item danger"
-              onClick={() => (blocked ? void setBlocked(me, uid, false) : setConfirmBlock(true))}
+              onClick={() => (blocked ? block(false) : setConfirmBlock(true))}
             >
               <Icon name="ban" />
               <div>{blocked ? t('profile.unblock') : t('profile.block')}</div>
@@ -176,7 +184,7 @@ function ProfileScreen({ uid }: { uid: string }) {
           confirmLabel={t('profile.block')}
           cancelLabel={t('common.cancel')}
           danger
-          onConfirm={() => void setBlocked(me, uid, true)}
+          onConfirm={() => block(true)}
           onClose={() => setConfirmBlock(false)}
         />
       )}

@@ -1,37 +1,23 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 
-const AUTH = 'http://127.0.0.1:9099';
-const PROJECT = 'demo-bobogram';
-const run = Date.now().toString(36);
 
-async function verifyEmail(page: Page, email: string) {
-  const res = await page.request.get(`${AUTH}/emulator/v1/projects/${PROJECT}/oobCodes`);
-  const { oobCodes } = (await res.json()) as { oobCodes: { email: string; oobLink: string; requestType: string }[] };
-  if (!oobCodes.some((c) => c.email === email)) console.log('oobCodes', JSON.stringify(oobCodes));
-  const code = oobCodes.reverse().find((c) => c.email === email && c.requestType === 'VERIFY_EMAIL');
-  expect(code, 'письмо с подтверждением').toBeTruthy();
-  await page.request.get(code!.oobLink);
-}
+const run = Date.now().toString(36).slice(-6);
 
-async function signUp(browser: Browser, name: string, username: string, mobile = false) {
+async function signUp(browser: Browser, name: string, username: string, mobile = false): Promise<Page> {
   const context = await browser.newContext(
     mobile ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'ru-RU' } : { locale: 'ru-RU' },
   );
   const page = await context.newPage();
-  page.on('console', (m) => (m.type() === 'error' || m.type() === 'warning') && console.log('[browser]', m.text()));
-  const email = `${username}@example.com`;
+  page.on('console', (m) => m.type() === 'error' && console.log('[browser]', m.text()));
   await page.goto('./');
   await page.getByRole('button', { name: 'Нет аккаунта? Зарегистрируйтесь' }).click();
-  await page.getByLabel('Почта').fill(email);
-  await page.getByLabel('Пароль').fill('secret123');
   await page.getByLabel('Имя', { exact: true }).fill(name);
   await page.locator('.field-prefix input').fill(username);
   await expect(page.getByText('Имя свободно')).toBeVisible();
+  const passwords = page.locator('input[type="password"]');
+  await passwords.nth(0).fill('secret123');
+  await passwords.nth(1).fill('secret123');
   await page.getByRole('button', { name: 'Зарегистрироваться' }).click();
-  await expect(page.getByText('Подтвердите почту')).toBeVisible();
-  await page.waitForTimeout(1500);
-  await verifyEmail(page, email);
-  await page.getByRole('button', { name: 'Я подтвердил(а)' }).click();
   await expect(page.getByPlaceholder('Поиск по @имени или чатам')).toBeVisible();
   return page;
 }
@@ -119,4 +105,27 @@ test('видеозвонок соединяется и пишет запись �
   await bob.getByRole('button', { name: 'Завершить' }).click();
   await expect(alice.locator('.call-screen')).toBeHidden({ timeout: 10_000 });
   await expect(alice.locator('.msg-call')).toContainText('Видеозвонок');
+});
+
+test('без сети сообщение ждёт с «часиками» и уходит, когда сеть появилась', async ({ browser }) => {
+  const alice = await signUp(browser, 'Алиса', `aliceo${run}`);
+  const bob = await signUp(browser, 'Боб', `bobo${run}`);
+
+  await alice.getByPlaceholder('Поиск по @имени или чатам').fill(`@bobo${run}`);
+  await alice.locator('.list-item', { hasText: 'Боб' }).click();
+  await alice.getByPlaceholder('Сообщение').fill('Первое');
+  await alice.keyboard.press('Enter');
+  await expect(bob.locator('.chat-item', { hasText: 'Алиса' })).toBeVisible();
+
+  await alice.context().setOffline(true);
+  await alice.getByPlaceholder('Сообщение').fill('Отправлено без сети');
+  await alice.keyboard.press('Enter');
+  const bubble = alice.locator('.msg-row.own', { hasText: 'Отправлено без сети' });
+  await expect(bubble).toBeVisible();
+  await expect(bubble.locator('.tick')).toBeVisible();
+  await alice.waitForTimeout(1000);
+  await expect(bob.locator('.chat-item', { hasText: 'Алиса' })).not.toContainText('Отправлено без сети');
+
+  await alice.context().setOffline(false);
+  await expect(bob.locator('.chat-item', { hasText: 'Алиса' })).toContainText('Отправлено без сети', { timeout: 30_000 });
 });

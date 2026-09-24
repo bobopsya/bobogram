@@ -1,6 +1,6 @@
 import { memo, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ChatType, Message } from '../../firebase/types';
+import type { ChatType, Message } from '../../supabase/types';
 import { displayNameOf, useProfile } from '../../app/profiles';
 import { formatDuration, formatTime, toDate } from '../../lib/time';
 import { Icon } from '../../ui/Icon';
@@ -64,7 +64,11 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
       {msg.editedAt && <span className="msg-edited">{t('chat.edited')}</span>}
       {date && formatTime(date, i18n.language)}
       {own && chatType !== 'saved' && (
-        <Icon name={msg.pending ? 'clock' : read ? 'checks' : 'check'} size={15} className="tick" />
+        <Icon
+          name={msg.failed ? 'ban' : msg.pending ? 'clock' : read ? 'checks' : 'check'}
+          size={15}
+          className={msg.failed ? 'tick danger' : 'tick'}
+        />
       )}
     </span>
   );

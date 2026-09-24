@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useApp, useMe, useMyProfile, type ThemeMode } from '../../app/store';
-import { updateProfile } from '../../firebase/db';
-import { logout } from '../../firebase/auth';
-import { disablePush, enablePush, pushState, type PushState } from '../../firebase/messaging';
+import { changePassword, errorKey, logout, updateProfile } from '../../supabase/api';
+import { disablePush, enablePush, pushState, type PushState } from '../../supabase/push';
+import { Modal } from '../../ui/Modal';
 import { isIos, isStandalone } from '../../app/effects';
 import { Avatar } from '../../ui/Avatar';
 import { Icon } from '../../ui/Icon';
@@ -23,6 +23,7 @@ export function SettingsScreen() {
   const blockedCount = useApp((s) => s.blocked.length);
   const [push, setPush] = useState<PushState | null>(null);
   const [pushBusy, setPushBusy] = useState(false);
+  const [pwOpen, setPwOpen] = useState(false);
 
   useEffect(() => {
     void pushState().then(setPush);
@@ -31,9 +32,9 @@ export function SettingsScreen() {
   const togglePush = async (on: boolean) => {
     setPushBusy(true);
     try {
-      if (on) setPush(await enablePush(me));
+      if (on) setPush(await enablePush());
       else {
-        await disablePush(me);
+        await disablePush();
         setPush('off');
       }
     } catch {
@@ -119,6 +120,13 @@ export function SettingsScreen() {
           </button>
         </Section>
 
+        <Section title={t('settings.account')}>
+          <button className="setting-row" onClick={() => setPwOpen(true)}>
+            <Icon name="lock" />
+            <span>{t('settings.changePassword')}</span>
+          </button>
+        </Section>
+
         {!isStandalone() && (
           <Section title={t('settings.installTitle')}>
             <p className="setting-hint">{isIos() ? t('settings.installIos') : t('settings.installOther')}</p>
@@ -139,6 +147,53 @@ export function SettingsScreen() {
         </Section>
         <p className="version muted small">{t('settings.version', { version: __APP_VERSION__ })}</p>
       </div>
+      {pwOpen && <ChangePassword onClose={() => setPwOpen(false)} />}
     </div>
+  );
+}
+
+function ChangePassword({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
+  const showToast = useApp((s) => s.showToast);
+  const [pw, setPw] = useState('');
+  const [pw2, setPw2] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    if (pw !== pw2) return setError(t('auth.passwordsDiffer'));
+    setBusy(true);
+    try {
+      await changePassword(pw);
+      showToast(t('settings.passwordChanged'));
+      onClose();
+    } catch (err) {
+      setError(t(errorKey(err)));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={t('settings.changePassword')}
+      onClose={onClose}
+      footer={
+        <button className="btn btn-primary" disabled={busy || pw.length < 6} onClick={() => void save()}>
+          {t('common.save')}
+        </button>
+      }
+    >
+      <label className="field">
+        <span className="field-label">{t('settings.newPassword')}</span>
+        <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" minLength={6} />
+        <span className="field-hint">{t('auth.passwordHint')}</span>
+      </label>
+      <label className="field">
+        <span className="field-label">{t('auth.password2')}</span>
+        <input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} autoComplete="new-password" />
+      </label>
+      {error && <p className="form-error">{error}</p>}
+    </Modal>
   );
 }

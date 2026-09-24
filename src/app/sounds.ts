@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router';
 import { useApp } from './store';
-import { toMillis } from '../lib/time';
 
 let ctx: AudioContext | null = null;
 
@@ -31,16 +30,11 @@ export function beep(kind: 'message' | 'ring' = 'message') {
   }
 }
 
-export function isMuted(mutedUntil: number | null | undefined): boolean {
-  return mutedUntil != null && (mutedUntil === -1 || mutedUntil > Date.now());
-}
-
 /** Звук и заголовок вкладки при новых сообщениях, пока приложение открыто. */
 export function useIncomingSounds() {
   const chats = useApp((s) => s.chats);
-  const prefs = useApp((s) => s.prefs);
   const sound = useApp((s) => s.sound);
-  const me = useApp((s) => s.user?.uid);
+  const me = useApp((s) => s.userId);
   const location = useLocation();
   const seen = useRef<Map<string, string> | null>(null);
 
@@ -53,26 +47,19 @@ export function useIncomingSounds() {
       if (!last) continue;
       const prev = seen.current.get(chat.id);
       seen.current.set(chat.id, last.id);
-      if (first || prev === last.id || last.senderId === me || last.system) continue;
-      if (isMuted(prefs[chat.id]?.mutedUntil)) continue;
+      if (first || prev === last.id || last.senderId === me || last.system || chat.muted) continue;
       const open = location.pathname === `/c/${chat.id}` && document.visibilityState === 'visible';
-      if (!open && Date.now() - toMillis(last.createdAt) < 60_000) play = true;
+      if (!open && Date.now() - last.createdAt < 60_000) play = true;
     }
     if (play && sound) beep('message');
-  }, [chats, prefs, sound, me, location.pathname]);
+  }, [chats, sound, me, location.pathname]);
 
-  // Счётчик непрочитанных чатов в заголовке вкладки.
+  // Число чатов с непрочитанными — в заголовке вкладки и на иконке приложения.
   useEffect(() => {
-    const unread = chats.filter(
-      (c) =>
-        c.lastMessage &&
-        c.lastMessage.senderId !== me &&
-        toMillis(c.lastMessage.createdAt) > toMillis(c.readBy[me ?? '']) &&
-        !isMuted(prefs[c.id]?.mutedUntil),
-    ).length;
+    const unread = chats.filter((c) => c.unread > 0 && !c.muted).length;
     document.title = unread ? `(${unread}) Bobogram` : 'Bobogram';
     const nav = navigator as Navigator & { setAppBadge?: (n: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
     if (unread) void nav.setAppBadge?.(unread).catch(() => undefined);
     else void nav.clearAppBadge?.().catch(() => undefined);
-  }, [chats, prefs, me]);
+  }, [chats]);
 }

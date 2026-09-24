@@ -1,19 +1,15 @@
 import { create } from 'zustand';
 import {
-  addDoc,
-  collection,
-  doc,
-  onSnapshot,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-  type Unsubscribe,
-} from 'firebase/firestore';
-import { db } from '../../firebase/init';
-import { auth } from '../../firebase/init';
-import { fetchIceServers, notifyCall } from '../../firebase/messaging';
-import { sendMessage } from '../../firebase/db';
-import type { CallDoc } from '../../firebase/types';
+  addCandidate,
+  createCall,
+  fetchCall,
+  fetchCandidates,
+  toCall,
+  updateCall,
+} from '../../supabase/api';
+import type { CallRow } from '../../supabase/types';
+import { onDbEvent } from '../../supabase/realtime';
+import { queueMessage } from '../../app/outbox';
 import { useApp } from '../../app/store';
 import i18n from '../../i18n';
 
@@ -21,7 +17,7 @@ export type CallPhase = 'incoming' | 'calling' | 'connecting' | 'active' | 'ende
 export type EndReason = 'ended' | 'declined' | 'noAnswer' | 'failed' | 'permissionDenied' | 'busy';
 
 export interface CallState {
-  id: string;
+  id: string | null;
   chatId: string;
   peerUid: string;
   video: boolean;
@@ -38,14 +34,16 @@ export interface CallState {
 export const useCall = create<{ call: CallState | null }>(() => ({ call: null }));
 
 const RING_TIMEOUT = 45_000;
-const callRef = (id: string) => doc(db, 'calls', id);
+/** Публичные STUN-серверы. TURN можно добавить позже (см. docs/SETUP.md). */
+const ICE_SERVERS: RTCIceServer[] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }];
 
 // Объекты WebRTC живут вне React-состояния.
 let pc: RTCPeerConnection | null = null;
-let unsubs: Unsubscribe[] = [];
+let unsubs: (() => void)[] = [];
 let ringTimer: number | undefined;
 let disconnectTimer: number | undefined;
 let facing: 'user' | 'environment' = 'user';
+const seenCandidates = new Set<string>();
 
 function patch(p: Partial<CallState>) {
   const call = useCall.getState().call;
@@ -53,7 +51,7 @@ function patch(p: Partial<CallState>) {
 }
 
 function me(): string {
-  return auth.currentUser?.uid ?? '';
+  return useApp.getState().userId ?? '';
 }
 
 async function getMedia(video: boolean): Promise<MediaStream> {
@@ -68,47 +66,52 @@ function cleanup() {
   window.clearTimeout(disconnectTimer);
   unsubs.forEach((u) => u());
   unsubs = [];
-  const call = useCall.getState().call;
-  call?.local?.getTracks().forEach((t) => t.stop());
+  seenCandidates.clear();
+  useCall.getState().call?.local?.getTracks().forEach((t) => t.stop());
   pc?.close();
   pc = null;
 }
 
 /** Завершение звонка. Звонивший пишет запись о звонке в чат. */
-async function finish(reason: EndReason, remoteStatus?: CallDoc['status']) {
+async function finish(reason: EndReason, remoteStatus?: CallRow['status']) {
   const call = useCall.getState().call;
   if (!call || call.phase === 'ended') return;
   const duration = call.startedAt ? Math.round((Date.now() - call.startedAt) / 1000) : 0;
   cleanup();
   useCall.setState({ call: { ...call, phase: 'ended', endReason: reason, local: null, remote: null } });
   window.setTimeout(() => {
-    if (useCall.getState().call?.id === call.id) useCall.setState({ call: null });
+    if (useCall.getState().call?.phase === 'ended') useCall.setState({ call: null });
   }, 1800);
 
-  if (remoteStatus) {
-    await updateDoc(callRef(call.id), { status: remoteStatus, endedAt: serverTimestamp() }).catch(() => undefined);
+  if (call.id && remoteStatus) {
+    await updateCall(call.id, { status: remoteStatus, ended_at: new Date().toISOString() }).catch(() => undefined);
   }
-  if (call.outgoing && reason !== 'permissionDenied') {
-    const { done } = sendMessage(call.chatId, me(), { text: '', call: { video: call.video, duration } });
-    await done.catch(() => undefined);
+  if (call.outgoing && call.id && reason !== 'permissionDenied') {
+    queueMessage({ id: crypto.randomUUID(), chatId: call.chatId, text: '', call: { video: call.video, duration } }, me());
   }
 }
 
-async function createPeer(callId: string, side: 'callerCandidates' | 'calleeCandidates'): Promise<RTCPeerConnection> {
-  const iceServers = await fetchIceServers();
-  const peer = new RTCPeerConnection({ iceServers });
+function createPeer(callId: () => string | null, fromCaller: boolean): RTCPeerConnection {
+  const peer = new RTCPeerConnection({ iceServers: ICE_SERVERS });
   const remote = new MediaStream();
   patch({ remote });
+  const queued: RTCIceCandidateInit[] = [];
 
   peer.ontrack = (e) => {
-    e.streams[0]?.getTracks().forEach((t) => {
-      if (!remote.getTracks().includes(t)) remote.addTrack(t);
-    });
-    if (!e.streams[0] && !remote.getTracks().includes(e.track)) remote.addTrack(e.track);
-    patch({ remote });
+    const tracks = e.streams[0]?.getTracks() ?? [e.track];
+    tracks.forEach((t) => !remote.getTracks().includes(t) && remote.addTrack(t));
+    patch({ remote: new MediaStream(remote.getTracks()) });
   };
   peer.onicecandidate = (e) => {
-    if (e.candidate) void addDoc(collection(db, 'calls', callId, side), e.candidate.toJSON()).catch(() => undefined);
+    if (!e.candidate) return;
+    const id = callId();
+    // Пока строка звонка не создана, кандидаты копим.
+    if (id) void addCandidate(id, fromCaller, e.candidate.toJSON());
+    else queued.push(e.candidate.toJSON());
+  };
+  (peer as RTCPeerConnection & { flushQueued?: () => void }).flushQueued = () => {
+    const id = callId();
+    if (id) queued.splice(0).forEach((c) => void addCandidate(id, fromCaller, c));
   };
   peer.onconnectionstatechange = () => {
     const state = peer.connectionState;
@@ -125,29 +128,34 @@ async function createPeer(callId: string, side: 'callerCandidates' | 'calleeCand
   return peer;
 }
 
-/** Слушает ICE-кандидатов собеседника; до установки remoteDescription копит их. */
-function listenCandidates(callId: string, side: 'callerCandidates' | 'calleeCandidates') {
-  const queue: RTCIceCandidateInit[] = [];
-  const flush = () => {
-    if (!pc?.remoteDescription) return;
-    while (queue.length) void pc.addIceCandidate(queue.shift()!).catch(() => undefined);
+/** ICE-кандидаты собеседника: из базы (уже пришедшие) и через realtime (новые). */
+function listenCandidates(callId: string, fromCaller: boolean) {
+  const add = (c: RTCIceCandidateInit) => {
+    const key = JSON.stringify(c);
+    if (seenCandidates.has(key) || !pc?.remoteDescription) return;
+    seenCandidates.add(key);
+    void pc.addIceCandidate(c).catch(() => undefined);
   };
   unsubs.push(
-    onSnapshot(collection(db, 'calls', callId, side), (snap) => {
-      snap.docChanges().forEach((ch) => ch.type === 'added' && queue.push(ch.doc.data() as RTCIceCandidateInit));
-      flush();
+    onDbEvent((e) => {
+      if (e.table === 'call_candidates' && e.row.call_id === callId && e.row.from_caller === fromCaller) {
+        add(e.row.candidate as RTCIceCandidateInit);
+      }
     }),
   );
-  return flush;
+  const sync = () => void fetchCandidates(callId, fromCaller).then((list) => list.forEach(add));
+  sync();
+  // Подстраховка: realtime мог прийти раньше remoteDescription.
+  const timer = window.setInterval(sync, 2000);
+  unsubs.push(() => window.clearInterval(timer));
 }
 
 // ---------- исходящий звонок ----------
 export async function startCall(chatId: string, peerUid: string, video: boolean) {
   if (useCall.getState().call) return;
-  const callDoc = doc(collection(db, 'calls'));
   useCall.setState({
     call: {
-      id: callDoc.id,
+      id: null,
       chatId,
       peerUid,
       video,
@@ -172,45 +180,36 @@ export async function startCall(chatId: string, peerUid: string, video: boolean)
   patch({ local });
 
   try {
-    // Документ звонка создаём до ICE-кандидатов: правила проверяют их по нему.
-    const peer = await createPeer(callDoc.id, 'callerCandidates');
+    let callId: string | null = null;
+    const peer = createPeer(() => callId, true);
+    pc = peer;
     local.getTracks().forEach((t) => peer.addTrack(t, local));
     const offer = await peer.createOffer();
-    await setDoc(callDoc, {
-      callerId: me(),
-      calleeId: peerUid,
-      chatId,
-      video,
-      status: 'ringing',
-      offer: { type: offer.type, sdp: offer.sdp },
-      answer: null,
-      createdAt: serverTimestamp(),
-      answeredAt: null,
-      endedAt: null,
-    });
-    if (useCall.getState().call?.id !== callDoc.id) {
-      peer.close();
+    await peer.setLocalDescription(offer);
+    callId = await createCall({ chatId, calleeId: peerUid, video, offer: { type: offer.type, sdp: offer.sdp } });
+    if (useCall.getState().call?.phase !== 'calling') {
+      await updateCall(callId, { status: 'missed' }).catch(() => undefined);
       return;
     }
-    pc = peer;
-    await peer.setLocalDescription(offer);
-    void notifyCall(callDoc.id);
+    patch({ id: callId });
+    (peer as RTCPeerConnection & { flushQueued?: () => void }).flushQueued?.();
 
-    const flush = listenCandidates(callDoc.id, 'calleeCandidates');
-    unsubs.push(
-      onSnapshot(callDoc, async (snap) => {
-        const data = snap.data() as Omit<CallDoc, 'id'> | undefined;
-        if (!data || !pc) return;
-        if (data.answer && !pc.currentRemoteDescription) {
-          window.clearTimeout(ringTimer);
-          patch({ phase: 'connecting' });
-          await pc.setRemoteDescription(data.answer as RTCSessionDescriptionInit);
-          flush();
-        }
-        if (data.status === 'declined') void finish('declined');
-        else if (data.status === 'ended') void finish('ended');
-      }),
-    );
+    const id = callId;
+    const onRow = async (row: CallRow) => {
+      if (!pc) return;
+      if (row.answer && !pc.currentRemoteDescription) {
+        window.clearTimeout(ringTimer);
+        patch({ phase: 'connecting' });
+        await pc.setRemoteDescription(row.answer);
+        listenCandidates(id, false);
+      }
+      if (row.status === 'declined') void finish('declined');
+      else if (row.status === 'ended') void finish('ended');
+    };
+    unsubs.push(onDbEvent((e) => e.table === 'calls' && e.row.id === id && void onRow(toCall(e.row))));
+    // На случай, если ответ пришёл раньше подписки.
+    const poll = window.setInterval(() => void fetchCall(id).then((r) => r && onRow(r)), 3000);
+    unsubs.push(() => window.clearInterval(poll));
     ringTimer = window.setTimeout(() => void finish('noAnswer', 'missed'), RING_TIMEOUT);
   } catch {
     await finish('failed', 'ended');
@@ -218,33 +217,34 @@ export async function startCall(chatId: string, peerUid: string, video: boolean)
 }
 
 // ---------- входящий звонок ----------
-export function showIncoming(data: CallDoc) {
+export function showIncoming(row: CallRow) {
   const current = useCall.getState().call;
   if (current) {
-    if (current.id !== data.id) void updateDoc(callRef(data.id), { status: 'declined' }).catch(() => undefined);
+    if (current.id !== row.id) void updateCall(row.id, { status: 'declined' }).catch(() => undefined);
     return;
   }
   useCall.setState({
     call: {
-      id: data.id,
-      chatId: data.chatId,
-      peerUid: data.callerId,
-      video: data.video,
+      id: row.id,
+      chatId: row.chatId,
+      peerUid: row.callerId,
+      video: row.video,
       outgoing: false,
       phase: 'incoming',
       startedAt: null,
       endReason: null,
       micOn: true,
-      camOn: data.video,
+      camOn: row.video,
       local: null,
       remote: null,
     },
   });
   // Звонивший передумал — убираем входящий.
   unsubs.push(
-    onSnapshot(callRef(data.id), (snap) => {
-      const status = snap.data()?.status;
-      if (status && status !== 'ringing' && status !== 'accepted') void finish('ended');
+    onDbEvent((e) => {
+      if (e.table !== 'calls' || e.row.id !== row.id) return;
+      const status = e.row.status;
+      if (status !== 'ringing' && status !== 'accepted') void finish('ended');
     }),
   );
   ringTimer = window.setTimeout(() => void finish('noAnswer'), RING_TIMEOUT);
@@ -252,7 +252,8 @@ export function showIncoming(data: CallDoc) {
 
 export async function acceptCall() {
   const call = useCall.getState().call;
-  if (!call || call.phase !== 'incoming') return;
+  if (!call?.id || call.phase !== 'incoming') return;
+  const callId = call.id;
   window.clearTimeout(ringTimer);
   patch({ phase: 'connecting' });
 
@@ -266,31 +267,23 @@ export async function acceptCall() {
   patch({ local });
 
   try {
-    const peer = await createPeer(call.id, 'calleeCandidates');
+    const row = await fetchCall(callId);
+    if (!row?.offer || row.status !== 'ringing') {
+      await finish('ended');
+      return;
+    }
+    const peer = createPeer(() => callId, false);
     pc = peer;
     local.getTracks().forEach((t) => peer.addTrack(t, local));
-    const offer = await new Promise<RTCSessionDescriptionInit>((resolve, reject) => {
-      const unsub = onSnapshot(
-        callRef(call.id),
-        (snap) => {
-          const o = snap.data()?.offer;
-          if (o) {
-            unsub();
-            resolve(o);
-          }
-        },
-        reject,
-      );
-    });
-    await peer.setRemoteDescription(offer);
+    await peer.setRemoteDescription(row.offer);
     const answer = await peer.createAnswer();
     await peer.setLocalDescription(answer);
-    await updateDoc(callRef(call.id), {
+    await updateCall(callId, {
       answer: { type: answer.type, sdp: answer.sdp },
       status: 'accepted',
-      answeredAt: serverTimestamp(),
+      answered_at: new Date().toISOString(),
     });
-    listenCandidates(call.id, 'callerCandidates')();
+    listenCandidates(callId, true);
   } catch {
     await finish('failed', 'ended');
   }

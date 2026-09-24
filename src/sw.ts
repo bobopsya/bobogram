@@ -1,9 +1,6 @@
 /// <reference lib="webworker" />
 import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching';
 import { clientsClaim } from 'workbox-core';
-import { initializeApp } from 'firebase/app';
-import { getMessaging, onBackgroundMessage } from 'firebase/messaging/sw';
-import { firebaseConfig, isConfigured } from './firebase/config';
 
 declare let self: ServiceWorkerGlobalScope;
 
@@ -13,22 +10,41 @@ cleanupOutdatedCaches();
 self.skipWaiting();
 clientsClaim();
 
-// Пуши приходят как data-сообщения; уведомление рисуем сами (iOS требует показывать каждое).
-if (isConfigured && import.meta.env.VITE_FIREBASE_VAPID_KEY) {
-  const messaging = getMessaging(initializeApp(firebaseConfig));
-  onBackgroundMessage(messaging, (payload) => {
-    const data = payload.data ?? {};
-    const kind = data.kind ?? 'message';
-    return self.registration.showNotification(data.title || 'Bobogram', {
-      body: data.body ?? '',
-      icon: data.icon || `${self.registration.scope}icon-192.png`,
-      badge: `${self.registration.scope}icon-192.png`,
-      tag: data.tag || data.chatId,
-      data: { chatId: data.chatId, kind },
-      requireInteraction: kind === 'call',
-    });
-  });
+interface PushPayload {
+  kind?: 'message' | 'call';
+  chatId?: string;
+  title?: string;
+  body?: string;
+  tag?: string;
 }
+
+const isApple = /iPhone|iPad|iPod|Macintosh/.test(self.navigator.userAgent);
+
+// Пуш от серверной функции (Web Push). iOS требует показывать уведомление на каждый пуш.
+self.addEventListener('push', (event) => {
+  let data: PushPayload = {};
+  try {
+    data = (event.data?.json() ?? {}) as PushPayload;
+  } catch {
+    data = { body: event.data?.text() };
+  }
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const focused = windows.some((w) => (w as WindowClient).focused && w.visibilityState === 'visible');
+      // Приложение открыто перед глазами — звук в самом приложении, уведомление не нужно.
+      if (focused && !isApple && data.kind !== 'call') return;
+      await self.registration.showNotification(data.title || 'Bobogram', {
+        body: data.body ?? '',
+        icon: `${self.registration.scope}icon-192.png`,
+        badge: `${self.registration.scope}icon-192.png`,
+        tag: data.tag || data.chatId,
+        data: { chatId: data.chatId },
+        requireInteraction: data.kind === 'call',
+      });
+    })(),
+  );
+});
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();

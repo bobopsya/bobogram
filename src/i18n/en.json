@@ -22,40 +22,31 @@
   },
   "setup": {
     "title": "Setup required",
-    "text": "The app is not connected to Firebase yet. The administrator needs to follow docs/SETUP.md in the repository."
+    "text": "The site is not connected to a database yet. The administrator needs to follow docs/SETUP.md in the repository."
   },
   "auth": {
     "loginTitle": "Sign in",
     "registerTitle": "Sign up",
-    "email": "Email",
     "password": "Password",
     "passwordHint": "At least 6 characters",
     "displayName": "Name",
     "username": "Username",
-    "usernameHint": "Latin letters, digits and _, 4 to 32 characters. Friends will find you by it.",
+    "usernameHint": "Latin letters, digits and _, 4 to 32 characters. You sign in with it and friends find you by it.",
     "login": "Sign in",
     "register": "Sign up",
     "noAccount": "No account? Sign up",
     "haveAccount": "Already have an account? Sign in",
     "forgot": "Forgot password?",
-    "resetTitle": "Reset password",
-    "resetText": "We will send a password reset link to your email.",
-    "sendReset": "Send link",
-    "resetSent": "Email sent. Check your inbox (and spam folder).",
-    "verifyTitle": "Confirm your email",
-    "verifyText": "We sent an email to {{email}}. Open the link in it, then come back here.",
-    "verifyCheck": "I've confirmed",
-    "verifyResend": "Resend email",
-    "verifySent": "Email sent again",
-    "verifyNotYet": "Email is not confirmed yet. Check your inbox and spam folder.",
     "logout": "Sign out",
-    "pickUsernameTitle": "Choose a username",
-    "pickUsernameText": "Almost done: pick a name your friends can find you by.",
     "usernameFree": "Username is available",
     "usernameTaken": "This username is taken",
     "checking": "Checking…",
     "bannedTitle": "Account blocked",
-    "bannedText": "The administrator has restricted access to your account."
+    "bannedText": "The administrator has restricted access to your account.",
+    "password2": "Repeat password",
+    "passwordsDiffer": "Passwords do not match",
+    "forgotTitle": "Forgot password?",
+    "forgotText": "Ask the Bobogram administrator — they can set a new password for you in the admin panel. You can change it later in settings."
   },
   "username": {
     "short": "Too short — at least 4 characters",
@@ -64,16 +55,15 @@
     "chars": "Only Latin letters, digits and _ are allowed"
   },
   "errors": {
-    "invalidEmail": "Invalid email address",
-    "emailInUse": "This email is already registered",
     "weakPassword": "Password is too weak (at least 6 characters)",
-    "wrongCredentials": "Wrong email or password",
+    "wrongCredentials": "Wrong username or password",
     "tooManyRequests": "Too many attempts. Try again later.",
     "network": "No connection to the server",
     "permission": "You don't have permission to do this",
     "generic": "Something went wrong. Please try again.",
     "avatarTooBig": "Couldn't compress the image. Choose another one.",
-    "tooLong": "Message is too long"
+    "tooLong": "Message is too long",
+    "tooManyMembers": "Too many members"
   },
   "chats": {
     "title": "Chats",
@@ -156,7 +146,9 @@
     "callIncoming": "Incoming call",
     "callMissed": "Missed call",
     "callCancelled": "Cancelled call",
-    "info": "Info"
+    "info": "Info",
+    "failed": "Not sent",
+    "retry": "Retry"
   },
   "system": {
     "created": "{{name}} created “{{title}}”",
@@ -246,7 +238,11 @@
     "blocklist": "Blocked users",
     "blocklistEmpty": "Nobody here",
     "adminPanel": "Admin panel",
-    "version": "Version {{version}}"
+    "version": "Version {{version}}",
+    "account": "Account",
+    "changePassword": "Change password",
+    "newPassword": "New password",
+    "passwordChanged": "Password changed"
   },
   "calls": {
     "calling": "Calling…",
@@ -278,7 +274,10 @@
     "open": "Open",
     "deleteChat": "Delete",
     "notAdmin": "Administrators only",
-    "hint": "Admins can only see groups and channels. Private chats are not accessible."
+    "hint": "Admins can only see groups and channels. Private chats are not accessible.",
+    "resetPassword": "New password",
+    "resetPasswordFor": "New password for @{{username}}",
+    "passwordReset": "Password changed. Share it with the user."
   },
   "notify": {
     "newMessage": "New message",

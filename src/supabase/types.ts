@@ -1,0 +1,119 @@
+export interface UserProfile {
+  uid: string;
+  username: string;
+  displayName: string;
+  bio: string;
+  avatar: string | null;
+  role: 'user' | 'admin';
+  banned: boolean;
+  hideLastSeen: boolean;
+  lastSeen: number | null;
+  createdAt: number;
+}
+
+export type ChatType = 'private' | 'group' | 'channel' | 'saved';
+export type MemberRole = 'owner' | 'admin' | 'member';
+
+export type SystemEvent =
+  | { kind: 'created'; title: string }
+  | { kind: 'joined' }
+  | { kind: 'left' }
+  | { kind: 'added'; uids: string[] }
+  | { kind: 'removed'; uid: string }
+  | { kind: 'renamed'; title: string };
+
+export interface CallInfo {
+  video: boolean;
+  /** Длительность в секундах; 0 — пропущенный или отменённый звонок. */
+  duration: number;
+}
+
+export interface LastMessage {
+  id: string;
+  text: string;
+  senderId: string;
+  createdAt: number;
+  deleted: boolean;
+  system: SystemEvent | null;
+  call: CallInfo | null;
+}
+
+export interface Chat {
+  id: string;
+  type: ChatType;
+  title: string | null;
+  description: string;
+  avatar: string | null;
+  ownerId: string | null;
+  inviteCode: string | null;
+  pinnedMessageIds: string[];
+  lastMessage: LastMessage | null;
+  createdAt: number;
+  updatedAt: number;
+  /** null — я не участник (админ сервиса смотрит группу). */
+  myRole: MemberRole | null;
+  lastReadAt: number;
+  pinned: boolean;
+  muted: boolean;
+  unread: number;
+  memberCount: number;
+  /** Собеседник в личном чате. */
+  otherId: string | null;
+  /** Когда другие участники последний раз читали чат (для галочек). */
+  othersReadAt: number;
+}
+
+export interface Member {
+  userId: string;
+  role: MemberRole;
+  lastReadAt: number;
+}
+
+export interface ReplyRef {
+  id: string;
+  senderId: string;
+  snippet: string;
+}
+
+export interface ForwardRef {
+  senderName: string;
+  chatTitle: string | null;
+}
+
+export interface Message {
+  id: string;
+  chatId: string;
+  senderId: string;
+  text: string;
+  createdAt: number;
+  editedAt: number | null;
+  deleted: boolean;
+  deletedFor: string[];
+  replyTo: ReplyRef | null;
+  forwardedFrom: ForwardRef | null;
+  reactions: Record<string, string[]>;
+  system: SystemEvent | null;
+  call: CallInfo | null;
+  /** Ещё не дошло до сервера (офлайн-очередь). */
+  pending: boolean;
+  /** Сервер отказал (например, собеседник заблокировал). */
+  failed?: boolean;
+}
+
+export type CallStatus = 'ringing' | 'accepted' | 'declined' | 'ended' | 'missed';
+
+export interface CallRow {
+  id: string;
+  callerId: string;
+  calleeId: string;
+  chatId: string;
+  video: boolean;
+  status: CallStatus;
+  offer: RTCSessionDescriptionInit | null;
+  answer: RTCSessionDescriptionInit | null;
+  createdAt: number;
+}
+
+export const GROUP_MAX_MEMBERS = 50;
+export const CHANNEL_MAX_MEMBERS = 1000;
+export const MESSAGE_MAX_LENGTH = 4096;

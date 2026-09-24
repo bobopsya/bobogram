@@ -1,14 +1,6 @@
-import type { Timestamp } from 'firebase/firestore';
-
-export function toDate(ts: Timestamp | Date | number | null | undefined): Date | null {
-  if (ts == null) return null;
-  if (ts instanceof Date) return ts;
-  if (typeof ts === 'number') return new Date(ts);
-  return ts.toDate();
-}
-
-export function toMillis(ts: Timestamp | Date | number | null | undefined): number {
-  return toDate(ts)?.getTime() ?? 0;
+export function toDate(ts: Date | number | null | undefined): Date | null {
+  if (!ts) return null;
+  return ts instanceof Date ? ts : new Date(ts);
 }
 
 export function isSameDay(a: Date, b: Date): boolean {
@@ -53,15 +45,7 @@ export function formatDuration(seconds: number): string {
   return `${h ? `${h}:` : ''}${mm}:${String(s).padStart(2, '0')}`;
 }
 
-/**
- * Статус «прочитано»: сообщение прочитано, если хоть один другой участник
- * отметил прочитанным момент не раньше времени сообщения.
- */
-export function isReadByOthers(
-  createdAt: number,
-  readBy: Record<string, Timestamp | null>,
-  me: string,
-): boolean {
-  if (!createdAt) return false;
-  return Object.entries(readBy).some(([uid, ts]) => uid !== me && toMillis(ts) >= createdAt);
+/** Статус «прочитано»: кто-то из других участников открывал чат после отправки сообщения. */
+export function isReadByOthers(createdAt: number, othersReadAt: number): boolean {
+  return createdAt > 0 && othersReadAt >= createdAt;
 }

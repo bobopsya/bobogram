@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Message } from '../../firebase/types';
-import { MESSAGE_MAX_LENGTH } from '../../firebase/types';
+import type { Message } from '../../supabase/types';
+import { MESSAGE_MAX_LENGTH } from '../../supabase/types';
 import { displayNameOf, useProfile } from '../../app/profiles';
-import { setTyping } from '../../firebase/rtdb';
+import { sendTyping } from '../../supabase/realtime';
 import { isTouchDevice } from '../../app/effects';
 import { Icon } from '../../ui/Icon';
 import { EmojiPicker } from './EmojiPicker';
@@ -73,7 +73,7 @@ export function Composer({ chatId, me, replyTo, editing, onCancelReply, onCancel
   useEffect(
     () => () => {
       window.clearTimeout(typingTimer.current);
-      setTyping(chatId, me, false);
+      if (typingSent.current) sendTyping(chatId, me, true);
     },
     [chatId, me],
   );
@@ -82,7 +82,7 @@ export function Composer({ chatId, me, replyTo, editing, onCancelReply, onCancel
     window.clearTimeout(typingTimer.current);
     if (typingSent.current) {
       typingSent.current = 0;
-      setTyping(chatId, me, false);
+      sendTyping(chatId, me, true);
     }
   };
 
@@ -92,7 +92,7 @@ export function Composer({ chatId, me, replyTo, editing, onCancelReply, onCancel
     const now = Date.now();
     if (value && now - typingSent.current > 3000) {
       typingSent.current = now;
-      setTyping(chatId, me, true);
+      sendTyping(chatId, me);
     }
     window.clearTimeout(typingTimer.current);
     typingTimer.current = window.setTimeout(stopTyping, 5000);

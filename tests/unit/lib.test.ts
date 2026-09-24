@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { Timestamp } from 'firebase/firestore';
 import { normalizeUsername, validateUsername } from '../../src/lib/username';
-import { otherMember, privateChatId, privateMembers, randomCode } from '../../src/lib/ids';
+import { randomCode } from '../../src/lib/ids';
 import { dayLabel, formatDuration, isReadByOthers } from '../../src/lib/time';
 import { splitText } from '../../src/features/chat/Composer';
 import { isEmojiOnly } from '../../src/features/chat/MessageText';
@@ -21,12 +20,6 @@ describe('юзернейм', () => {
 });
 
 describe('id чатов', () => {
-  it('личный чат одинаков для обоих', () => {
-    expect(privateChatId('b', 'a')).toBe('a_b');
-    expect(privateChatId('a', 'b')).toBe('a_b');
-    expect(privateMembers('z', 'y')).toEqual(['y', 'z']);
-    expect(otherMember(['a', 'b'], 'a')).toBe('b');
-  });
   it('случайный код нужной длины', () => {
     expect(randomCode(12)).toMatch(/^[A-Za-z0-9]{12}$/);
   });
@@ -45,10 +38,9 @@ describe('время', () => {
     expect(dayLabel(new Date(2026, 5, 1), 'ru', now).kind).toBe('date');
   });
   it('прочитано другим участником', () => {
-    const readBy = { me: Timestamp.fromMillis(5000), bob: Timestamp.fromMillis(3000) };
-    expect(isReadByOthers(2000, readBy, 'me')).toBe(true);
-    expect(isReadByOthers(4000, readBy, 'me')).toBe(false);
-    expect(isReadByOthers(0, readBy, 'me')).toBe(false);
+    expect(isReadByOthers(2000, 3000)).toBe(true);
+    expect(isReadByOthers(4000, 3000)).toBe(false);
+    expect(isReadByOthers(0, 3000)).toBe(false);
   });
 });
 

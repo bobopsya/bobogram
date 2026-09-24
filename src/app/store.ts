@@ -1,37 +1,35 @@
 import { create } from 'zustand';
-import type { User } from 'firebase/auth';
-import type { Chat, UserChatPrefs, UserProfile } from '../firebase/types';
+import type { Chat, Message, UserProfile } from '../supabase/types';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
-function readTheme(): ThemeMode {
+function read<T>(key: string, fallback: T): T {
   try {
-    const v = localStorage.getItem('bobogram.theme');
-    if (v === 'light' || v === 'dark' || v === 'system') return v;
+    const v = localStorage.getItem(key);
+    return v ? (JSON.parse(v) as T) : fallback;
   } catch {
-    // ignore
+    return fallback;
   }
-  return 'system';
 }
 
-function readSound(): boolean {
+export function write(key: string, value: unknown) {
   try {
-    return localStorage.getItem('bobogram.sound') !== 'off';
+    localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    return true;
+    // переполнено или недоступно — не страшно
   }
 }
 
 interface AppState {
   authReady: boolean;
-  user: User | null;
-  emailVerified: boolean;
-  /** undefined — ещё грузится, null — профиля нет (нужно выбрать юзернейм). */
+  userId: string | null;
+  /** undefined — ещё грузится, null — профиля нет. */
   profile: UserProfile | null | undefined;
   blocked: string[];
   chats: Chat[];
   chatsLoaded: boolean;
-  prefs: Record<string, UserChatPrefs>;
+  /** Неотправленные сообщения (офлайн-очередь), сохраняются между запусками. */
+  outbox: Message[];
   online: boolean;
   theme: ThemeMode;
   sound: boolean;
@@ -46,32 +44,23 @@ let toastTimer: number | undefined;
 
 export const useApp = create<AppState>((set) => ({
   authReady: false,
-  user: null,
-  emailVerified: false,
+  userId: null,
   profile: undefined,
   blocked: [],
-  chats: [],
+  chats: read<Chat[]>('bobogram.chats', []),
   chatsLoaded: false,
-  prefs: {},
+  outbox: read<Message[]>('bobogram.outbox', []),
   online: navigator.onLine,
-  theme: readTheme(),
-  sound: readSound(),
+  theme: read<ThemeMode>('bobogram.theme', 'system'),
+  sound: read<boolean>('bobogram.sound', true),
   toast: null,
 
   setTheme: (theme) => {
-    try {
-      localStorage.setItem('bobogram.theme', theme);
-    } catch {
-      // ignore
-    }
+    write('bobogram.theme', theme);
     set({ theme });
   },
   setSound: (sound) => {
-    try {
-      localStorage.setItem('bobogram.sound', sound ? 'on' : 'off');
-    } catch {
-      // ignore
-    }
+    write('bobogram.sound', sound);
     set({ sound });
   },
   showToast: (toast) => {
@@ -81,11 +70,21 @@ export const useApp = create<AppState>((set) => ({
   },
 }));
 
+// Список чатов и очередь переживают перезапуск (для работы без сети).
+useApp.subscribe((s, prev) => {
+  if (s.chats !== prev.chats) write('bobogram.chats', s.chats);
+  if (s.outbox !== prev.outbox) write('bobogram.outbox', s.outbox);
+});
+
 /** uid текущего пользователя; вызывать только внутри авторизованной части приложения. */
 export function useMe(): string {
-  return useApp((s) => s.user?.uid ?? '');
+  return useApp((s) => s.userId ?? '');
 }
 
 export function useMyProfile(): UserProfile {
   return useApp((s) => s.profile!) as UserProfile;
+}
+
+export function useChatById(chatId: string | undefined): Chat | undefined {
+  return useApp((s) => s.chats.find((c) => c.id === chatId));
 }

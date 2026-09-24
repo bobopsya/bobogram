@@ -1,7 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import type { Chat, Message, SystemEvent } from '../../firebase/types';
+import type { Chat, Message, SystemEvent } from '../../supabase/types';
 import { displayNameOf, peekProfile, useProfile } from '../../app/profiles';
-import { otherMember } from '../../lib/ids';
 import { Avatar } from '../../ui/Avatar';
 import type { IconName } from '../../ui/Icon';
 import type { TFunction } from 'i18next';
@@ -15,9 +14,9 @@ export interface ChatMeta {
 }
 
 /** Название и аватар чата: для лички — данные собеседника. */
-export function useChatMeta(chat: Pick<Chat, 'id' | 'type' | 'members' | 'title' | 'avatar'>, me: string): ChatMeta {
+export function useChatMeta(chat: Pick<Chat, 'id' | 'type' | 'otherId' | 'title' | 'avatar'>): ChatMeta {
   const { t } = useTranslation();
-  const otherUid = chat.type === 'private' ? otherMember(chat.members, me) : null;
+  const otherUid = chat.type === 'private' ? chat.otherId : null;
   const other = useProfile(otherUid);
   switch (chat.type) {
     case 'saved':

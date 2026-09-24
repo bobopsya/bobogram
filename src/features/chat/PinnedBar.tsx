@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { onSnapshot } from 'firebase/firestore';
 import { useTranslation } from 'react-i18next';
-import type { Chat, Message } from '../../firebase/types';
-import { messageRef, setPinnedMessages, toMessage } from '../../firebase/db';
+import type { Chat, Message } from '../../supabase/types';
+import { fetchMessage, setPinnedMessages, toMessage } from '../../supabase/api';
+import { onDbEvent } from '../../supabase/realtime';
+import { refreshChats } from '../../app/session';
 import { Icon } from '../../ui/Icon';
 
 /** Плашка закреплённого сообщения; клик перебирает закрепы от новых к старым. */
@@ -18,12 +19,14 @@ export function PinnedBar({ chat, canUnpin, onJump }: { chat: Chat; canUnpin: bo
 
   useEffect(() => {
     if (!id) return;
-    return onSnapshot(
-      messageRef(chat.id, id),
-      (snap) => setMsg(snap.exists() ? toMessage(snap) : null),
-      () => setMsg(null),
-    );
-  }, [chat.id, id]);
+    let cancelled = false;
+    void fetchMessage(id).then((m) => !cancelled && setMsg(m));
+    const off = onDbEvent((e) => e.table === 'messages' && e.row.id === id && setMsg(toMessage(e.row)));
+    return () => {
+      cancelled = true;
+      off();
+    };
+  }, [id]);
 
   if (!id) return null;
   const text = msg?.deleted ? t('chats.deletedMessage') : (msg?.text ?? '…');
@@ -49,7 +52,12 @@ export function PinnedBar({ chat, canUnpin, onJump }: { chat: Chat; canUnpin: bo
         <button
           className="icon-btn small"
           aria-label={t('chat.unpin')}
-          onClick={() => void setPinnedMessages(chat.id, ids.filter((x) => x !== id))}
+          onClick={() =>
+            void setPinnedMessages(
+              chat.id,
+              ids.filter((x) => x !== id),
+            ).then(() => refreshChats(0))
+          }
         >
           <Icon name="close" size={18} />
         </button>

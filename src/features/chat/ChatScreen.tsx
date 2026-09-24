@@ -2,25 +2,21 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type React
 import { useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useApp, useMe } from '../../app/store';
-import type { Chat, Message } from '../../firebase/types';
+import type { Chat, Message } from '../../supabase/types';
 import {
-  deleteForEveryone,
-  deleteForMe,
-  draftChat,
+  deleteMessage,
   editMessage,
+  errorKey,
   markRead,
-  sendMessage,
   setBlocked,
-  setChatMuted,
+  setChatPrefs,
   setPinnedMessages,
   snippetOf,
   toggleReaction,
-} from '../../firebase/db';
-import { authErrorKey } from '../../firebase/auth';
-import { notifyMessage } from '../../firebase/messaging';
-import { isMuted } from '../../app/sounds';
-import { dayLabel, isReadByOthers, isSameDay, toDate, toMillis } from '../../lib/time';
-import { otherMember } from '../../lib/ids';
+} from '../../supabase/api';
+import { refreshBlocked, refreshChats } from '../../app/session';
+import { discardFailed, queueMessage, retryFailed } from '../../app/outbox';
+import { dayLabel, isReadByOthers, isSameDay, toDate } from '../../lib/time';
 import { Icon } from '../../ui/Icon';
 import { Menu, type MenuItem } from '../../ui/Menu';
 import { Modal } from '../../ui/Modal';
@@ -45,7 +41,7 @@ export function ChatScreen() {
 function ChatView({ chatId }: { chatId: string }) {
   const { t } = useTranslation();
   const me = useMe();
-  const { chat, status } = useChat(chatId, me);
+  const { chat, status } = useChat(chatId);
 
   if (status === 'loading') return <FullScreenSpinner />;
   if (!chat) {
@@ -53,32 +49,31 @@ function ChatView({ chatId }: { chatId: string }) {
       <div className="screen">
         <PageHeader title="" back="/" />
         <div className="empty-main">
-          <span className="pill">{status === 'denied' ? t('chat.notMember') : t('chat.chatNotFound')}</span>
+          <span className="pill">{t('chat.chatNotFound')}</span>
         </div>
       </div>
     );
   }
-  return <ChatBody chat={chat} exists={status === 'ok'} me={me} />;
+  return <ChatBody chat={chat} me={me} />;
 }
 
-function ChatBody({ chat, exists, me }: { chat: Chat; exists: boolean; me: string }) {
+function ChatBody({ chat, me }: { chat: Chat; me: string }) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const profile = useApp((s) => s.profile);
   const blocked = useApp((s) => s.blocked);
-  const prefs = useApp((s) => s.prefs[chat.id]);
   const showToast = useApp((s) => s.showToast);
-  const { messages, hasMore, loaded, loadMore } = useMessages(chat.id, exists);
+  const { messages, hasMore, loaded, loadMore } = useMessages(chat.id);
 
-  const isMember = chat.members.includes(me);
-  const isChatAdmin = chat.admins.includes(me);
+  const isMember = chat.myRole !== null;
+  const isChatAdmin = chat.myRole === 'owner' || chat.myRole === 'admin';
   const moderatable = chat.type === 'group' || chat.type === 'channel';
   const isGlobalAdmin = profile?.role === 'admin';
   const canPost = isMember && (chat.type !== 'channel' || isChatAdmin);
   const canPin = isMember && (!moderatable || isChatAdmin);
-  const otherUid = chat.type === 'private' ? otherMember(chat.members, me) : null;
+  const otherUid = chat.type === 'private' ? chat.otherId : null;
   const iBlocked = !!otherUid && blocked.includes(otherUid);
-  const muted = isMuted(prefs?.mutedUntil);
+  const muted = chat.muted;
 
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editing, setEditing] = useState<Message | null>(null);
@@ -103,17 +98,20 @@ function ChatBody({ chat, exists, me }: { chat: Chat; exists: boolean; me: strin
 
   // ---------- прочитанность ----------
   const lastId = chat.lastMessage?.id;
-  const myReadAt = toMillis(chat.readBy[me]);
-  const lastAt = toMillis(chat.lastMessage?.createdAt);
+  const needsRead = chat.unread > 0 || (chat.lastMessage?.createdAt ?? 0) > chat.lastReadAt;
   useEffect(() => {
-    if (!exists || !isMember || !loaded || !lastId || lastAt <= myReadAt) return;
+    if (!isMember || !loaded || !lastId || !needsRead) return;
     const mark = () => {
-      if (document.visibilityState === 'visible') void markRead(chat.id, me).catch(() => undefined);
+      if (document.visibilityState === 'visible') {
+        void markRead(chat.id)
+          .then(() => refreshChats(0))
+          .catch(() => undefined);
+      }
     };
     mark();
     document.addEventListener('visibilitychange', mark);
     return () => document.removeEventListener('visibilitychange', mark);
-  }, [exists, isMember, loaded, lastId, lastAt, myReadAt, chat.id, me]);
+  }, [isMember, loaded, lastId, needsRead, chat.id]);
 
   // ---------- подгрузка истории при прокрутке вверх ----------
   useEffect(() => {
@@ -142,7 +140,7 @@ function ChatBody({ chat, exists, me }: { chat: Chat; exists: boolean; me: strin
         pendingJump.current = null;
       } else if (hasMore) {
         pendingJump.current = { id, tries: (pendingJump.current?.id === id ? pendingJump.current.tries : 0) + 1 };
-        if (pendingJump.current.tries <= 10) loadMore(100);
+        if (pendingJump.current.tries <= 10) void loadMore(100);
       }
     },
     [hasMore, loadMore],
@@ -166,25 +164,12 @@ function ChatBody({ chat, exists, me }: { chat: Chat; exists: boolean; me: strin
   }, [searchIdx, matches.length, q]);
 
   // ---------- действия ----------
-  const fail = useCallback(
-    (err: unknown) => {
-      const code = (err as { code?: string })?.code;
-      if (code === 'permission-denied' && chat.type === 'private') showToast(t('chat.blockedByThem'));
-      else showToast(t(authErrorKey(err)));
-    },
-    [chat.type, showToast, t],
-  );
+  const fail = useCallback((err: unknown) => showToast(t(errorKey(err))), [showToast, t]);
 
   const send = (text: string) => {
-    const parts = splitText(text);
-    let newChat = exists ? null : draftChat(chat.id, me, otherUid ?? undefined);
-    const reply = replyTo
-      ? { id: replyTo.id, senderId: replyTo.senderId, snippet: snippetOf(replyTo.text, 80) }
-      : null;
-    parts.forEach((part, i) => {
-      const { id, done } = sendMessage(chat.id, me, { text: part, replyTo: i === 0 ? reply : null }, newChat);
-      newChat = null;
-      done.then(() => notifyMessage(chat.id, id)).catch(fail);
+    const reply = replyTo ? { id: replyTo.id, senderId: replyTo.senderId, snippet: snippetOf(replyTo.text, 80) } : null;
+    splitText(text).forEach((part, i) => {
+      queueMessage({ id: crypto.randomUUID(), chatId: chat.id, text: part, replyTo: i === 0 ? reply : null }, me);
     });
     setReplyTo(null);
     scrollToBottom(false);
@@ -192,25 +177,39 @@ function ChatBody({ chat, exists, me }: { chat: Chat; exists: boolean; me: strin
 
   const onMenu = useCallback((msg: Message, x: number, y: number) => setMenu({ msg, x, y }), []);
   const onReact = useCallback(
-    (msg: Message, emoji: string) => void toggleReaction(chat.id, msg, emoji, me).catch(fail),
-    [chat.id, me, fail],
+    (msg: Message, emoji: string) => {
+      if (!msg.pending) void toggleReaction(msg.id, emoji).catch(fail);
+    },
+    [fail],
   );
   const openProfile = useCallback((uid: string) => navigate(`/profile/${uid}`), [navigate]);
 
   const editLast = () => {
-    const mine = [...visible].reverse().find((m) => m.senderId === me && !m.system && !m.call);
+    const mine = [...visible].reverse().find((m) => m.senderId === me && !m.system && !m.call && !m.pending);
     if (mine) setEditing(mine);
   };
 
   const togglePin = (msg: Message) => {
     const pinned = chat.pinnedMessageIds.includes(msg.id);
     const ids = pinned ? chat.pinnedMessageIds.filter((x) => x !== msg.id) : [...chat.pinnedMessageIds, msg.id];
-    void setPinnedMessages(chat.id, ids).catch(fail);
+    void setPinnedMessages(chat.id, ids).then(() => refreshChats(0)).catch(fail);
   };
 
   const menuItems = (msg: Message): MenuItem[] => {
     const own = msg.senderId === me;
     const items: MenuItem[] = [];
+    if (msg.pending) {
+      if (msg.failed) items.push({ icon: 'flip', label: t('chat.retry'), onClick: () => retryFailed(msg.id) });
+      if (msg.text) {
+        items.push({
+          icon: 'copy',
+          label: t('chat.copy'),
+          onClick: () => void navigator.clipboard?.writeText(msg.text).then(() => showToast(t('common.copied'))),
+        });
+      }
+      items.push({ icon: 'trash', label: t('common.delete'), danger: true, onClick: () => discardFailed(msg.id) });
+      return items;
+    }
     if (canPost && !msg.call) items.push({ icon: 'reply', label: t('chat.reply'), onClick: () => setReplyTo(msg) });
     if (msg.text) {
       items.push({
@@ -220,7 +219,7 @@ function ChatBody({ chat, exists, me }: { chat: Chat; exists: boolean; me: strin
       });
     }
     if (msg.text) items.push({ icon: 'forward', label: t('chat.forward'), onClick: () => setForwarding(msg) });
-    if (canPin && exists) {
+    if (canPin) {
       const pinned = chat.pinnedMessageIds.includes(msg.id);
       items.push({ icon: 'pin', label: pinned ? t('chat.unpin') : t('chat.pin'), onClick: () => togglePin(msg) });
     }
@@ -233,11 +232,13 @@ function ChatBody({ chat, exists, me }: { chat: Chat; exists: boolean; me: strin
     msg.senderId === me || (moderatable && (isChatAdmin || isGlobalAdmin));
 
   const headerItems: MenuItem[] = [];
-  if (isMember && exists && chat.type !== 'saved') {
+  const setMuted = (m: boolean) => void setChatPrefs(chat.id, { muted: m }).then(() => refreshChats(0));
+  const block = (b: boolean) => void setBlocked(otherUid!, b).then(refreshBlocked).catch(fail);
+  if (isMember && chat.type !== 'saved') {
     headerItems.push(
       muted
-        ? { icon: 'bell', label: t('chats.unmute'), onClick: () => void setChatMuted(me, chat.id, null) }
-        : { icon: 'bellOff', label: t('chats.mute'), onClick: () => void setChatMuted(me, chat.id, -1) },
+        ? { icon: 'bell', label: t('chats.unmute'), onClick: () => setMuted(false) }
+        : { icon: 'bellOff', label: t('chats.mute'), onClick: () => setMuted(true) },
     );
   }
   headerItems.push({ icon: 'search', label: t('chat.searchInChat'), onClick: () => setSearchOpen(true) });
@@ -247,8 +248,8 @@ function ChatBody({ chat, exists, me }: { chat: Chat; exists: boolean; me: strin
     headerItems.push({ icon: 'user', label: t('profile.title'), onClick: () => navigate(`/profile/${otherUid}`) });
     headerItems.push(
       iBlocked
-        ? { icon: 'ban', label: t('profile.unblock'), onClick: () => void setBlocked(me, otherUid, false) }
-        : { icon: 'ban', label: t('profile.block'), danger: true, onClick: () => void setBlocked(me, otherUid, true) },
+        ? { icon: 'ban', label: t('profile.unblock'), onClick: () => block(false) }
+        : { icon: 'ban', label: t('profile.block'), danger: true, onClick: () => block(true) },
     );
   }
 
@@ -270,11 +271,11 @@ function ChatBody({ chat, exists, me }: { chat: Chat; exists: boolean; me: strin
       }
       const sameAsPrev =
         !!prev && !prev.system && prev.senderId === m.senderId && pd !== null && isSameDay(d, pd) &&
-        toMillis(m.createdAt) - toMillis(prev.createdAt) < GROUP_GAP_MS;
+        m.createdAt - prev.createdAt < GROUP_GAP_MS;
       const nd = next ? toDate(next.createdAt) : null;
       const sameAsNext =
         !!next && !next.system && next.senderId === m.senderId && !!nd && isSameDay(d, nd) &&
-        toMillis(next.createdAt) - toMillis(m.createdAt) < GROUP_GAP_MS;
+        next.createdAt - m.createdAt < GROUP_GAP_MS;
       out.push({ key: m.id, node: 'msg', msg: m, first: !sameAsPrev, last: !sameAsNext });
     });
     return out.reverse();
@@ -286,7 +287,7 @@ function ChatBody({ chat, exists, me }: { chat: Chat; exists: boolean; me: strin
     bottom = <div className="bottom-bar muted">{t('chat.notMember')}</div>;
   } else if (iBlocked) {
     bottom = (
-      <button className="bottom-bar btn-text" onClick={() => void setBlocked(me, otherUid!, false)}>
+      <button className="bottom-bar btn-text" onClick={() => block(false)}>
         {t('chat.unblock')}
       </button>
     );
@@ -294,7 +295,7 @@ function ChatBody({ chat, exists, me }: { chat: Chat; exists: boolean; me: strin
     bottom = (
       <button
         className="bottom-bar btn-text"
-        onClick={() => void setChatMuted(me, chat.id, muted ? null : -1)}
+        onClick={() => setMuted(!muted)}
       >
         {muted ? t('chats.unmute') : t('chats.mute')}
       </button>
@@ -309,7 +310,7 @@ function ChatBody({ chat, exists, me }: { chat: Chat; exists: boolean; me: strin
         onCancelReply={() => setReplyTo(null)}
         onCancelEdit={() => setEditing(null)}
         onSend={send}
-        onEdit={(msg, text) => void editMessage(chat.id, msg.id, text).catch(fail)}
+        onEdit={(msg, text) => void editMessage(msg.id, text).catch(fail)}
         onEditLast={editLast}
       />
     );
@@ -342,7 +343,7 @@ function ChatBody({ chat, exists, me }: { chat: Chat; exists: boolean; me: strin
             {q ? (matches.length ? t('chat.matchOf', { current: searchIdx + 1, total: matches.length }) : t('chat.noMatches')) : ''}
           </span>
           {hasMore && q && (
-            <button className="btn btn-text small" onClick={() => loadMore(200)}>
+            <button className="btn btn-text small" onClick={() => void loadMore(200)}>
               <Icon name="download" size={16} />
             </button>
           )}
@@ -364,7 +365,7 @@ function ChatBody({ chat, exists, me }: { chat: Chat; exists: boolean; me: strin
         </div>
       )}
 
-      {chat.pinnedMessageIds.length > 0 && exists && (
+      {chat.pinnedMessageIds.length > 0 && (
         <PinnedBar chat={chat} canUnpin={canPin} onJump={jumpTo} />
       )}
 
@@ -384,7 +385,7 @@ function ChatBody({ chat, exists, me }: { chat: Chat; exists: boolean; me: strin
                 msg={row.msg!}
                 me={me}
                 chatType={chat.type}
-                read={isReadByOthers(toMillis(row.msg!.createdAt), chat.readBy, me)}
+                read={isReadByOthers(row.msg!.createdAt, chat.othersReadAt)}
                 first={row.first!}
                 last={row.last!}
                 highlighted={highlight === row.msg!.id}
@@ -472,7 +473,7 @@ function ChatBody({ chat, exists, me }: { chat: Chat; exists: boolean; me: strin
               <button
                 className="btn btn-danger btn-block"
                 onClick={() => {
-                  void deleteForEveryone(chat, deleting.id, me).catch(fail);
+                  void deleteMessage(deleting.id, true).catch(fail);
                   setDeleting(null);
                 }}
               >
@@ -483,7 +484,7 @@ function ChatBody({ chat, exists, me }: { chat: Chat; exists: boolean; me: strin
               <button
                 className="btn btn-block"
                 onClick={() => {
-                  void deleteForMe(chat.id, deleting.id, me).catch(fail);
+                  void deleteMessage(deleting.id, false).catch(fail);
                   setDeleting(null);
                 }}
               >

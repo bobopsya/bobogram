@@ -14,18 +14,15 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
-      - run: npx tsc -p worker/tsconfig.json
       - run: npm test
       - run: npm run build
-      - name: Firestore rules tests
-        run: npm run test:rules
+      - name: Start local Supabase
+        run: npm run db:start
+      - name: Database tests
+        run: npm run test:db
       - name: E2E tests
         run: |
           npx playwright install --with-deps chromium

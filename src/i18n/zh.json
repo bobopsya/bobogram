@@ -22,40 +22,31 @@
   },
   "setup": {
     "title": "需要配置",
-    "text": "应用尚未连接到 Firebase。管理员需要按照仓库中的 docs/SETUP.md 完成配置。"
+    "text": "网站尚未连接数据库。管理员需要按照仓库中的 docs/SETUP.md 完成配置。"
   },
   "auth": {
     "loginTitle": "登录",
     "registerTitle": "注册",
-    "email": "邮箱",
     "password": "密码",
     "passwordHint": "至少 6 个字符",
     "displayName": "名字",
     "username": "用户名",
-    "usernameHint": "拉丁字母、数字和 _，4 到 32 个字符。朋友可以通过它找到你。",
+    "usernameHint": "拉丁字母、数字和 _，4 到 32 个字符。你用它登录，朋友也通过它找到你。",
     "login": "登录",
     "register": "注册",
     "noAccount": "没有账号？立即注册",
     "haveAccount": "已有账号？登录",
     "forgot": "忘记密码？",
-    "resetTitle": "重置密码",
-    "resetText": "我们会把重置密码的链接发送到你的邮箱。",
-    "sendReset": "发送链接",
-    "resetSent": "邮件已发送。请检查收件箱（和垃圾邮件）。",
-    "verifyTitle": "验证邮箱",
-    "verifyText": "我们已向 {{email}} 发送邮件。打开其中的链接后返回这里。",
-    "verifyCheck": "我已验证",
-    "verifyResend": "重新发送邮件",
-    "verifySent": "邮件已重新发送",
-    "verifyNotYet": "邮箱尚未验证。请检查收件箱和垃圾邮件。",
     "logout": "退出登录",
-    "pickUsernameTitle": "选择用户名",
-    "pickUsernameText": "就差一步：选一个朋友能找到你的名字。",
     "usernameFree": "用户名可用",
     "usernameTaken": "该用户名已被占用",
     "checking": "检查中…",
     "bannedTitle": "账号已被封禁",
-    "bannedText": "管理员已限制你的账号访问。"
+    "bannedText": "管理员已限制你的账号访问。",
+    "password2": "再次输入密码",
+    "passwordsDiffer": "两次密码不一致",
+    "forgotTitle": "忘记密码？",
+    "forgotText": "请联系 Bobogram 管理员，管理员可以在管理面板中为你设置新密码。之后可以在设置中修改。"
   },
   "username": {
     "short": "太短 — 至少 4 个字符",
@@ -64,16 +55,15 @@
     "chars": "只能使用拉丁字母、数字和 _"
   },
   "errors": {
-    "invalidEmail": "邮箱地址无效",
-    "emailInUse": "该邮箱已注册",
     "weakPassword": "密码太简单（至少 6 个字符）",
-    "wrongCredentials": "邮箱或密码错误",
+    "wrongCredentials": "用户名或密码错误",
     "tooManyRequests": "尝试次数过多，请稍后再试。",
     "network": "无法连接服务器",
     "permission": "没有执行此操作的权限",
     "generic": "出了点问题，请重试。",
     "avatarTooBig": "无法压缩图片，请换一张。",
-    "tooLong": "消息太长"
+    "tooLong": "消息太长",
+    "tooManyMembers": "成员太多"
   },
   "chats": {
     "title": "聊天",
@@ -154,7 +144,9 @@
     "callIncoming": "呼入通话",
     "callMissed": "未接来电",
     "callCancelled": "已取消的通话",
-    "info": "信息"
+    "info": "信息",
+    "failed": "未发送",
+    "retry": "重试"
   },
   "system": {
     "created": "{{name}} 创建了「{{title}}」",
@@ -244,7 +236,11 @@
     "blocklist": "已屏蔽用户",
     "blocklistEmpty": "暂无",
     "adminPanel": "管理面板",
-    "version": "版本 {{version}}"
+    "version": "版本 {{version}}",
+    "account": "账号",
+    "changePassword": "修改密码",
+    "newPassword": "新密码",
+    "passwordChanged": "密码已修改"
   },
   "calls": {
     "calling": "正在呼叫…",
@@ -276,7 +272,10 @@
     "open": "打开",
     "deleteChat": "删除",
     "notAdmin": "仅限管理员",
-    "hint": "管理员只能看到群组和频道，无法访问私聊。"
+    "hint": "管理员只能看到群组和频道，无法访问私聊。",
+    "resetPassword": "新密码",
+    "resetPasswordFor": "为 @{{username}} 设置新密码",
+    "passwordReset": "密码已修改，请告知该用户。"
   },
   "notify": {
     "newMessage": "新消息",

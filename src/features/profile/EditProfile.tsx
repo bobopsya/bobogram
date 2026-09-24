@@ -2,8 +2,7 @@ import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useApp, useMe, useMyProfile } from '../../app/store';
-import { changeUsername, updateProfile } from '../../firebase/db';
-import { authErrorKey } from '../../firebase/auth';
+import { errorKey, updateProfile } from '../../supabase/api';
 import { makeAvatar } from '../../lib/image';
 import { Avatar } from '../../ui/Avatar';
 import { Icon } from '../../ui/Icon';
@@ -42,12 +41,16 @@ export function EditProfileScreen() {
     setBusy(true);
     setError(null);
     try {
-      if (usernameChanged) await changeUsername(me, profile.username, username);
-      await updateProfile(me, { displayName: name.trim(), bio: bio.trim(), avatar });
+      await updateProfile(me, {
+        displayName: name.trim(),
+        bio: bio.trim(),
+        avatar,
+        ...(usernameChanged ? { username } : {}),
+      });
       showToast(t('profile.saved'));
       navigate(-1);
     } catch (err) {
-      setError(t(authErrorKey(err)));
+      setError(t(errorKey(err)));
     } finally {
       setBusy(false);
     }
@@ -98,7 +101,7 @@ export function EditProfileScreen() {
           <span className="field-label">{t('auth.displayName')}</span>
           <input value={name} onChange={(e) => setName(e.target.value)} maxLength={64} />
         </label>
-        <UsernameField value={username} onChange={setUsername} onStatus={setUsernameStatus} myUid={me} />
+        <UsernameField value={username} onChange={setUsername} onStatus={setUsernameStatus} current={profile.username} />
         <label className="field">
           <span className="field-label">{t('profile.bio')}</span>
           <textarea
