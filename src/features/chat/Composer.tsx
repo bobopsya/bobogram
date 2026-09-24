@@ -7,6 +7,11 @@ import { sendTyping } from '../../supabase/realtime';
 import { isTouchDevice } from '../../app/effects';
 import { Icon } from '../../ui/Icon';
 import { EmojiPicker } from './EmojiPicker';
+import { canRecordVoice, VoiceRecorder, type VoiceResult } from '../../lib/mediaFiles';
+import { formatDuration } from '../../lib/time';
+import { useApp } from '../../app/store';
+import { PhotoSendDialog } from './PhotoSendDialog';
+import { mediaLabel } from '../chats/chatMeta';
 
 const drafts = new Map<string, string>();
 
@@ -20,7 +25,12 @@ interface Props {
   onSend: (text: string) => void;
   onEdit: (msg: Message, text: string) => void;
   onEditLast: () => void;
+  onSendPhotos: (files: File[], caption: string) => void;
+  onSendVoice: (voice: VoiceResult) => void;
 }
+
+const imagesOf = (list: FileList | File[] | null | undefined): File[] =>
+  [...(list ?? [])].filter((f) => f.type.startsWith('image/')).slice(0, 10);
 
 /** Делит длинный текст на части по 4096 символов (по возможности по переносу строки). */
 export function splitText(text: string, max = MESSAGE_MAX_LENGTH): string[] {
@@ -37,8 +47,28 @@ export function splitText(text: string, max = MESSAGE_MAX_LENGTH): string[] {
   return parts;
 }
 
-export function Composer({ chatId, me, replyTo, editing, onCancelReply, onCancelEdit, onSend, onEdit, onEditLast }: Props) {
+export function Composer(props: Props) {
+  const {
+    chatId,
+    me,
+    replyTo,
+    editing,
+    onCancelReply,
+    onCancelEdit,
+    onSend,
+    onEdit,
+    onEditLast,
+    onSendPhotos,
+    onSendVoice,
+  } = props;
   const { t } = useTranslation();
+  const showToast = useApp((s) => s.showToast);
+  const [photos, setPhotos] = useState<File[]>([]);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const recorder = useRef<VoiceRecorder | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [recTime, setRecTime] = useState(0);
+  const [recLevel, setRecLevel] = useState(0);
   const [text, setText] = useState(() => drafts.get(chatId) ?? '');
   const [emojiOpen, setEmojiOpen] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -144,6 +174,56 @@ export function Composer({ chatId, me, replyTo, editing, onCancelReply, onCancel
     });
   };
 
+  // ---------- голосовые ----------
+  useEffect(() => {
+    if (!recording) return;
+    const id = window.setInterval(() => {
+      setRecTime(recorder.current?.elapsed ?? 0);
+      setRecLevel(recorder.current?.level ?? 0);
+    }, 100);
+    return () => window.clearInterval(id);
+  }, [recording]);
+
+  useEffect(() => () => recorder.current?.cancel(), []);
+
+  const startRecording = async () => {
+    if (recording) return;
+    const rec = new VoiceRecorder();
+    try {
+      await rec.start();
+    } catch {
+      rec.cancel();
+      showToast(t('media.micDenied'));
+      return;
+    }
+    recorder.current = rec;
+    setRecTime(0);
+    setRecording(true);
+    sendTyping(chatId, me);
+  };
+
+  const cancelRecording = () => {
+    recorder.current?.cancel();
+    recorder.current = null;
+    setRecording(false);
+    sendTyping(chatId, me, true);
+  };
+
+  const finishRecording = async () => {
+    const rec = recorder.current;
+    recorder.current = null;
+    setRecording(false);
+    sendTyping(chatId, me, true);
+    if (!rec) return;
+    const voice = await rec.stop().catch(() => null);
+    // Случайное касание — меньше полусекунды не отправляем.
+    if (voice && voice.duration >= 0.5 && voice.blob.size > 0) onSendVoice(voice);
+  };
+
+  const pickPhotos = (files: File[]) => {
+    if (files.length) setPhotos(files);
+  };
+
   const bar = editing ? (
     <div className="composer-bar">
       <Icon name="edit" size={20} className="accent-text" />
@@ -167,7 +247,7 @@ export function Composer({ chatId, me, replyTo, editing, onCancelReply, onCancel
       <Icon name="reply" size={20} className="accent-text" />
       <div className="composer-bar-body">
         <div className="accent-text">{t('chat.replyTo', { name: displayNameOf(replyAuthor, '…') })}</div>
-        <div className="ellipsis muted">{replyTo.text}</div>
+        <div className="ellipsis muted">{replyTo.text || mediaLabel(replyTo, t)}</div>
       </div>
       <button className="icon-btn small" onClick={onCancelReply} aria-label={t('common.cancel')}>
         <Icon name="close" size={18} />
@@ -183,34 +263,103 @@ export function Composer({ chatId, me, replyTo, editing, onCancelReply, onCancel
         </div>
       )}
       {bar}
-      <div className="composer">
-        <button
-          className={emojiOpen ? 'icon-btn active' : 'icon-btn'}
-          onClick={() => setEmojiOpen((v) => !v)}
-          aria-label={t('chat.emoji')}
-        >
-          <Icon name="emoji" />
-        </button>
-        <textarea
-          ref={ref}
-          rows={1}
-          value={text}
-          placeholder={t('chat.placeholder')}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={onKeyDown}
-          onFocus={() => isTouchDevice() && setEmojiOpen(false)}
-          enterKeyHint={isTouchDevice() ? 'enter' : 'send'}
+      {photos.length > 0 && (
+        <PhotoSendDialog
+          files={photos}
+          initialCaption={text}
+          onCancel={() => setPhotos([])}
+          onSend={(caption) => {
+            onSendPhotos(photos, caption);
+            setPhotos([]);
+            if (caption === text.trim()) {
+              setText('');
+              drafts.delete(chatId);
+            }
+          }}
         />
-        <button
-          className="icon-btn send-btn"
-          onClick={submit}
-          disabled={!text.trim()}
-          aria-label={t('chat.send')}
-          onMouseDown={(e) => e.preventDefault()}
-        >
-          <Icon name={editing ? 'check' : 'send'} />
-        </button>
-      </div>
+      )}
+      <input
+        ref={fileInput}
+        type="file"
+        accept="image/*"
+        multiple
+        hidden
+        onChange={(e) => {
+          pickPhotos(imagesOf(e.target.files));
+          e.target.value = '';
+        }}
+      />
+      {recording ? (
+        <div className="composer recording">
+          <span className="rec-dot" style={{ transform: `scale(${1 + recLevel * 0.8})` }} />
+          <span className="rec-time">{formatDuration(recTime)}</span>
+          <button className="rec-cancel plain" onClick={cancelRecording}>
+            {t('common.cancel')}
+          </button>
+          <button
+            className="icon-btn send-btn"
+            onClick={() => void finishRecording()}
+            aria-label={t('chat.send')}
+          >
+            <Icon name="send" />
+          </button>
+        </div>
+      ) : (
+        <div className="composer">
+          <button
+            className={emojiOpen ? 'icon-btn active' : 'icon-btn'}
+            onClick={() => setEmojiOpen((v) => !v)}
+            aria-label={t('chat.emoji')}
+          >
+            <Icon name="emoji" />
+          </button>
+          <textarea
+            ref={ref}
+            rows={1}
+            value={text}
+            placeholder={t('chat.placeholder')}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={onKeyDown}
+            onPaste={(e) => {
+              const files = imagesOf(e.clipboardData?.files);
+              if (files.length && !editing) {
+                e.preventDefault();
+                pickPhotos(files);
+              }
+            }}
+            onFocus={() => isTouchDevice() && setEmojiOpen(false)}
+            enterKeyHint={isTouchDevice() ? 'enter' : 'send'}
+          />
+          {!editing && (
+            <button
+              className="icon-btn"
+              onClick={() => fileInput.current?.click()}
+              aria-label={t('media.attach')}
+            >
+              <Icon name="attach" />
+            </button>
+          )}
+          {!text.trim() && !editing && canRecordVoice() ? (
+            <button
+              className="icon-btn send-btn"
+              onClick={() => void startRecording()}
+              aria-label={t('media.record')}
+            >
+              <Icon name="mic" />
+            </button>
+          ) : (
+            <button
+              className="icon-btn send-btn"
+              onClick={submit}
+              disabled={!text.trim()}
+              aria-label={t('chat.send')}
+              onMouseDown={(e) => e.preventDefault()}
+            >
+              <Icon name={editing ? 'check' : 'send'} />
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

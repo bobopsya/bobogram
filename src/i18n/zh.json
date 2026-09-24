@@ -65,7 +65,8 @@
     "tooLong": "消息太长",
     "tooManyMembers": "成员太多",
     "pinLimit": "最多置顶 5 个聊天（Premium 可置顶 10 个）",
-    "bioTooLong": "简介最多 70 字（Premium 200 字）"
+    "bioTooLong": "简介最多 70 字（Premium 200 字）",
+    "upload": "文件上传失败"
   },
   "chats": {
     "title": "聊天",
@@ -369,5 +370,17 @@
     "requestSent": "申请已发送给管理员",
     "pending": "你的申请正在等待管理员处理",
     "rejected": "上次申请被拒绝，可以重新申请。"
+  },
+  "media": {
+    "photo": "图片",
+    "voice": "语音消息",
+    "attach": "添加图片",
+    "record": "录制语音",
+    "play": "播放",
+    "pause": "暂停",
+    "caption": "说明",
+    "sendPhotos_other": "发送 {{count}} 张图片",
+    "micDenied": "无法访问麦克风",
+    "badPhoto": "无法打开图片"
   }
 }

@@ -23,7 +23,15 @@ function Row({ chat, onPick }: { chat: Chat; onPick: () => void }) {
   );
 }
 
-export function ForwardDialog({ msg, fromChat, onClose }: { msg: Message; fromChat: Chat; onClose: () => void }) {
+export function ForwardDialog({
+  msg,
+  fromChat,
+  onClose,
+}: {
+  msg: Message;
+  fromChat: Chat;
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
   const me = useMe();
   const chats = useApp((s) => s.chats);
@@ -45,7 +53,10 @@ export function ForwardDialog({ msg, fromChat, onClose }: { msg: Message; fromCh
       senderName: displayNameOf(peekProfile(msg.senderId), '…'),
       chatTitle: fromChat.type === 'channel' ? fromChat.title : null,
     };
-    queueMessage({ id: crypto.randomUUID(), chatId, text: msg.text, forwardedFrom: original }, me);
+    queueMessage(
+      { id: crypto.randomUUID(), chatId, text: msg.text, forwardedFrom: original, media: msg.media },
+      me,
+    );
     showToast(t('chat.forwardedDone'));
     onClose();
   };
@@ -70,7 +81,13 @@ export function ForwardDialog({ msg, fromChat, onClose }: { msg: Message; fromCh
 
   return (
     <Modal title={t('chat.forwardTo')} onClose={onClose}>
-      <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('common.search')} autoFocus />
+      <input
+        className="input"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder={t('common.search')}
+        autoFocus
+      />
       <div className="modal-list">
         {!hasSaved && (!query || t('chats.savedMessages').toLowerCase().includes(query)) && (
           <button className="list-item" onClick={() => void toSaved()}>

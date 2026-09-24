@@ -91,7 +91,7 @@ async function sendTo(userIds: string[], payload: Payload): Promise<SendResult> 
 async function pushMessage(id: string) {
   const { data: msg } = await admin
     .from('messages')
-    .select('id, chat_id, sender_id, text, call, system')
+    .select('id, chat_id, sender_id, text, call, system, media')
     .eq('id', id)
     .single();
   const none: SendResult = { sent: 0, errors: [] };
@@ -104,7 +104,9 @@ async function pushMessage(id: string) {
   if (!chat || !sender || chat.type === 'saved') return none;
   const recipients = (members ?? []).filter((m) => m.user_id !== msg.sender_id && !m.muted).map((m) => m.user_id);
   const name = sender.display_name || '@' + sender.username;
-  const text = msg.call ? '📞' : truncate(msg.text ?? '', 300);
+  const media = msg.media?.kind === 'voice' ? '🎤 Голосовое · Voice' : msg.media?.kind === 'photo' ? '📷 Фото · Photo' : '';
+  const caption = truncate(msg.text ?? '', 300);
+  const text = msg.call ? '📞' : media ? (caption ? `${media}: ${caption}` : media) : caption;
   const group = chat.type === 'group';
   return sendTo(recipients, {
     kind: 'message',

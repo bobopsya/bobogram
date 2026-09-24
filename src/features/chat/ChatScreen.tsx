@@ -15,7 +15,9 @@ import {
   toggleReaction,
 } from '../../supabase/api';
 import { refreshBlocked, refreshChats } from '../../app/session';
-import { discardFailed, queueMessage, retryFailed } from '../../app/outbox';
+import { discardFailed, queueMedia, queueMessage, retryFailed } from '../../app/outbox';
+import { preparePhoto, type VoiceResult } from '../../lib/mediaFiles';
+import { mediaLabel } from '../chats/chatMeta';
 import { dayLabel, isReadByOthers, isSameDay, toDate } from '../../lib/time';
 import { Icon } from '../../ui/Icon';
 import { Menu, type MenuItem } from '../../ui/Menu';
@@ -145,7 +147,10 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
         window.setTimeout(() => setHighlight((h) => (h === id ? null : h)), 1600);
         pendingJump.current = null;
       } else if (hasMore) {
-        pendingJump.current = { id, tries: (pendingJump.current?.id === id ? pendingJump.current.tries : 0) + 1 };
+        pendingJump.current = {
+          id,
+          tries: (pendingJump.current?.id === id ? pendingJump.current.tries : 0) + 1,
+        };
         if (pendingJump.current.tries <= 10) void loadMore(100);
       }
     },
@@ -160,7 +165,13 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
   // ---------- поиск по чату ----------
   const q = search.trim().toLowerCase();
   const matches = useMemo(
-    () => (q ? visible.filter((m) => m.text.toLowerCase().includes(q)).map((m) => m.id).reverse() : []),
+    () =>
+      q
+        ? visible
+            .filter((m) => m.text.toLowerCase().includes(q))
+            .map((m) => m.id)
+            .reverse()
+        : [],
     [visible, q],
   );
   useEffect(() => setSearchIdx(0), [q]);
@@ -173,10 +184,69 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
   const fail = useCallback((err: unknown) => showToast(t(errorKey(err))), [showToast, t]);
 
   const send = (text: string) => {
-    const reply = replyTo ? { id: replyTo.id, senderId: replyTo.senderId, snippet: snippetOf(replyTo.text, 80) } : null;
+    const reply = replyRef();
     splitText(text).forEach((part, i) => {
-      queueMessage({ id: crypto.randomUUID(), chatId: chat.id, text: part, replyTo: i === 0 ? reply : null }, me);
+      queueMessage(
+        { id: crypto.randomUUID(), chatId: chat.id, text: part, replyTo: i === 0 ? reply : null },
+        me,
+      );
     });
+    setReplyTo(null);
+    scrollToBottom(false);
+  };
+
+  const replyRef = () =>
+    replyTo
+      ? {
+          id: replyTo.id,
+          senderId: replyTo.senderId,
+          snippet: snippetOf(replyTo.text || mediaLabel(replyTo, t), 80),
+        }
+      : null;
+
+  const sendPhotos = async (files: File[], caption: string) => {
+    const reply = replyRef();
+    setReplyTo(null);
+    for (const [i, file] of files.entries()) {
+      try {
+        const photo = await preparePhoto(file);
+        queueMedia(
+          {
+            id: crypto.randomUUID(),
+            chatId: chat.id,
+            text: i === 0 ? caption : '',
+            replyTo: i === 0 ? reply : null,
+            media: { kind: 'photo', mime: 'image/jpeg', width: photo.width, height: photo.height },
+          },
+          photo.blob,
+          'jpg',
+          me,
+        );
+      } catch {
+        showToast(t('media.badPhoto'));
+      }
+    }
+    scrollToBottom(false);
+  };
+
+  const sendVoice = (voice: VoiceResult) => {
+    queueMedia(
+      {
+        id: crypto.randomUUID(),
+        chatId: chat.id,
+        text: '',
+        replyTo: replyRef(),
+        media: {
+          kind: 'voice',
+          mime: voice.mime,
+          duration: Math.round(voice.duration * 10) / 10,
+          waveform: voice.waveform,
+        },
+      },
+      voice.blob,
+      voice.ext,
+      me,
+    );
     setReplyTo(null);
     scrollToBottom(false);
   };
@@ -197,39 +267,58 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
 
   const togglePin = (msg: Message) => {
     const pinned = chat.pinnedMessageIds.includes(msg.id);
-    const ids = pinned ? chat.pinnedMessageIds.filter((x) => x !== msg.id) : [...chat.pinnedMessageIds, msg.id];
-    void setPinnedMessages(chat.id, ids).then(() => refreshChats(0)).catch(fail);
+    const ids = pinned
+      ? chat.pinnedMessageIds.filter((x) => x !== msg.id)
+      : [...chat.pinnedMessageIds, msg.id];
+    void setPinnedMessages(chat.id, ids)
+      .then(() => refreshChats(0))
+      .catch(fail);
   };
 
   const menuItems = (msg: Message): MenuItem[] => {
     const own = msg.senderId === me;
     const items: MenuItem[] = [];
     if (msg.pending) {
-      if (msg.failed) items.push({ icon: 'flip', label: t('chat.retry'), onClick: () => retryFailed(msg.id) });
+      if (msg.failed)
+        items.push({ icon: 'flip', label: t('chat.retry'), onClick: () => retryFailed(msg.id) });
       if (msg.text) {
         items.push({
           icon: 'copy',
           label: t('chat.copy'),
-          onClick: () => void navigator.clipboard?.writeText(msg.text).then(() => showToast(t('common.copied'))),
+          onClick: () =>
+            void navigator.clipboard?.writeText(msg.text).then(() => showToast(t('common.copied'))),
         });
       }
-      items.push({ icon: 'trash', label: t('common.delete'), danger: true, onClick: () => discardFailed(msg.id) });
+      items.push({
+        icon: 'trash',
+        label: t('common.delete'),
+        danger: true,
+        onClick: () => discardFailed(msg.id),
+      });
       return items;
     }
-    if (canPost && !msg.call) items.push({ icon: 'reply', label: t('chat.reply'), onClick: () => setReplyTo(msg) });
+    if (canPost && !msg.call)
+      items.push({ icon: 'reply', label: t('chat.reply'), onClick: () => setReplyTo(msg) });
     if (msg.text) {
       items.push({
         icon: 'copy',
         label: t('chat.copy'),
-        onClick: () => void navigator.clipboard?.writeText(msg.text).then(() => showToast(t('common.copied'))),
+        onClick: () =>
+          void navigator.clipboard?.writeText(msg.text).then(() => showToast(t('common.copied'))),
       });
     }
-    if (msg.text) items.push({ icon: 'forward', label: t('chat.forward'), onClick: () => setForwarding(msg) });
+    if (msg.text)
+      items.push({ icon: 'forward', label: t('chat.forward'), onClick: () => setForwarding(msg) });
     if (canPin) {
       const pinned = chat.pinnedMessageIds.includes(msg.id);
-      items.push({ icon: 'pin', label: pinned ? t('chat.unpin') : t('chat.pin'), onClick: () => togglePin(msg) });
+      items.push({
+        icon: 'pin',
+        label: pinned ? t('chat.unpin') : t('chat.pin'),
+        onClick: () => togglePin(msg),
+      });
     }
-    if (own && !msg.call && isMember) items.push({ icon: 'edit', label: t('chat.edit'), onClick: () => setEditing(msg) });
+    if (own && !msg.call && isMember)
+      items.push({ icon: 'edit', label: t('chat.edit'), onClick: () => setEditing(msg) });
     if (isGlobalAdmin && moderatable && !msg.system) {
       items.push({ icon: 'star', label: t('admin.boostPost'), onClick: () => setBoosting(msg) });
     }
@@ -251,10 +340,19 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
     );
   }
   headerItems.push({ icon: 'search', label: t('chat.searchInChat'), onClick: () => setSearchOpen(true) });
-  if (moderatable) headerItems.push({ icon: 'users', label: t('chat.info'), onClick: () => navigate(`/c/${chat.id}/info`) });
+  if (moderatable)
+    headerItems.push({ icon: 'users', label: t('chat.info'), onClick: () => navigate(`/c/${chat.id}/info`) });
   if (otherUid) {
-    headerItems.push({ icon: 'video', label: t('chat.callVideo'), onClick: () => startCall(chat.id, otherUid, true) });
-    headerItems.push({ icon: 'user', label: t('profile.title'), onClick: () => navigate(`/profile/${otherUid}`) });
+    headerItems.push({
+      icon: 'video',
+      label: t('chat.callVideo'),
+      onClick: () => startCall(chat.id, otherUid, true),
+    });
+    headerItems.push({
+      icon: 'user',
+      label: t('profile.title'),
+      onClick: () => navigate(`/profile/${otherUid}`),
+    });
     headerItems.push(
       iBlocked
         ? { icon: 'ban', label: t('profile.unblock'), onClick: () => block(false) }
@@ -264,7 +362,14 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
 
   // ---------- строки списка ----------
   const rows = useMemo(() => {
-    const out: { key: string; node: 'date' | 'msg'; label?: string; msg?: Message; first?: boolean; last?: boolean }[] = [];
+    const out: {
+      key: string;
+      node: 'date' | 'msg';
+      label?: string;
+      msg?: Message;
+      first?: boolean;
+      last?: boolean;
+    }[] = [];
     visible.forEach((m, i) => {
       const prev = visible[i - 1];
       const next = visible[i + 1];
@@ -275,15 +380,28 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
         out.push({
           key: `d-${m.id}`,
           node: 'date',
-          label: label.kind === 'today' ? t('chat.today') : label.kind === 'yesterday' ? t('chat.yesterday') : label.text,
+          label:
+            label.kind === 'today'
+              ? t('chat.today')
+              : label.kind === 'yesterday'
+                ? t('chat.yesterday')
+                : label.text,
         });
       }
       const sameAsPrev =
-        !!prev && !prev.system && prev.senderId === m.senderId && pd !== null && isSameDay(d, pd) &&
+        !!prev &&
+        !prev.system &&
+        prev.senderId === m.senderId &&
+        pd !== null &&
+        isSameDay(d, pd) &&
         m.createdAt - prev.createdAt < GROUP_GAP_MS;
       const nd = next ? toDate(next.createdAt) : null;
       const sameAsNext =
-        !!next && !next.system && next.senderId === m.senderId && !!nd && isSameDay(d, nd) &&
+        !!next &&
+        !next.system &&
+        next.senderId === m.senderId &&
+        !!nd &&
+        isSameDay(d, nd) &&
         next.createdAt - m.createdAt < GROUP_GAP_MS;
       out.push({ key: m.id, node: 'msg', msg: m, first: !sameAsPrev, last: !sameAsNext });
     });
@@ -302,10 +420,7 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
     );
   } else if (!canPost) {
     bottom = (
-      <button
-        className="bottom-bar btn-text"
-        onClick={() => setMuted(!muted)}
-      >
+      <button className="bottom-bar btn-text" onClick={() => setMuted(!muted)}>
         {muted ? t('chats.unmute') : t('chats.mute')}
       </button>
     );
@@ -321,6 +436,8 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
         onSend={send}
         onEdit={(msg, text) => void editMessage(msg.id, text).catch(fail)}
         onEditLast={editLast}
+        onSendPhotos={(files, caption) => void sendPhotos(files, caption)}
+        onSendVoice={sendVoice}
       />
     );
   }
@@ -349,17 +466,29 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
             }}
           />
           <span className="muted small nowrap">
-            {q ? (matches.length ? t('chat.matchOf', { current: searchIdx + 1, total: matches.length }) : t('chat.noMatches')) : ''}
+            {q
+              ? matches.length
+                ? t('chat.matchOf', { current: searchIdx + 1, total: matches.length })
+                : t('chat.noMatches')
+              : ''}
           </span>
           {hasMore && q && (
             <button className="btn btn-text small" onClick={() => void loadMore(200)}>
               <Icon name="download" size={16} />
             </button>
           )}
-          <button className="icon-btn small" disabled={searchIdx >= matches.length - 1} onClick={() => setSearchIdx((i) => i + 1)}>
+          <button
+            className="icon-btn small"
+            disabled={searchIdx >= matches.length - 1}
+            onClick={() => setSearchIdx((i) => i + 1)}
+          >
             <Icon name="up" size={18} />
           </button>
-          <button className="icon-btn small" disabled={searchIdx <= 0} onClick={() => setSearchIdx((i) => i - 1)}>
+          <button
+            className="icon-btn small"
+            disabled={searchIdx <= 0}
+            onClick={() => setSearchIdx((i) => i - 1)}
+          >
             <Icon name="down" size={18} />
           </button>
           <button
@@ -376,9 +505,7 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
 
       {scam && <ScamWarning />}
 
-      {chat.pinnedMessageIds.length > 0 && (
-        <PinnedBar chat={chat} canUnpin={canPin} onJump={jumpTo} />
-      )}
+      {chat.pinnedMessageIds.length > 0 && <PinnedBar chat={chat} canUnpin={canPin} onJump={jumpTo} />}
 
       <div
         className="messages"

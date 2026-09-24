@@ -13,7 +13,7 @@
     "format": "prettier --write .",
     "test:e2e": "playwright test",
     "test:db": "vitest run -c vitest.db.config.ts",
-    "db:start": "supabase start -x studio,imgproxy,storage-api,logflare,vector,supavisor,postgres-meta,mailpit",
+    "db:start": "supabase start -x studio,imgproxy,logflare,vector,supavisor,postgres-meta,mailpit",
     "db:reset": "supabase db reset"
   },
   "dependencies": {
