@@ -51,7 +51,17 @@ async function api(path, init = {}) {
 
 // ---------- 1. найти проект ----------
 let ref = process.env.SUPABASE_PROJECT_REF;
-if (!ref) {
+if (ref) {
+  const project = await api(`/projects/${ref}`).catch((err) => fail(`Нет доступа к проекту ${ref}: ${err.message}`));
+  console.log(`Проект: ${project.name} (${ref}), статус ${project.status}`);
+  if (project.status && project.status !== 'ACTIVE_HEALTHY') {
+    fail(
+      project.status.includes('PAUSED') || project.status === 'INACTIVE'
+        ? 'Проект Supabase на паузе. Откройте supabase.com → проект → Restore project и перезапустите деплой.'
+        : `Проект ещё не готов (статус ${project.status}). Подождите пару минут и перезапустите деплой.`,
+    );
+  }
+} else {
   const projects = await api('/projects');
   const byName = projects.filter((p) => p.name?.toLowerCase() === 'bobogram');
   const project = byName[0] ?? (projects.length === 1 ? projects[0] : null);
