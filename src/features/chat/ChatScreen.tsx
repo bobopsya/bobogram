@@ -490,6 +490,7 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
         me={me}
         onSearch={() => setSearchOpen(true)}
         onCall={(video) => otherUid && startCall(chat.id, otherUid, video)}
+        onClear={isMember ? () => setClearConfirm(true) : undefined}
         onMenu={(x, y) => setHeaderMenu({ x, y })}
       />
 

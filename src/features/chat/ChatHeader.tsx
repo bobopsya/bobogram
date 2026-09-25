@@ -41,10 +41,11 @@ interface Props {
   me: string;
   onSearch: () => void;
   onCall: (video: boolean) => void;
+  onClear?: () => void;
   onMenu: (x: number, y: number) => void;
 }
 
-export function ChatHeader({ chat, me, onSearch, onCall, onMenu }: Props) {
+export function ChatHeader({ chat, me, onSearch, onCall, onClear, onMenu }: Props) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const meta = useChatMeta(chat);
@@ -102,6 +103,11 @@ export function ChatHeader({ chat, me, onSearch, onCall, onMenu }: Props) {
       <button className="icon-btn hide-narrow" onClick={onSearch} aria-label={t('chat.searchInChat')}>
         <Icon name="search" />
       </button>
+      {onClear && (
+        <button className="icon-btn" onClick={onClear} aria-label={t('chat.clearForMe')} title={t('chat.clearForMe')}>
+          <Icon name="trash" />
+        </button>
+      )}
       <button
         className="icon-btn"
         aria-label="more"
