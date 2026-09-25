@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
@@ -12,6 +12,7 @@ import {
   adminSetUserBadges,
   adminSetRole,
   adminSetSpamblock,
+  adminSetProfileLock,
   getOwnerId,
   deleteChat,
   errorKey,
@@ -104,6 +105,8 @@ function UsersTab({ q }: { q: string }) {
   const [resetFor, setResetFor] = useState<UserProfile | null>(null);
   const [nftFor, setNftFor] = useState<UserProfile | null>(null);
   const [editFor, setEditFor] = useState<UserProfile | null>(null);
+  const [subMenu, setSubMenu] = useState<{ items: MenuItem[]; x: number; y: number } | null>(null);
+  const lastMenuPos = useRef<{ x: number; y: number } | null>(null);
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [password, setPassword] = useState('');
 
@@ -133,6 +136,12 @@ function UsersTab({ q }: { q: string }) {
     );
   }
 
+  // Второе меню открывается на месте первого.
+  const openSub = (subItems: MenuItem[]) => {
+    const at = menu ?? lastMenuPos.current;
+    if (at) setSubMenu({ items: subItems, x: at.x, y: at.y });
+  };
+
   const items = (u: UserProfile): MenuItem[] => {
     const isOwner = u.uid === ownerId;
     const list: MenuItem[] = [
@@ -150,29 +159,39 @@ function UsersTab({ q }: { q: string }) {
         onClick: () => act(adminSetUserBadges(u.uid, { scam: !u.scam }), u.uid, { scam: !u.scam }),
       },
     ];
-    for (const [label, days] of [
-      [t('admin.premium7'), 7],
-      [t('admin.premium30'), 30],
-      [t('admin.premium365'), 365],
-      [t('admin.premiumForever'), null],
-    ] as const) {
-      list.push({
-        icon: 'star',
-        label,
-        onClick: () => {
-          const until = untilIso(days);
-          act(adminSetPremium(u.uid, until), u.uid, { premiumUntil: Date.parse(until) });
-        },
-      });
-    }
-    list.push({ icon: 'gem', label: t('nft.menu'), onClick: () => setNftFor(u) });
+    // Премиум — во втором меню, чтобы основное было короче.
+    const premiumItems: MenuItem[] = (
+      [
+        [t('admin.premium7'), 7],
+        [t('admin.premium30'), 30],
+        [t('admin.premium365'), 365],
+        [t('admin.premiumForever'), null],
+      ] as const
+    ).map(([label, days]) => ({
+      icon: 'star',
+      label,
+      onClick: () => {
+        const until = untilIso(days);
+        act(adminSetPremium(u.uid, until), u.uid, { premiumUntil: Date.parse(until) });
+      },
+    }));
     if (isPremium(u)) {
-      list.push({
+      premiumItems.push({
         icon: 'close',
         label: t('admin.premiumRemove'),
         onClick: () => act(adminSetPremium(u.uid, null), u.uid, { premiumUntil: null }),
       });
     }
+    list.push({ icon: 'star', label: t('admin.premiumMenu'), onClick: () => openSub(premiumItems) });
+    if (u.uid !== me && !isOwner) {
+      list.push({
+        icon: 'lock',
+        label: u.profileLocked ? t('admin.unlockProfile') : t('admin.lockProfile'),
+        onClick: () =>
+          act(adminSetProfileLock(u.uid, !u.profileLocked), u.uid, { profileLocked: !u.profileLocked }),
+      });
+    }
+    list.push({ icon: 'gem', label: t('nft.menu'), onClick: () => setNftFor(u) });
     if (u.uid !== me && !isOwner) {
       list.push({
         icon: 'shield',
@@ -189,21 +208,27 @@ function UsersTab({ q }: { q: string }) {
           onClick: () => act(adminSetSpamblock(u.uid, null), u.uid, { spamUntil: null }),
         });
       } else {
-        for (const [label, days] of [
-          [t('admin.spamblock1'), 1],
-          [t('admin.spamblock7'), 7],
-          [t('admin.spamblockForever'), null],
-        ] as const) {
-          list.push({
-            icon: 'ban',
-            label,
-            danger: true,
-            onClick: () => {
-              const until = untilIso(days);
-              act(adminSetSpamblock(u.uid, until), u.uid, { spamUntil: Date.parse(until) });
-            },
-          });
-        }
+        const spamItems: MenuItem[] = (
+          [
+            [t('admin.spamblock1'), 1],
+            [t('admin.spamblock7'), 7],
+            [t('admin.spamblockForever'), null],
+          ] as const
+        ).map(([label, days]) => ({
+          icon: 'ban',
+          label,
+          danger: true,
+          onClick: () => {
+            const until = untilIso(days);
+            act(adminSetSpamblock(u.uid, until), u.uid, { spamUntil: Date.parse(until) });
+          },
+        }));
+        list.push({
+          icon: 'ban',
+          label: t('admin.spamblockMenu'),
+          danger: true,
+          onClick: () => openSub(spamItems),
+        });
       }
     }
     if (u.uid !== me && !isOwner) {
@@ -257,6 +282,7 @@ function UsersTab({ q }: { q: string }) {
                   @{u.username}
                   {u.nftUsernames.length > 0 && ` · 💎 ${u.nftUsernames.length}`}
                   {isSpamblocked(u) && ` · 🚫 ${t('admin.spamblocked')}`}
+                  {u.profileLocked && ` · 🔒`}
                   {u.uid === ownerId && ` · 👑 ${t('admin.owner')}`}
                   {u.banned && ` · ${t('admin.banned')}`}
                   {isPremium(u) &&
@@ -279,13 +305,18 @@ function UsersTab({ q }: { q: string }) {
             <button
               className="icon-btn"
               aria-label="more"
-              onClick={(e) => setMenu({ user: u, x: e.clientX - 220, y: e.clientY })}
+              onClick={(e) => {
+                const pos = { x: e.clientX - 200, y: e.clientY };
+                lastMenuPos.current = pos;
+                setMenu({ user: u, ...pos });
+              }}
             >
               <Icon name="more" />
             </button>
           </div>
         ))}
       {menu && <Menu x={menu.x} y={menu.y} items={items(menu.user)} onClose={() => setMenu(null)} />}
+      {subMenu && <Menu x={subMenu.x} y={subMenu.y} items={subMenu.items} onClose={() => setSubMenu(null)} />}
       {editFor && (
         <AdminEditProfileDialog
           user={editFor}

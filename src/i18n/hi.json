@@ -67,7 +67,8 @@
     "pinLimit": "अधिकतम 5 चैट पिन कर सकते हैं (Premium के साथ 10)",
     "bioTooLong": "परिचय 70 अक्षर तक (Premium के साथ 200)",
     "upload": "फ़ाइल अपलोड नहीं हो सकी",
-    "spamblock": "आप स्पैम ब्लॉक में हैं और पहले संदेश नहीं भेज सकते"
+    "spamblock": "आप स्पैम ब्लॉक में हैं और पहले संदेश नहीं भेज सकते",
+    "profileLocked": "एडमिन ने आपकी प्रोफ़ाइल लॉक कर दी है"
   },
   "chats": {
     "title": "चैट",
@@ -329,7 +330,11 @@
     "spamblock7": "7 दिन का स्पैम ब्लॉक",
     "spamblockForever": "हमेशा के लिए स्पैम ब्लॉक",
     "spamblockRemove": "स्पैम ब्लॉक हटाएं",
-    "spamblocked": "स्पैम ब्लॉक"
+    "spamblocked": "स्पैम ब्लॉक",
+    "premiumMenu": "Premium…",
+    "spamblockMenu": "स्पैम ब्लॉक…",
+    "lockProfile": "प्रोफ़ाइल बदलना रोकें",
+    "unlockProfile": "प्रोफ़ाइल बदलने दें"
   },
   "notify": {
     "newMessage": "नया संदेश",

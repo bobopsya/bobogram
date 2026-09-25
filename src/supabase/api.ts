@@ -52,6 +52,7 @@ export function toProfile(r: Row): UserProfile {
     emojiStatus: (r.emoji_status as string | null) ?? null,
     profileBg: (r.profile_bg as string | null) ?? null,
     spamUntil: msOrNull(r.spam_until),
+    profileLocked: r.profile_locked === true,
     nftUsernames: ((r.nft_usernames as { username: string }[] | null) ?? []).map((n) => n.username).sort(),
   };
 }
@@ -214,6 +215,7 @@ export function errorKey(err: unknown): string {
     return 'errors.tooManyRequests';
   if (code === '42501') return /blocked/.test(msg) ? 'chat.blockedByThem' : 'errors.permission';
   if (msg.includes('spamblock')) return 'errors.spamblock';
+  if (msg.includes('profile locked')) return 'errors.profileLocked';
   if (msg.includes('too many members')) return 'errors.tooManyMembers';
   if (msg.includes('pin limit')) return 'errors.pinLimit';
   if (msg.includes('bio too long')) return 'errors.bioTooLong';
@@ -584,6 +586,10 @@ export async function adminSetRole(uid: string, admin: boolean): Promise<void> {
 
 export async function adminSetSpamblock(uid: string, until: string | null): Promise<void> {
   check(await supabase.rpc('admin_set_spamblock', { p_user: uid, p_until: until }));
+}
+
+export async function adminSetProfileLock(uid: string, locked: boolean): Promise<void> {
+  check(await supabase.rpc('admin_set_profile_lock', { p_user: uid, p_locked: locked }));
 }
 
 export async function getOwnerId(): Promise<string | null> {

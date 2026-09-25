@@ -67,7 +67,8 @@
     "pinLimit": "Закрепить можно не больше 5 чатов (10 с Premium)",
     "bioTooLong": "«О себе» — до 70 символов (200 с Premium)",
     "upload": "Не удалось загрузить файл",
-    "spamblock": "Вы в спамблоке и не можете писать первым"
+    "spamblock": "Вы в спамблоке и не можете писать первым",
+    "profileLocked": "Администратор запретил вам менять профиль"
   },
   "chats": {
     "title": "Чаты",
@@ -333,7 +334,11 @@
     "spamblock7": "Спамблок на 7 дней",
     "spamblockForever": "Спамблок навсегда",
     "spamblockRemove": "Снять спамблок",
-    "spamblocked": "спамблок"
+    "spamblocked": "спамблок",
+    "premiumMenu": "Premium…",
+    "spamblockMenu": "Спамблок…",
+    "lockProfile": "Запретить менять профиль",
+    "unlockProfile": "Разрешить менять профиль"
   },
   "notify": {
     "newMessage": "Новое сообщение",
