@@ -361,7 +361,7 @@
     "scamWarningTitle": "⚠️ Warning: scammer",
     "scamWarningText": "The administrators marked this account as a scam. Do not send money or share passwords.",
     "developer": "Bobogram developer",
-    "developerHint": "This person builds Bobogram. The badge is given by the owner."
+    "developerHint": "This person builds Bobogram."
   },
   "appearance": {
     "title": "Appearance",

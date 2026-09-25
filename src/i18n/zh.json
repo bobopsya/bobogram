@@ -359,7 +359,7 @@
     "scamWarningTitle": "⚠️ 注意：诈骗账号",
     "scamWarningText": "管理员已将此账号标记为诈骗。请勿转账或透露密码。",
     "developer": "Bobogram 开发者",
-    "developerHint": "此人参与开发 Bobogram，徽章由所有者授予。"
+    "developerHint": "此人参与开发 Bobogram。"
   },
   "appearance": {
     "title": "外观",
