@@ -462,3 +462,50 @@ describe('фото и голосовые', () => {
     await fails(send(alice, chat, '', { p_media: { kind: 'video', path: 'x' } }));
   });
 });
+
+describe('НФТ-юзернеймы', () => {
+  let nftAdmin: User, owner: User, other: User;
+  const nft = `nft${run}`;
+
+  beforeAll(async () => {
+    nftAdmin = await user('nftadmin');
+    owner = await user('nftowner');
+    other = await user('nftother');
+    await admin.from('profiles').update({ role: 'admin' }).eq('id', nftAdmin.id);
+  });
+
+  it('выдаёт только админ; напрямую в таблицу не записать', async () => {
+    await fails(rpc(owner, 'admin_grant_nft_username', { p_user: owner.id, p_username: nft }));
+    const { error } = await owner.db.from('nft_usernames').insert({ username: nft, owner_id: owner.id });
+    expect(error).not.toBeNull();
+    // Чужое основное имя выдать нельзя.
+    await fails(rpc(nftAdmin, 'admin_grant_nft_username', { p_user: owner.id, p_username: other.name }));
+  });
+
+  it('выданное имя находит профиль, и его нельзя занять обычным юзернеймом', async () => {
+    await rpc(nftAdmin, 'admin_grant_nft_username', { p_user: owner.id, p_username: '@' + nft });
+    const found = await rpc<{ id: string }[]>(other, 'find_profile_by_username', {
+      p_username: nft.toUpperCase(),
+    });
+    expect(found[0].id).toBe(owner.id);
+    const { data: p } = await other.db
+      .from('profiles')
+      .select('nft_usernames(username)')
+      .eq('id', owner.id)
+      .single();
+    expect(p!.nft_usernames).toEqual([{ username: nft }]);
+
+    expect(await rpc(other, 'username_available', { p_username: nft })).toBe(false);
+    const { error } = await other.db.from('profiles').update({ username: nft }).eq('id', other.id);
+    expect(error).not.toBeNull();
+    // Дважды одно имя не выдать.
+    await fails(rpc(nftAdmin, 'admin_grant_nft_username', { p_user: other.id, p_username: nft }));
+  });
+
+  it('отзыв освобождает имя', async () => {
+    await fails(rpc(owner, 'admin_revoke_nft_username', { p_username: nft }));
+    await rpc(nftAdmin, 'admin_revoke_nft_username', { p_username: nft });
+    expect(await rpc(other, 'username_available', { p_username: nft })).toBe(true);
+    expect(await rpc<unknown[]>(other, 'find_profile_by_username', { p_username: nft })).toEqual([]);
+  });
+});

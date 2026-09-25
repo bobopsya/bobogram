@@ -90,6 +90,7 @@ const ICONS = {
   micOff: (
     <path d="M1 1l22 22M9 9v3a3 3 0 005.12 2.12M15 9.34V4a3 3 0 00-5.94-.6M17 16.95A7 7 0 015 12v-2m14 0v2a7 7 0 01-.11 1.23M12 19v4M8 23h8" />
   ),
+  gem: <path d="M6 3h12l4 6-10 12L2 9l4-6zM2 9h20M12 21L8 9l4-6 4 6-4 12" />,
   play: <path d="M7 4.5v15l12.5-7.5L7 4.5z" fill="currentColor" />,
   pause: <path d="M8 5v14M16 5v14" strokeWidth={3.2} />,
   attach: (

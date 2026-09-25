@@ -22,6 +22,8 @@ export function SettingsScreen() {
   const setTheme = useApp((s) => s.setTheme);
   const sound = useApp((s) => s.sound);
   const setSound = useApp((s) => s.setSound);
+  const enterToSend = useApp((s) => s.enterToSend);
+  const setEnterToSend = useApp((s) => s.setEnterToSend);
   const blockedCount = useApp((s) => s.blocked.length);
   const [push, setPush] = useState<PushState | null>(null);
   const [pushBusy, setPushBusy] = useState(false);
@@ -116,6 +118,12 @@ export function SettingsScreen() {
             <span>{t('settings.sounds')}</span>
             <Switch checked={sound} onChange={setSound} />
           </div>
+          <div className="setting-row">
+            <Icon name="send" />
+            <span>{t('settings.enterToSend')}</span>
+            <Switch checked={enterToSend} onChange={setEnterToSend} />
+          </div>
+          {!enterToSend && <p className="setting-hint">{t('settings.enterToSendHint')}</p>}
         </Section>
 
         <Section title={t('settings.privacy')}>
@@ -201,12 +209,23 @@ function ChangePassword({ onClose }: { onClose: () => void }) {
     >
       <label className="field">
         <span className="field-label">{t('settings.newPassword')}</span>
-        <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" minLength={6} />
+        <input
+          type="password"
+          value={pw}
+          onChange={(e) => setPw(e.target.value)}
+          autoComplete="new-password"
+          minLength={6}
+        />
         <span className="field-hint">{t('auth.passwordHint')}</span>
       </label>
       <label className="field">
         <span className="field-label">{t('auth.password2')}</span>
-        <input type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} autoComplete="new-password" />
+        <input
+          type="password"
+          value={pw2}
+          onChange={(e) => setPw2(e.target.value)}
+          autoComplete="new-password"
+        />
       </label>
       {error && <p className="form-error">{error}</p>}
     </Modal>

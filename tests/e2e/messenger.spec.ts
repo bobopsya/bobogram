@@ -1,4 +1,12 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
+import { createClient } from '@supabase/supabase-js';
+
+// Сервисный ключ локального Supabase (стандартный демо-ключ, не секретный) — чтобы назначить админа.
+const service = createClient(
+  'http://127.0.0.1:54321',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU',
+  { auth: { persistSession: false } },
+);
 
 const run = Date.now().toString(36).slice(-6);
 
@@ -189,6 +197,77 @@ test('фото с подписью и голосовое доходят до с�
   await expect(voice.locator('.voice-wave span.on').first()).toBeVisible({ timeout: 10_000 });
   await expect(bob.locator('.chat-item', { hasText: 'Алиса' })).toContainText('Голосовое сообщение');
   await bob.screenshot({ path: 'test-results/media.png' });
+});
+
+test('телефон: Enter отправляет, плавающая дата при прокрутке', async ({ browser }) => {
+  const alice = await signUp(browser, 'Алиса', `alicee${run}`, true);
+  await signUp(browser, 'Боб', `bobe${run}`);
+
+  await alice.getByPlaceholder('Поиск по @имени или чатам').fill(`@bobe${run}`);
+  await alice.locator('.list-item', { hasText: 'Боб' }).click();
+  const input = alice.getByPlaceholder('Сообщение');
+  for (let i = 1; i <= 30; i++) {
+    await input.fill(`Сообщение ${i}`);
+    await input.press('Enter');
+  }
+  await expect(alice.locator('.bubble', { hasText: 'Сообщение 30' })).toBeVisible();
+  await expect(input).toHaveValue('');
+
+  // «Сегодня» больше не прилипает, а при прокрутке вверх появляется плавающая дата.
+  expect(
+    await alice
+      .locator('.date-sep')
+      .first()
+      .evaluate((el) => getComputedStyle(el).position),
+  ).not.toBe('sticky');
+  await alice.locator('.messages').evaluate((el) => {
+    el.scrollTop = -600;
+    el.dispatchEvent(new Event('scroll'));
+  });
+  await expect(alice.locator('.floating-date')).toHaveText('Сегодня');
+  await expect(alice.locator('.floating-date')).toBeHidden({ timeout: 5_000 });
+
+  // Выключили «Отправка по Enter» — Enter переносит строку.
+  await alice.goto('./#/settings');
+  await alice.locator('.setting-row', { hasText: 'Отправка по Enter' }).getByRole('switch').click();
+  await alice.goBack();
+  await input.fill('строка 1');
+  await input.press('Enter');
+  await input.pressSequentially('строка 2');
+  await expect(input).toHaveValue('строка 1\nстрока 2');
+});
+
+test('админ выдаёт НФТ-юзернейм, по нему находят профиль', async ({ browser }) => {
+  const boss = await signUp(browser, 'Админ', `boss${run}`);
+  const bob = await signUp(browser, 'Боб', `bobn${run}`);
+  const { data } = await service.from('profiles').select('id').eq('username', `boss${run}`).single();
+  await service.from('profiles').update({ role: 'admin' }).eq('id', data!.id);
+
+  await boss.goto('./#/admin');
+  await boss.reload();
+  await boss.getByPlaceholder('Поиск').fill(`bobn${run}`);
+  await boss
+    .locator('.list-item', { hasText: `@bobn${run}` })
+    .getByRole('button', { name: 'more' })
+    .click();
+  await boss.getByRole('menuitem', { name: 'НФТ-юзернеймы' }).click();
+  const dialog = boss.getByRole('dialog');
+  await dialog.locator('input').fill(`gem${run}`);
+  await expect(dialog.getByText('Имя свободно')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Выдать' }).click();
+  await expect(dialog.getByText(`💎 @gem${run}`)).toBeVisible();
+  await boss.keyboard.press('Escape');
+
+  // Поиск по НФТ-имени и профиль по ссылке.
+  await boss.goto('./');
+  await boss.getByPlaceholder('Поиск по @имени или чатам').fill(`@gem${run}`);
+  await expect(boss.locator('.list-item', { hasText: `💎 @gem${run}` })).toBeVisible();
+  await boss.goto(`./#/u/gem${run}`);
+  await expect(boss.locator('.nft-name', { hasText: `@gem${run}` })).toBeVisible();
+  await boss.screenshot({ path: 'test-results/nft-profile.png' });
+  // У владельца имя видно в своём профиле.
+  await bob.goto(`./#/u/bobn${run}`);
+  await expect(bob.locator('.nft-name', { hasText: `@gem${run}` })).toBeVisible();
 });
 
 test('без сети сообщение ждёт с «часиками» и уходит, когда сеть появилась', async ({ browser }) => {

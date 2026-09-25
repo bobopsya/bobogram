@@ -6,7 +6,7 @@ import { supabase } from './client';
  * Supabase сам отфильтрует строки по правилам доступа: придут только мои чаты, сообщения и звонки.
  */
 export type DbEvent = {
-  table: 'messages' | 'chats' | 'chat_members' | 'profiles' | 'calls' | 'call_candidates';
+  table: 'messages' | 'chats' | 'chat_members' | 'profiles' | 'calls' | 'call_candidates' | 'nft_usernames';
   type: 'INSERT' | 'UPDATE' | 'DELETE';
   row: Record<string, unknown>;
   old: Record<string, unknown>;
@@ -34,7 +34,15 @@ export function emitResync() {
 let dbChannel: RealtimeChannel | null = null;
 
 export function startDbChannel(): () => void {
-  const tables: DbEvent['table'][] = ['messages', 'chats', 'chat_members', 'profiles', 'calls', 'call_candidates'];
+  const tables: DbEvent['table'][] = [
+    'messages',
+    'chats',
+    'chat_members',
+    'profiles',
+    'calls',
+    'call_candidates',
+    'nft_usernames',
+  ];
   let ch = supabase.channel('db-changes');
   for (const table of tables) {
     ch = ch.on('postgres_changes', { event: '*', schema: 'public', table }, (payload) => {
@@ -101,7 +109,10 @@ export function startPresence(uid: string, hidden: boolean): () => void {
 }
 
 // ---------- «печатает…» ----------
-const typingChannels = new Map<string, { ch: RealtimeChannel; refs: number; listeners: Set<(uid: string, stop: boolean) => void> }>();
+const typingChannels = new Map<
+  string,
+  { ch: RealtimeChannel; refs: number; listeners: Set<(uid: string, stop: boolean) => void> }
+>();
 
 function typingChannel(chatId: string) {
   let entry = typingChannels.get(chatId);

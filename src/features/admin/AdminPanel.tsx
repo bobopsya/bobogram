@@ -26,12 +26,14 @@ import { Icon } from '../../ui/Icon';
 import { Menu, type MenuItem } from '../../ui/Menu';
 import { Confirm, Modal } from '../../ui/Modal';
 import { PageHeader, Spinner } from '../../ui/misc';
+import { NftDialog } from './NftDialog';
 
 type AdminChat = Awaited<ReturnType<typeof adminListChats>>[number];
 type Tab = 'users' | 'chats' | 'requests';
 
 const DAY = 86_400_000;
-const untilIso = (days: number | null) => (days === null ? PREMIUM_FOREVER : new Date(Date.now() + days * DAY).toISOString());
+const untilIso = (days: number | null) =>
+  days === null ? PREMIUM_FOREVER : new Date(Date.now() + days * DAY).toISOString();
 
 /** Админ-панель: пользователи (бан, пароль, галочка, SCAM, премиум), каналы (галочка, SCAM, накрутка), заявки. */
 export default function AdminPanel() {
@@ -64,7 +66,12 @@ export default function AdminPanel() {
       <div className="scroll">
         {tab !== 'requests' && (
           <div className="pad-x">
-            <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('common.search')} />
+            <input
+              className="input"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={t('common.search')}
+            />
           </div>
         )}
         {tab === 'users' && <UsersTab q={q} />}
@@ -90,6 +97,7 @@ function UsersTab({ q }: { q: string }) {
   const [users, setUsers] = useState<UserProfile[] | null>(null);
   const [menu, setMenu] = useState<{ user: UserProfile; x: number; y: number } | null>(null);
   const [resetFor, setResetFor] = useState<UserProfile | null>(null);
+  const [nftFor, setNftFor] = useState<UserProfile | null>(null);
   const [password, setPassword] = useState('');
 
   const load = () => void listUsers().then(setUsers).catch(fail);
@@ -116,7 +124,8 @@ function UsersTab({ q }: { q: string }) {
       {
         icon: 'check',
         label: u.verified ? t('admin.unverify') : t('admin.verify'),
-        onClick: () => act(adminSetUserBadges(u.uid, { verified: !u.verified }), u.uid, { verified: !u.verified }),
+        onClick: () =>
+          act(adminSetUserBadges(u.uid, { verified: !u.verified }), u.uid, { verified: !u.verified }),
       },
       {
         icon: 'ban',
@@ -140,8 +149,13 @@ function UsersTab({ q }: { q: string }) {
         },
       });
     }
+    list.push({ icon: 'gem', label: t('nft.menu'), onClick: () => setNftFor(u) });
     if (isPremium(u)) {
-      list.push({ icon: 'close', label: t('admin.premiumRemove'), onClick: () => act(adminSetPremium(u.uid, null), u.uid, { premiumUntil: null }) });
+      list.push({
+        icon: 'close',
+        label: t('admin.premiumRemove'),
+        onClick: () => act(adminSetPremium(u.uid, null), u.uid, { premiumUntil: null }),
+      });
     }
     if (u.uid !== me) {
       list.push({
@@ -165,7 +179,13 @@ function UsersTab({ q }: { q: string }) {
   return (
     <>
       {users
-        .filter((u) => !ql || u.username.toLowerCase().includes(ql) || u.displayName.toLowerCase().includes(ql))
+        .filter(
+          (u) =>
+            !ql ||
+            u.username.toLowerCase().includes(ql) ||
+            u.displayName.toLowerCase().includes(ql) ||
+            u.nftUsernames.some((n) => n.toLowerCase().includes(ql)),
+        )
         .map((u) => (
           <div key={u.uid} className="list-item">
             <button className="plain row gap grow min0" onClick={() => navigate(`/profile/${u.uid}`)}>
@@ -178,6 +198,7 @@ function UsersTab({ q }: { q: string }) {
                 </div>
                 <div className={u.banned ? 'list-item-sub danger' : 'list-item-sub'}>
                   @{u.username}
+                  {u.nftUsernames.length > 0 && ` · 💎 ${u.nftUsernames.length}`}
                   {u.banned && ` · ${t('admin.banned')}`}
                   {isPremium(u) &&
                     ` · ⭐ ${
@@ -188,12 +209,23 @@ function UsersTab({ q }: { q: string }) {
                 </div>
               </div>
             </button>
-            <button className="icon-btn" aria-label="more" onClick={(e) => setMenu({ user: u, x: e.clientX - 220, y: e.clientY })}>
+            <button
+              className="icon-btn"
+              aria-label="more"
+              onClick={(e) => setMenu({ user: u, x: e.clientX - 220, y: e.clientY })}
+            >
               <Icon name="more" />
             </button>
           </div>
         ))}
       {menu && <Menu x={menu.x} y={menu.y} items={items(menu.user)} onClose={() => setMenu(null)} />}
+      {nftFor && (
+        <NftDialog
+          user={nftFor}
+          onChange={(names) => patch(nftFor.uid, { nftUsernames: names })}
+          onClose={() => setNftFor(null)}
+        />
+      )}
       {resetFor && (
         <Modal
           title={t('admin.resetPasswordFor', { username: resetFor.username })}
@@ -255,13 +287,19 @@ function ChatsTab({ q }: { q: string }) {
     {
       icon: 'check',
       label: c.verified ? t('admin.unverify') : t('admin.verify'),
-      onClick: () => void adminSetChatBadges(c.id, { verified: !c.verified }).then(() => patch(c.id, { verified: !c.verified })).catch(fail),
+      onClick: () =>
+        void adminSetChatBadges(c.id, { verified: !c.verified })
+          .then(() => patch(c.id, { verified: !c.verified }))
+          .catch(fail),
     },
     {
       icon: 'ban',
       label: c.scam ? t('admin.unscam') : t('admin.scam'),
       danger: !c.scam,
-      onClick: () => void adminSetChatBadges(c.id, { scam: !c.scam }).then(() => patch(c.id, { scam: !c.scam })).catch(fail),
+      onClick: () =>
+        void adminSetChatBadges(c.id, { scam: !c.scam })
+          .then(() => patch(c.id, { scam: !c.scam }))
+          .catch(fail),
     },
     {
       icon: 'userPlus',
@@ -281,7 +319,13 @@ function ChatsTab({ q }: { q: string }) {
         .map((c) => (
           <div key={c.id} className="list-item">
             <button className="plain row gap grow min0" onClick={() => navigate(`/c/${c.id}`)}>
-              <Avatar name={c.title} seed={c.id} src={c.avatar} size={40} icon={c.type === 'channel' ? 'megaphone' : undefined} />
+              <Avatar
+                name={c.title}
+                seed={c.id}
+                src={c.avatar}
+                size={40}
+                icon={c.type === 'channel' ? 'megaphone' : undefined}
+              />
               <div className="list-item-body">
                 <div className="list-item-title">
                   <span className="ellipsis">{c.title}</span>
@@ -295,7 +339,11 @@ function ChatsTab({ q }: { q: string }) {
                 </div>
               </div>
             </button>
-            <button className="icon-btn" aria-label="more" onClick={(e) => setMenu({ chat: c, x: e.clientX - 220, y: e.clientY })}>
+            <button
+              className="icon-btn"
+              aria-label="more"
+              onClick={(e) => setMenu({ chat: c, x: e.clientX - 220, y: e.clientY })}
+            >
               <Icon name="more" />
             </button>
           </div>
@@ -326,7 +374,13 @@ function ChatsTab({ q }: { q: string }) {
           <p className="muted small">{t('admin.boostMembersHint', { count: boostFor.memberCount })}</p>
           <label className="field">
             <span className="field-label">{t('admin.extraMembers')}</span>
-            <input type="number" min={0} inputMode="numeric" value={boost} onChange={(e) => setBoost(e.target.value)} />
+            <input
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={boost}
+              onChange={(e) => setBoost(e.target.value)}
+            />
           </label>
         </Modal>
       )}
@@ -356,7 +410,11 @@ function RequestRow({ req, onDone }: { req: PremiumRequest; onDone: () => void }
   const [days, setDays] = useState<string>('30');
 
   const resolve = (approve: boolean) =>
-    void adminResolvePremiumRequest(req.id, approve, approve ? untilIso(days === 'forever' ? null : Number(days)) : null)
+    void adminResolvePremiumRequest(
+      req.id,
+      approve,
+      approve ? untilIso(days === 'forever' ? null : Number(days)) : null,
+    )
       .then(onDone)
       .catch(fail);
 

@@ -245,7 +245,9 @@
     "account": "Account",
     "changePassword": "Change password",
     "newPassword": "New password",
-    "passwordChanged": "Password changed"
+    "passwordChanged": "Password changed",
+    "enterToSend": "Send with Enter",
+    "enterToSendHint": "Otherwise Enter adds a new line; send with the button or Ctrl+Enter"
   },
   "calls": {
     "calling": "Calling…",
@@ -385,5 +387,17 @@
     "sendPhotos_other": "Send {{count}} photos",
     "micDenied": "No access to the microphone",
     "badPhoto": "Could not open the photo"
+  },
+  "nft": {
+    "collectible": "Collectible usernames",
+    "menu": "NFT usernames",
+    "title": "NFT usernames of @{{username}}",
+    "grant": "Grant",
+    "revoke": "Revoke",
+    "none": "No collectible usernames yet.",
+    "newName": "New NFT username",
+    "taken": "Already taken",
+    "free": "Available",
+    "hint": "It can’t be taken as a regular username"
   }
 }

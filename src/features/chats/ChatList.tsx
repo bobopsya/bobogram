@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useApp, useMe } from '../../app/store';
 import { errorKey, openPrivateChat, openSavedChat, searchUsers } from '../../supabase/api';
-import { isPremium, type Chat, type UserProfile } from '../../supabase/types';
+import { isPremium, matchedUsername, type Chat, type UserProfile } from '../../supabase/types';
 import { Badges } from '../../ui/Badges';
 import { Icon } from '../../ui/Icon';
 import { Menu, type MenuItem } from '../../ui/Menu';
@@ -28,6 +28,12 @@ export function useOpenChatWith() {
       showToast(t(errorKey(err)));
     }
   };
+}
+
+/** «@имя» или «💎 @нфт», если человек нашёлся по коллекционному имени. */
+function usernameLabel(p: UserProfile, query: string): string {
+  const m = matchedUsername(p, query);
+  return (m.nft ? '💎 @' : '@') + m.name;
 }
 
 export function ChatList() {
@@ -78,7 +84,9 @@ export function ChatList() {
 
   const matchedChats = useMemo(() => {
     if (!query) return sorted;
-    return sorted.filter((c) => chatSearchText(c, t('chats.savedMessages')).includes(query.replace(/^@/, '')));
+    return sorted.filter((c) =>
+      chatSearchText(c, t('chats.savedMessages')).includes(query.replace(/^@/, '')),
+    );
   }, [sorted, query, t]);
 
   const menuItems: MenuItem[] = [
@@ -171,7 +179,7 @@ export function ChatList() {
                       <span className="ellipsis">{p.displayName}</span>
                       <Badges verified={p.verified} scam={p.scam} premium={isPremium(p)} size={15} />
                     </div>
-                    <div className="list-item-sub accent">@{p.username}</div>
+                    <div className="list-item-sub accent">{usernameLabel(p, query)}</div>
                   </div>
                 </button>
               ))

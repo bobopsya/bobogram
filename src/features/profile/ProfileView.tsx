@@ -96,7 +96,11 @@ function ProfileScreen({ uid }: { uid: string }) {
         back={() => navigate(-1)}
         actions={
           isMe ? (
-            <button className="icon-btn" onClick={() => navigate('/settings/profile')} aria-label={t('common.edit')}>
+            <button
+              className="icon-btn"
+              onClick={() => navigate('/settings/profile')}
+              aria-label={t('common.edit')}
+            >
               <Icon name="edit" />
             </button>
           ) : undefined
@@ -142,7 +146,9 @@ function ProfileScreen({ uid }: { uid: string }) {
           <button
             className="info-item"
             onClick={() =>
-              void navigator.clipboard?.writeText('@' + profile.username).then(() => showToast(t('common.copied')))
+              void navigator.clipboard
+                ?.writeText('@' + profile.username)
+                .then(() => showToast(t('common.copied')))
             }
           >
             <Icon name="user" />
@@ -151,6 +157,29 @@ function ProfileScreen({ uid }: { uid: string }) {
               <div className="muted small">{t('profile.username')}</div>
             </div>
           </button>
+          {(profile.nftUsernames ?? []).length > 0 && (
+            <div className="info-item">
+              <Icon name="gem" />
+              <div className="min0">
+                <div className="nft-names">
+                  {profile.nftUsernames.map((name) => (
+                    <button
+                      key={name}
+                      className="nft-name plain"
+                      onClick={() =>
+                        void navigator.clipboard
+                          ?.writeText('@' + name)
+                          .then(() => showToast(t('common.copied')))
+                      }
+                    >
+                      💎 @{name}
+                    </button>
+                  ))}
+                </div>
+                <div className="muted small">{t('nft.collectible')}</div>
+              </div>
+            </div>
+          )}
           {profile.bio && (
             <div className="info-item">
               <Icon name="edit" />
@@ -163,7 +192,9 @@ function ProfileScreen({ uid }: { uid: string }) {
           <button
             className="info-item"
             onClick={() =>
-              void navigator.clipboard?.writeText(profileLink(profile.username)).then(() => showToast(t('common.copied')))
+              void navigator.clipboard
+                ?.writeText(profileLink(profile.username))
+                .then(() => showToast(t('common.copied')))
             }
           >
             <Icon name="link" />

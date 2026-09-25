@@ -31,17 +31,33 @@ function request(uid: string) {
       const found = await fetchProfiles(ids);
       const got = new Set(found.map((p) => p.uid));
       found.forEach(putProfile);
-      ids.filter((id) => !got.has(id)).forEach((id) => {
-        cache.set(id, null);
-        notify(id);
-      });
+      ids
+        .filter((id) => !got.has(id))
+        .forEach((id) => {
+          cache.set(id, null);
+          notify(id);
+        });
     } catch {
       // нет сети — попробуем при следующем обращении
     }
   }, 20);
 }
 
+function refresh(uid: string) {
+  void fetchProfiles([uid])
+    .then((list) => list.forEach(putProfile))
+    .catch(() => undefined);
+}
+
 onDbEvent((e) => {
+  if (e.table === 'nft_usernames') {
+    // При удалении приходит только имя — ищем владельца в кэше.
+    const owner =
+      (e.row.owner_id as string | undefined) ??
+      [...cache.values()].find((p) => p?.nftUsernames.includes(String(e.old.username)))?.uid;
+    if (owner && cache.has(owner)) refresh(owner);
+    return;
+  }
   if (e.table !== 'profiles' || e.type === 'DELETE') return;
   const fresh = toProfile(e.row);
   putProfile(keepUnchanged(fresh, cache.get(fresh.uid) ?? undefined, e.row, PROFILE_LARGE_FIELDS));

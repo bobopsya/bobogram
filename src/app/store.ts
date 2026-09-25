@@ -35,11 +35,14 @@ interface AppState {
   theme: ThemeMode;
   appearance: Appearance;
   sound: boolean;
+  /** Enter отправляет сообщение (на телефоне тоже); иначе переносит строку. */
+  enterToSend: boolean;
   toast: string | null;
 
   setTheme: (t: ThemeMode) => void;
   setAppearance: (patch: Partial<Appearance>) => void;
   setSound: (on: boolean) => void;
+  setEnterToSend: (v: boolean) => void;
   showToast: (text: string) => void;
 }
 
@@ -60,6 +63,7 @@ export const useApp = create<AppState>((set) => ({
   theme: read<ThemeMode>('bobogram.theme', 'system'),
   appearance: { ...DEFAULT_APPEARANCE, ...read<Partial<Appearance>>('bobogram.appearance', {}) },
   sound: read<boolean>('bobogram.sound', true),
+  enterToSend: read<boolean>('bobogram.enterToSend', true),
   toast: null,
 
   setTheme: (theme) => {
@@ -75,6 +79,10 @@ export const useApp = create<AppState>((set) => ({
   setSound: (sound) => {
     write('bobogram.sound', sound);
     set({ sound });
+  },
+  setEnterToSend: (enterToSend) => {
+    write('bobogram.enterToSend', enterToSend);
+    set({ enterToSend });
   },
   showToast: (toast) => {
     window.clearTimeout(toastTimer);

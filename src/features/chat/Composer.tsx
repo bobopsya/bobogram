@@ -63,6 +63,7 @@ export function Composer(props: Props) {
   } = props;
   const { t } = useTranslation();
   const showToast = useApp((s) => s.showToast);
+  const enterToSend = useApp((s) => s.enterToSend);
   const [photos, setPhotos] = useState<File[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
   const recorder = useRef<VoiceRecorder | null>(null);
@@ -147,7 +148,12 @@ export function Composer(props: Props) {
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && !isTouchDevice()) {
+    if (
+      e.key === 'Enter' &&
+      !e.shiftKey &&
+      !e.nativeEvent.isComposing &&
+      (enterToSend || e.ctrlKey || e.metaKey)
+    ) {
       e.preventDefault();
       submit();
     } else if (e.key === 'Escape') {
@@ -328,7 +334,7 @@ export function Composer(props: Props) {
               }
             }}
             onFocus={() => isTouchDevice() && setEmojiOpen(false)}
-            enterKeyHint={isTouchDevice() ? 'enter' : 'send'}
+            enterKeyHint={enterToSend ? 'send' : 'enter'}
           />
           {!editing && (
             <button

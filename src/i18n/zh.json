@@ -243,7 +243,9 @@
     "account": "账号",
     "changePassword": "修改密码",
     "newPassword": "新密码",
-    "passwordChanged": "密码已修改"
+    "passwordChanged": "密码已修改",
+    "enterToSend": "按 Enter 发送",
+    "enterToSendHint": "否则 Enter 换行，用按钮或 Ctrl+Enter 发送"
   },
   "calls": {
     "calling": "正在呼叫…",
@@ -382,5 +384,17 @@
     "sendPhotos_other": "发送 {{count}} 张图片",
     "micDenied": "无法访问麦克风",
     "badPhoto": "无法打开图片"
+  },
+  "nft": {
+    "collectible": "收藏用户名",
+    "menu": "NFT 用户名",
+    "title": "@{{username}} 的 NFT 用户名",
+    "grant": "授予",
+    "revoke": "收回",
+    "none": "暂无收藏用户名。",
+    "newName": "新的 NFT 用户名",
+    "taken": "该名称已被占用",
+    "free": "名称可用",
+    "hint": "之后不能再作为普通用户名使用"
   }
 }
