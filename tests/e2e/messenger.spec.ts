@@ -357,6 +357,42 @@ test('@bobotools: /setlogs, /invite, жалоба в лог, статистик�
   await expect(boss.locator('.stat-tile', { hasText: 'Пользователей' })).toBeVisible();
 });
 
+test('накрутка канала из меню канала', async ({ browser }) => {
+  const boss = await signUp(browser, 'Босс', `bossk${run}`, true);
+  const { data } = await service.from('profiles').select('id').eq('username', `bossk${run}`).single();
+  await service.from('profiles').update({ role: 'admin' }).eq('id', data!.id);
+  await boss.reload();
+
+  await boss.goto('./#/new/channel');
+  await boss.getByLabel('Название канала').fill(`Новости ${run}`);
+  await boss.getByRole('button', { name: 'Создать канал' }).click();
+  await boss.getByPlaceholder('Сообщение').fill('первый пост');
+  await boss.keyboard.press('Enter');
+  await expect(boss.locator('.bubble', { hasText: 'первый пост' })).toBeVisible();
+
+  await boss.locator('.chat-header').getByRole('button', { name: 'more' }).click();
+  await boss.getByRole('menuitem', { name: 'Накрутка канала' }).click();
+  const dialog = boss.getByRole('dialog');
+  await dialog.locator('.boost-section').nth(1).locator('input').fill('1000');
+  await dialog.getByRole('button', { name: 'Добавить' }).click();
+  await expect(boss.getByText('Сохранено').or(boss.locator('.toast'))).toBeVisible();
+  await dialog.locator('.boost-section').nth(2).locator('input').first().fill('500');
+  await dialog.locator('.boost-section').nth(2).getByRole('button', { name: 'Сохранить' }).click();
+  await boss.screenshot({ path: 'test-results/channel-boost.png' });
+  await boss.keyboard.press('Escape');
+
+  // Старый пост получил ~1000 просмотров, новый — ~500 сразу.
+  await expect(boss.locator('.bubble', { hasText: 'первый пост' }).locator('.msg-views')).toContainText(/\d/);
+  await boss.getByPlaceholder('Сообщение').fill('второй пост');
+  await boss.keyboard.press('Enter');
+  await expect(boss.locator('.bubble', { hasText: 'второй пост' }).locator('.msg-views')).toContainText(
+    /\d{3}/,
+    {
+      timeout: 15_000,
+    },
+  );
+});
+
 test('без сети сообщение ждёт с «часиками» и уходит, когда сеть появилась', async ({ browser }) => {
   const alice = await signUp(browser, 'Алиса', `aliceo${run}`);
   const bob = await signUp(browser, 'Боб', `bobo${run}`);

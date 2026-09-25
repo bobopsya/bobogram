@@ -829,3 +829,75 @@ describe('владелец, со-владелец, значок разработ
     expect(error).toBeNull();
   });
 });
+
+describe('накрутка каналов', () => {
+  let boss: User, fan: User, channel: string, logs: string;
+
+  beforeAll(async () => {
+    boss = await user('chboss');
+    fan = await user('chfan');
+    await admin.from('profiles').update({ role: 'admin' }).eq('id', boss.id);
+    channel = await rpc<string>(boss, 'create_chat', {
+      p_type: 'channel',
+      p_title: `Канал${run}`,
+      p_members: [fan.id],
+    });
+    logs = await rpc<string>(boss, 'create_chat', { p_type: 'group', p_title: `Логи2${run}` });
+    await send(boss, logs, '/setlogs');
+  });
+
+  const views = async (id: string) => {
+    const { data } = await boss.db
+      .from('messages')
+      .select('boost_views, boost_reactions')
+      .eq('id', id)
+      .single();
+    return data as { boost_views: number; boost_reactions: Record<string, number> };
+  };
+
+  it('просмотры всем постам сразу, с разбросом ±20%; обычному — нельзя', async () => {
+    const a = await send(boss, channel, 'пост 1');
+    const b = await send(boss, channel, 'пост 2');
+    await fails(rpc(fan, 'admin_boost_channel_views', { p_chat: channel, p_views: 100 }));
+    expect(await rpc<number>(boss, 'admin_boost_channel_views', { p_chat: channel, p_views: 1000 })).toBe(2);
+    for (const id of [a, b]) {
+      const v = (await views(id)).boost_views;
+      expect(v).toBeGreaterThanOrEqual(800);
+      expect(v).toBeLessThanOrEqual(1200);
+    }
+    // Одна строка в логе, а не по строке на пост.
+    const { data } = await boss.db.from('messages').select('text').eq('chat_id', logs).like('text', '📈%');
+    expect(data!.filter((m) => (m.text as string).includes('каждому из 2 постов'))).toHaveLength(1);
+    expect(data!.filter((m) => (m.text as string).includes('накрутил(а) пост'))).toHaveLength(0);
+  });
+
+  it('авто-накрутка новых постов', async () => {
+    await fails(rpc(fan, 'admin_set_auto_boost', { p_chat: channel, p_views: 500, p_reactions: {} }));
+    await rpc(boss, 'admin_set_auto_boost', { p_chat: channel, p_views: 500, p_reactions: { '🔥': 50 } });
+    const id = await send(boss, channel, 'новый пост');
+    const v = await views(id);
+    expect(v.boost_views).toBeGreaterThanOrEqual(400);
+    expect(v.boost_reactions['🔥']).toBeGreaterThanOrEqual(40);
+    await rpc(boss, 'admin_set_auto_boost', { p_chat: channel, p_views: 0, p_reactions: {} });
+    expect((await views(await send(boss, channel, 'без накрутки'))).boost_views).toBe(0);
+  });
+
+  it('команды /boost, /boostviews, /autoboost', async () => {
+    await send(boss, logs, `/boost Канал${run} 777`);
+    const { data: c } = await boss.db.from('chats').select('boost_members').eq('id', channel).single();
+    expect(c!.boost_members).toBe(777);
+    await send(boss, logs, `/boostviews Канал${run} 100`);
+    await send(boss, logs, `/autoboost Канал${run} 200`);
+    const { data: c2 } = await boss.db.from('chats').select('auto_boost_views').eq('id', channel).single();
+    expect(c2!.auto_boost_views).toBe(200);
+    await send(boss, logs, '/boost Нет такого канала 5');
+    const { data: last } = await boss.db
+      .from('messages')
+      .select('text')
+      .eq('chat_id', logs)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    expect(last!.text).toMatch(/Пример: \/boost/);
+  });
+});

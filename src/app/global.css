@@ -2280,3 +2280,23 @@ button.setting-row:hover {
 .dev-popover strong {
   color: #1faa59;
 }
+.boost-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.boost-section:last-child {
+  border-bottom: 0;
+}
+.boost-section .row input {
+  flex: 1;
+  min-width: 0;
+}
+.boost-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}

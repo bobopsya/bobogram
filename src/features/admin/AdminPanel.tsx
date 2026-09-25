@@ -34,6 +34,7 @@ import { Confirm, Modal } from '../../ui/Modal';
 import { PageHeader, Spinner } from '../../ui/misc';
 import { NftDialog } from './NftDialog';
 import { ReportsTab, StatsTab } from './AdminExtras';
+import { ChannelBoostDialog } from './ChannelBoostDialog';
 import { nameColorStyle } from '../../app/themes';
 import { AdminEditProfileDialog } from './AdminEditProfileDialog';
 
@@ -411,8 +412,10 @@ function ChatsTab({ q }: { q: string }) {
   const [boost, setBoost] = useState('');
   const [deleting, setDeleting] = useState<AdminChat | null>(null);
 
+  const [channelBoost, setChannelBoost] = useState<AdminChat | null>(null);
+  const reload = () => void adminListChats().then(setChats).catch(fail);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => void adminListChats().then(setChats).catch(fail), []);
+  useEffect(reload, []);
 
   const patch = (id: string, p: Partial<AdminChat>) =>
     setChats((list) => list?.map((c) => (c.id === id ? { ...c, ...p } : c)) ?? null);
@@ -445,14 +448,16 @@ function ChatsTab({ q }: { q: string }) {
           .then(() => patch(c.id, { scam: !c.scam }))
           .catch(fail),
     },
-    {
-      icon: 'userPlus',
-      label: t('admin.boostMembers'),
-      onClick: () => {
-        setBoost(String(c.boostMembers || ''));
-        setBoostFor(c);
-      },
-    },
+    c.type === 'channel'
+      ? { icon: 'star', label: t('boost.menu'), onClick: () => setChannelBoost(c) }
+      : {
+          icon: 'userPlus',
+          label: t('admin.boostMembers'),
+          onClick: () => {
+            setBoost(String(c.boostMembers || ''));
+            setBoostFor(c);
+          },
+        },
     { icon: 'trash', label: t('admin.deleteChat'), danger: true, onClick: () => setDeleting(c) },
   ];
 
@@ -493,6 +498,17 @@ function ChatsTab({ q }: { q: string }) {
           </div>
         ))}
       {menu && <Menu x={menu.x} y={menu.y} items={items(menu.chat)} onClose={() => setMenu(null)} />}
+      {channelBoost && (
+        <ChannelBoostDialog
+          chatId={channelBoost.id}
+          title={channelBoost.title}
+          realMembers={channelBoost.memberCount}
+          onClose={() => {
+            setChannelBoost(null);
+            reload();
+          }}
+        />
+      )}
       {boostFor && (
         <Modal
           title={t('admin.boostMembers')}
