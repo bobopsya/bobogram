@@ -209,6 +209,9 @@ function UsersTab({ q }: { q: string }) {
                 </div>
               </div>
             </button>
+            <button className="icon-btn" aria-label={t('nft.menu')} title={t('nft.menu')} onClick={() => setNftFor(u)}>
+              <Icon name="gem" />
+            </button>
             <button
               className="icon-btn"
               aria-label="more"
