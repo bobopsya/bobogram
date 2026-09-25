@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useApp, useMe } from '../../app/store';
 import type { Chat, Message } from '../../supabase/types';
 import {
+  clearChatForMe,
   deleteMessage,
   editMessage,
   errorKey,
@@ -86,6 +87,7 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
   const [headerMenu, setHeaderMenu] = useState<{ x: number; y: number } | null>(null);
   const [reactFor, setReactFor] = useState<Message | null>(null);
   const [deleting, setDeleting] = useState<Message | null>(null);
+  const [clearConfirm, setClearConfirm] = useState(false);
   const [forwarding, setForwarding] = useState<Message | null>(null);
   const [boosting, setBoosting] = useState<Message | null>(null);
   const other = useProfile(chat.type === 'private' ? chat.otherId : null);
@@ -104,8 +106,8 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
   const pendingJump = useRef<{ id: string; tries: number } | null>(null);
 
   const visible = useMemo(
-    () => messages.filter((m) => !m.deleted && !m.deletedFor.includes(me)),
-    [messages, me],
+    () => messages.filter((m) => m.createdAt > chat.clearedAt && !m.deleted && !m.deletedFor.includes(me)),
+    [messages, me, chat.clearedAt],
   );
 
   // ---------- прочитанность ----------
@@ -342,6 +344,14 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
         ? { icon: 'bell', label: t('chats.unmute'), onClick: () => setMuted(false) }
         : { icon: 'bellOff', label: t('chats.mute'), onClick: () => setMuted(true) },
     );
+  }
+  if (isMember) {
+    headerItems.push({
+      icon: 'trash',
+      label: t('chat.clearForMe'),
+      danger: true,
+      onClick: () => setClearConfirm(true),
+    });
   }
   headerItems.push({ icon: 'search', label: t('chat.searchInChat'), onClick: () => setSearchOpen(true) });
   if (moderatable)
@@ -660,6 +670,28 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
               </button>
             )}
             <button className="btn btn-text btn-block" onClick={() => setDeleting(null)}>
+              {t('common.cancel')}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {clearConfirm && (
+        <Modal onClose={() => setClearConfirm(false)} title={t('chat.clearTitle')}>
+          <div className="stack">
+            <p className="confirm-text">{t('chat.clearConfirm')}</p>
+            <button
+              className="btn btn-danger btn-block"
+              onClick={() => {
+                void clearChatForMe(chat.id)
+                  .then(() => refreshChats(0))
+                  .catch(fail);
+                setClearConfirm(false);
+              }}
+            >
+              {t('chat.clearForMe')}
+            </button>
+            <button className="btn btn-text btn-block" onClick={() => setClearConfirm(false)}>
               {t('common.cancel')}
             </button>
           </div>

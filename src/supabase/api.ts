@@ -84,6 +84,7 @@ export function toChat(r: Row): Chat {
     lastReadAt: ms(r.last_read_at),
     pinned: r.pinned === true,
     muted: r.muted === true,
+    clearedAt: ms(r.cleared_at),
     unread: Number(r.unread ?? 0),
     memberCount: Number(r.member_count ?? 0),
     otherId: (r.other_id as string | null) ?? null,
@@ -342,18 +343,22 @@ export async function setPinnedMessages(chatId: string, ids: string[]): Promise<
   check(await supabase.rpc('set_pinned_messages', { p_chat: chatId, p_ids: ids }));
 }
 
+export async function clearChatForMe(chatId: string): Promise<void> {
+  check(await supabase.rpc('clear_chat_for_me', { p_chat: chatId }));
+}
+
 // ---------- сообщения ----------
 export const PAGE_SIZE = 50;
 
 export async function fetchMessages(chatId: string, before?: number, count = PAGE_SIZE): Promise<Message[]> {
-  let q = supabase
-    .from('messages')
-    .select('*')
-    .eq('chat_id', chatId)
-    .order('created_at', { ascending: false })
-    .limit(count);
-  if (before) q = q.lt('created_at', new Date(before).toISOString());
-  return (check(await q) as Row[]).map(toMessage).reverse();
+  const rows = check(
+    await supabase.rpc('get_messages', {
+      p_chat: chatId,
+      p_before: before ? new Date(before).toISOString() : null,
+      p_count: count,
+    }),
+  ) as Row[];
+  return rows.map(toMessage).reverse();
 }
 
 export async function fetchMessage(id: string): Promise<Message | null> {

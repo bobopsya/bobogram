@@ -120,6 +120,9 @@
     "deleteForMe": "Delete for me",
     "deleteForAll": "Delete for everyone",
     "deleteTitle": "Delete message?",
+    "clearForMe": "Clear for me",
+    "clearTitle": "Clear history?",
+    "clearConfirm": "Messages will disappear only for you. Other people in this chat will keep their history.",
     "selectChat": "Select a chat to start messaging",
     "empty": "No messages yet. Say hi!",
     "editing": "Editing",
@@ -389,15 +392,15 @@
     "badPhoto": "Could not open the photo"
   },
   "nft": {
-    "collectible": "Collectible usernames",
-    "menu": "NFT usernames",
-    "title": "NFT usernames of @{{username}}",
+    "collectible": "Second usernames",
+    "menu": "Second usernames",
+    "title": "Second usernames of @{{username}}",
     "grant": "Grant",
     "revoke": "Revoke",
-    "none": "No collectible usernames yet.",
-    "newName": "New NFT username",
+    "none": "No second usernames yet.",
+    "newName": "New second username",
     "taken": "Already taken",
     "free": "Available",
-    "hint": "It can’t be taken as a regular username"
+    "hint": "It works as an extra profile link and can’t overlap with regular usernames"
   }
 }

@@ -13,11 +13,11 @@ export interface UserProfile {
   scam: boolean;
   /** До какого момента действует премиум (мс), null — нет премиума. */
   premiumUntil: number | null;
-  /** Коллекционные (НФТ) юзернеймы, выданные админом. */
+  /** Вторые/коллекционные юзернеймы, выданные админом. */
   nftUsernames: string[];
 }
 
-/** Какое из имён человека совпало с поиском: основное или НФТ. */
+/** Какое из имён человека совпало с поиском: основное или второе. */
 export function matchedUsername(p: UserProfile, query: string): { name: string; nft: boolean } {
   const q = query.replace(/^@/, '').toLowerCase();
   if (!q || p.username.toLowerCase().startsWith(q)) return { name: p.username, nft: false };
@@ -74,6 +74,8 @@ export interface Chat {
   lastReadAt: number;
   pinned: boolean;
   muted: boolean;
+  /** Сообщения до этого момента скрыты только у текущего пользователя. */
+  clearedAt: number;
   unread: number;
   memberCount: number;
   /** Собеседник в личном чате. */

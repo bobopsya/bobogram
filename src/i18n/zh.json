@@ -118,6 +118,9 @@
     "deleteForMe": "仅为我删除",
     "deleteForAll": "为所有人删除",
     "deleteTitle": "删除消息？",
+    "clearForMe": "仅为我清空",
+    "clearTitle": "清空历史？",
+    "clearConfirm": "消息只会在你这里消失。聊天中的其他人仍会保留历史记录。",
     "selectChat": "选择一个聊天开始交流",
     "empty": "还没有消息。打个招呼吧！",
     "editing": "编辑中",
@@ -386,15 +389,15 @@
     "badPhoto": "无法打开图片"
   },
   "nft": {
-    "collectible": "收藏用户名",
-    "menu": "NFT 用户名",
-    "title": "@{{username}} 的 NFT 用户名",
+    "collectible": "第二用户名",
+    "menu": "第二用户名",
+    "title": "@{{username}} 的第二用户名",
     "grant": "授予",
     "revoke": "收回",
-    "none": "暂无收藏用户名。",
-    "newName": "新的 NFT 用户名",
+    "none": "还没有第二用户名。",
+    "newName": "新的第二用户名",
     "taken": "该名称已被占用",
     "free": "名称可用",
-    "hint": "之后不能再作为普通用户名使用"
+    "hint": "它会作为额外的个人资料链接，且不能与普通用户名重复"
   }
 }
