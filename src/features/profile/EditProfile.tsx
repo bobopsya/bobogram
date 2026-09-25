@@ -24,6 +24,7 @@ export function EditProfileScreen() {
   const [avatar, setAvatar] = useState(profile.avatar);
   const bioMax = isPremium(profile) ? BIO_MAX_PREMIUM : BIO_MAX;
   const [busy, setBusy] = useState(false);
+  const locked = !!profile.profileLocked;
   const [style, setStyle] = useState<ProfileStyle>({
     nameColor: profile.nameColor ?? null,
     emojiStatus: profile.emojiStatus ?? null,
@@ -86,7 +87,7 @@ export function EditProfileScreen() {
           <button
             className="icon-btn"
             onClick={save}
-            disabled={!canSave || busy}
+            disabled={!canSave || busy || locked}
             aria-label={t('common.save')}
           >
             <Icon name="check" />
@@ -94,56 +95,59 @@ export function EditProfileScreen() {
         }
       />
       <div className="scroll form-page">
-        <div className="profile-hero">
-          <button className="avatar-edit plain" onClick={() => fileRef.current?.click()}>
-            <Avatar name={name || profile.username} seed={me} src={avatar} size={112} />
-            <span className="avatar-edit-badge">
-              <Icon name="edit" size={18} />
-            </span>
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            hidden
-            onChange={(e) => {
-              void pickAvatar(e.target.files?.[0]);
-              e.target.value = '';
-            }}
-          />
-          <div className="row gap">
-            <button className="btn btn-text" onClick={() => fileRef.current?.click()}>
-              {t('profile.changeAvatar')}
+        {locked && <p className="notice">{t('errors.profileLocked')}</p>}
+        <fieldset className="bare-fieldset" disabled={locked}>
+          <div className="profile-hero">
+            <button className="avatar-edit plain" onClick={() => fileRef.current?.click()}>
+              <Avatar name={name || profile.username} seed={me} src={avatar} size={112} />
+              <span className="avatar-edit-badge">
+                <Icon name="edit" size={18} />
+              </span>
             </button>
-            {avatar && (
-              <button className="btn btn-text danger" onClick={() => setAvatar(null)}>
-                {t('profile.removeAvatar')}
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => {
+                void pickAvatar(e.target.files?.[0]);
+                e.target.value = '';
+              }}
+            />
+            <div className="row gap">
+              <button className="btn btn-text" onClick={() => fileRef.current?.click()}>
+                {t('profile.changeAvatar')}
               </button>
-            )}
+              {avatar && (
+                <button className="btn btn-text danger" onClick={() => setAvatar(null)}>
+                  {t('profile.removeAvatar')}
+                </button>
+              )}
+            </div>
           </div>
-        </div>
 
-        <label className="field">
-          <span className="field-label">{t('auth.displayName')}</span>
-          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={64} />
-        </label>
-        <UsernameField
-          value={username}
-          onChange={setUsername}
-          onStatus={setUsernameStatus}
-          current={profile.username}
-        />
-        <label className="field">
-          <span className="field-label">{t('profile.bio')}</span>
-          <textarea
-            value={bio}
-            onChange={(e) => setBio(e.target.value)}
-            maxLength={bioMax}
-            rows={3}
-            placeholder={t('profile.bioPlaceholder')}
+          <label className="field">
+            <span className="field-label">{t('auth.displayName')}</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={64} />
+          </label>
+          <UsernameField
+            value={username}
+            onChange={setUsername}
+            onStatus={setUsernameStatus}
+            current={profile.username}
           />
-          <span className="field-hint">{bioMax - bio.length}</span>
-        </label>
+          <label className="field">
+            <span className="field-label">{t('profile.bio')}</span>
+            <textarea
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              maxLength={bioMax}
+              rows={3}
+              placeholder={t('profile.bioPlaceholder')}
+            />
+            <span className="field-hint">{bioMax - bio.length}</span>
+          </label>
+        </fieldset>
         <div className="section-title">{t('style.title')}</div>
         {isPremium(profile) ? (
           <>
@@ -159,7 +163,7 @@ export function EditProfileScreen() {
           </button>
         )}
         {error && <p className="form-error">{error}</p>}
-        <button className="btn btn-primary btn-block" onClick={save} disabled={!canSave || busy}>
+        <button className="btn btn-primary btn-block" onClick={save} disabled={!canSave || busy || locked}>
           {t('common.save')}
         </button>
       </div>

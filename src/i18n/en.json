@@ -67,7 +67,8 @@
     "pinLimit": "You can pin up to 5 chats (10 with Premium)",
     "bioTooLong": "Bio is limited to 70 characters (200 with Premium)",
     "upload": "Could not upload the file",
-    "spamblock": "You are spam-blocked and can’t message first"
+    "spamblock": "You are spam-blocked and can’t message first",
+    "profileLocked": "An admin has locked your profile"
   },
   "chats": {
     "title": "Chats",
@@ -329,7 +330,11 @@
     "spamblock7": "Spam block for 7 days",
     "spamblockForever": "Spam block forever",
     "spamblockRemove": "Remove spam block",
-    "spamblocked": "spam block"
+    "spamblocked": "spam block",
+    "premiumMenu": "Premium…",
+    "spamblockMenu": "Spam block…",
+    "lockProfile": "Lock profile editing",
+    "unlockProfile": "Unlock profile editing"
   },
   "notify": {
     "newMessage": "New message",

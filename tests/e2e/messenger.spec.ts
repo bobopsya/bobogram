@@ -295,7 +295,9 @@ test('админ v4: правка профиля, стиль, спамблок',
     .locator('.list-item', { hasText: `Переименован${run}` })
     .getByRole('button', { name: 'more' })
     .click();
+  await boss.getByRole('menuitem', { name: 'Спамблок…' }).click();
   await boss.getByRole('menuitem', { name: 'Спамблок на 1 день' }).click();
+  await boss.screenshot({ path: 'test-results/admin-menu.png' });
   await expect(boss.locator('.list-item', { hasText: `Переименован${run}` })).toContainText('спамблок');
 
   // Спамер не может написать первым.

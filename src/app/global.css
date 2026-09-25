@@ -1217,8 +1217,12 @@ select {
 }
 .menu {
   position: fixed;
-  min-width: 220px;
+  min-width: 190px;
   max-width: calc(100vw - 16px);
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   background: var(--bg);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
@@ -1235,12 +1239,13 @@ select {
 .menu-item {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   width: 100%;
-  padding: 9px 12px;
+  padding: 6px 10px;
   border-radius: 8px;
   text-align: left;
-  font-size: 0.95em;
+  font-size: 0.88em;
+  white-space: nowrap;
 }
 .menu-item:hover {
   background: var(--bg-hover);
@@ -2163,4 +2168,21 @@ button.setting-row:hover {
   border-color: var(--accent);
   outline: 2px solid var(--bg);
   outline-offset: -4px;
+}
+.bare-fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.notice {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  color: var(--danger);
+  font-size: 0.9em;
+}
+.bare-fieldset:disabled {
+  opacity: 0.6;
 }

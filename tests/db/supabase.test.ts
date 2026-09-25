@@ -612,3 +612,32 @@ describe('v4: админка, спамблок, стиль профиля', () =
     expect(error).not.toBeNull();
   });
 });
+
+describe('запрет на смену профиля', () => {
+  it('заблокированный не меняет имя, @имя, «О себе» и аватар; админ — может', async () => {
+    const boss = await user('lockboss');
+    const u = await user('lockuser');
+    await admin.from('profiles').update({ role: 'admin' }).eq('id', boss.id);
+    await fails(rpc(u, 'admin_set_profile_lock', { p_user: u.id, p_locked: true }));
+    await rpc(boss, 'admin_set_profile_lock', { p_user: u.id, p_locked: true });
+    for (const patch of [
+      { display_name: 'X' },
+      { bio: 'x' },
+      { avatar: 'data:image/png;base64,AA' },
+      { username: `lk${run}` },
+    ]) {
+      const { error } = await u.db.from('profiles').update(patch).eq('id', u.id);
+      expect(error?.message).toMatch(/profile locked/);
+    }
+    // Время «был в сети» обновляется как обычно.
+    const { error } = await u.db
+      .from('profiles')
+      .update({ last_seen: new Date().toISOString() })
+      .eq('id', u.id);
+    expect(error).toBeNull();
+    await rpc(boss, 'admin_update_profile', { p_user: u.id, p_display_name: 'Админ поменял' });
+    await rpc(boss, 'admin_set_profile_lock', { p_user: u.id, p_locked: false });
+    const { error: ok } = await u.db.from('profiles').update({ display_name: 'Сам' }).eq('id', u.id);
+    expect(ok).toBeNull();
+  });
+});

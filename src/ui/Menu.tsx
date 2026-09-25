@@ -20,7 +20,7 @@ interface Props {
 /** Контекстное меню в точке нажатия; не вылезает за края экрана. */
 export function Menu({ x, y, items, onClose, header }: Props) {
   const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ left: x, top: y });
+  const [pos, setPos] = useState<{ left: number; top: number; maxHeight?: number }>({ left: x, top: y });
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -28,9 +28,13 @@ export function Menu({ x, y, items, onClose, header }: Props) {
     const r = el.getBoundingClientRect();
     const vw = window.innerWidth;
     const vh = window.visualViewport?.height ?? window.innerHeight;
+    // Длинное меню не выше экрана — внутри листается.
+    const maxHeight = vh - 16;
+    const height = Math.min(r.height, maxHeight);
     setPos({
       left: Math.max(8, Math.min(x, vw - r.width - 8)),
-      top: Math.max(8, Math.min(y, vh - r.height - 8)),
+      top: Math.max(8, Math.min(y, vh - height - 8)),
+      maxHeight,
     });
   }, [x, y]);
 
@@ -56,7 +60,7 @@ export function Menu({ x, y, items, onClose, header }: Props) {
               item.onClick();
             }}
           >
-            <Icon name={item.icon} size={20} />
+            <Icon name={item.icon} size={18} />
             <span>{item.label}</span>
           </button>
         ))}

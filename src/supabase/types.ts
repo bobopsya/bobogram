@@ -21,6 +21,8 @@ export interface UserProfile {
   profileBg: string | null;
   /** До какого момента нельзя писать первым (мс). */
   spamUntil: number | null;
+  /** Админ запретил менять имя, @имя, «О себе» и аватарку. */
+  profileLocked: boolean;
 }
 
 export function isSpamblocked(p: Pick<UserProfile, 'spamUntil'> | null | undefined): boolean {
