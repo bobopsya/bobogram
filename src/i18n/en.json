@@ -472,5 +472,17 @@
     "banned": "Banned",
     "spamblocked": "Spam-blocked",
     "reportsOpen": "Open reports"
+  },
+  "boost": {
+    "menu": "Boost channel",
+    "title": "Boost «{{title}}»",
+    "members": "Subscribers (boost)",
+    "viewsAll": "Views for all posts",
+    "viewsAllHint": "Adds roughly this many views to every post (±20% to look natural).",
+    "add": "Add",
+    "auto": "Auto-boost new posts",
+    "autoHint": "Every new post instantly gets roughly this many views and reactions.",
+    "turnOff": "Turn off",
+    "autoOff": "Auto-boost is off"
   }
 }

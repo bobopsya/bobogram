@@ -469,5 +469,17 @@
     "banned": "已封禁",
     "spamblocked": "私信受限",
     "reportsOpen": "未处理举报"
+  },
+  "boost": {
+    "menu": "频道刷量",
+    "title": "刷量「{{title}}」",
+    "members": "订阅者（刷量）",
+    "viewsAll": "所有帖子浏览量",
+    "viewsAllHint": "每条帖子增加约此数量的浏览（±20%，看起来更自然）。",
+    "add": "添加",
+    "auto": "新帖自动刷量",
+    "autoHint": "每条新帖立即获得约此数量的浏览和表情回应。",
+    "turnOff": "关闭",
+    "autoOff": "自动刷量已关闭"
   }
 }

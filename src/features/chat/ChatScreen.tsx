@@ -31,6 +31,7 @@ import { Composer, splitText } from './Composer';
 import { EmojiPicker } from './EmojiPicker';
 import { PinnedBar } from './PinnedBar';
 import { ReportDialog } from './ReportDialog';
+import { ChannelBoostDialog } from '../admin/ChannelBoostDialog';
 import { ForwardDialog } from './ForwardDialog';
 import { startCall } from '../calls/callStore';
 import { BoostDialog } from '../admin/BoostDialog';
@@ -92,6 +93,7 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
   const [forwarding, setForwarding] = useState<Message | null>(null);
   const [boosting, setBoosting] = useState<Message | null>(null);
   const [reporting, setReporting] = useState<Message | null>(null);
+  const [channelBoostOpen, setChannelBoostOpen] = useState(false);
   const other = useProfile(chat.type === 'private' ? chat.otherId : null);
   const scam = chat.scam || (chat.type === 'private' && other?.scam === true);
   const [highlight, setHighlight] = useState<string | null>(null);
@@ -357,6 +359,9 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
       danger: true,
       onClick: () => setClearConfirm(true),
     });
+  }
+  if (chat.type === 'channel' && isGlobalAdmin) {
+    headerItems.push({ icon: 'star', label: t('boost.menu'), onClick: () => setChannelBoostOpen(true) });
   }
   headerItems.push({ icon: 'search', label: t('chat.searchInChat'), onClick: () => setSearchOpen(true) });
   if (moderatable)
@@ -706,6 +711,16 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
 
       {boosting && <BoostDialog msg={boosting} onClose={() => setBoosting(null)} />}
       {reporting && <ReportDialog messageId={reporting.id} onClose={() => setReporting(null)} />}
+      {channelBoostOpen && (
+        <ChannelBoostDialog
+          chatId={chat.id}
+          title={chat.title ?? ''}
+          onClose={() => {
+            setChannelBoostOpen(false);
+            void refreshChats(0);
+          }}
+        />
+      )}
       {forwarding && <ForwardDialog msg={forwarding} fromChat={chat} onClose={() => setForwarding(null)} />}
     </div>
   );

@@ -662,6 +662,41 @@ export async function ownerSetDeveloper(uid: string, on: boolean): Promise<void>
   check(await supabase.rpc('owner_set_developer', { p_user: uid, p_on: on }));
 }
 
+export async function adminBoostChannelViews(chatId: string, views: number): Promise<number> {
+  return check(await supabase.rpc('admin_boost_channel_views', { p_chat: chatId, p_views: views })) as number;
+}
+
+export interface AutoBoost {
+  views: number;
+  reactions: Record<string, number>;
+  boostMembers: number;
+}
+
+export async function fetchChannelBoost(chatId: string): Promise<AutoBoost> {
+  const r = check(
+    await supabase
+      .from('chats')
+      .select('auto_boost_views, auto_boost_reactions, boost_members')
+      .eq('id', chatId)
+      .single(),
+  ) as Row;
+  return {
+    views: Number(r.auto_boost_views ?? 0),
+    reactions: (r.auto_boost_reactions as Record<string, number> | null) ?? {},
+    boostMembers: Number(r.boost_members ?? 0),
+  };
+}
+
+export async function adminSetAutoBoost(
+  chatId: string,
+  views: number,
+  reactions: Record<string, number>,
+): Promise<void> {
+  check(
+    await supabase.rpc('admin_set_auto_boost', { p_chat: chatId, p_views: views, p_reactions: reactions }),
+  );
+}
+
 export async function getOwnerId(): Promise<string | null> {
   return (check(await supabase.rpc('get_owner_id')) as string | null) ?? null;
 }
