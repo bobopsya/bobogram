@@ -2,7 +2,8 @@ import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useApp, useMe, useMyProfile } from '../../app/store';
-import { errorKey, updateProfile } from '../../supabase/api';
+import { errorKey, setProfileStyle, updateProfile, type ProfileStyle } from '../../supabase/api';
+import { StylePicker } from './StylePicker';
 import { BIO_MAX, BIO_MAX_PREMIUM, isPremium } from '../../supabase/types';
 import { makeAvatar } from '../../lib/image';
 import { Avatar } from '../../ui/Avatar';
@@ -23,6 +24,24 @@ export function EditProfileScreen() {
   const [avatar, setAvatar] = useState(profile.avatar);
   const bioMax = isPremium(profile) ? BIO_MAX_PREMIUM : BIO_MAX;
   const [busy, setBusy] = useState(false);
+  const [style, setStyle] = useState<ProfileStyle>({
+    nameColor: profile.nameColor ?? null,
+    emojiStatus: profile.emojiStatus ?? null,
+    profileBg: profile.profileBg ?? null,
+  });
+  const [styleBusy, setStyleBusy] = useState(false);
+  const saveStyle = async () => {
+    setStyleBusy(true);
+    try {
+      await setProfileStyle(profile.uid, style);
+      useApp.setState({ profile: { ...profile, ...style } });
+      showToast(t('profile.saved'));
+    } catch (e) {
+      showToast(t(errorKey(e)));
+    } finally {
+      setStyleBusy(false);
+    }
+  };
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -64,7 +83,12 @@ export function EditProfileScreen() {
         title={t('profile.edit')}
         back={() => navigate(-1)}
         actions={
-          <button className="icon-btn" onClick={save} disabled={!canSave || busy} aria-label={t('common.save')}>
+          <button
+            className="icon-btn"
+            onClick={save}
+            disabled={!canSave || busy}
+            aria-label={t('common.save')}
+          >
             <Icon name="check" />
           </button>
         }
@@ -103,7 +127,12 @@ export function EditProfileScreen() {
           <span className="field-label">{t('auth.displayName')}</span>
           <input value={name} onChange={(e) => setName(e.target.value)} maxLength={64} />
         </label>
-        <UsernameField value={username} onChange={setUsername} onStatus={setUsernameStatus} current={profile.username} />
+        <UsernameField
+          value={username}
+          onChange={setUsername}
+          onStatus={setUsernameStatus}
+          current={profile.username}
+        />
         <label className="field">
           <span className="field-label">{t('profile.bio')}</span>
           <textarea
@@ -115,6 +144,20 @@ export function EditProfileScreen() {
           />
           <span className="field-hint">{bioMax - bio.length}</span>
         </label>
+        <div className="section-title">{t('style.title')}</div>
+        {isPremium(profile) ? (
+          <>
+            <StylePicker value={style} onChange={setStyle} />
+            <button className="btn btn-block" onClick={() => void saveStyle()} disabled={styleBusy}>
+              {t('common.save')}
+            </button>
+          </>
+        ) : (
+          <button className="info-item" onClick={() => navigate('/settings/premium')}>
+            <Icon name="star" />
+            <div className="muted small">{t('style.premiumOnly')}</div>
+          </button>
+        )}
         {error && <p className="form-error">{error}</p>}
         <button className="btn btn-primary btn-block" onClick={save} disabled={!canSave || busy}>
           {t('common.save')}

@@ -15,6 +15,16 @@ export interface UserProfile {
   premiumUntil: number | null;
   /** Коллекционные (НФТ) юзернеймы, выданные админом. */
   nftUsernames: string[];
+  /** Стиль профиля: id цвета имени, эмодзи-статус, id фона профиля. */
+  nameColor: string | null;
+  emojiStatus: string | null;
+  profileBg: string | null;
+  /** До какого момента нельзя писать первым (мс). */
+  spamUntil: number | null;
+}
+
+export function isSpamblocked(p: Pick<UserProfile, 'spamUntil'> | null | undefined): boolean {
+  return !!p?.spamUntil && p.spamUntil > Date.now();
 }
 
 /** Какое из имён человека совпало с поиском: основное или НФТ. */

@@ -270,6 +270,42 @@ test('админ выдаёт НФТ-юзернейм, по нему наход�
   await expect(bob.locator('.nft-name', { hasText: `@gem${run}` })).toBeVisible();
 });
 
+test('админ v4: правка профиля, стиль, спамблок', async ({ browser }) => {
+  const boss = await signUp(browser, 'Босс', `bossv${run}`);
+  const spammer = await signUp(browser, 'Спамер', `spamv${run}`, true);
+  await signUp(browser, 'Жертва', `victv${run}`);
+  const { data } = await service.from('profiles').select('id').eq('username', `bossv${run}`).single();
+  await service.from('profiles').update({ role: 'admin' }).eq('id', data!.id);
+
+  await boss.goto('./#/admin');
+  await boss.reload();
+  await boss.getByPlaceholder('Поиск').fill(`spamv${run}`);
+  const row = boss.locator('.list-item', { hasText: `@spamv${run}` });
+  await row.getByRole('button', { name: 'more' }).click();
+  await boss.getByRole('menuitem', { name: 'Изменить профиль' }).click();
+  const dialog = boss.getByRole('dialog');
+  await dialog.getByLabel('Имя', { exact: true }).fill(`Переименован${run}`);
+  await dialog.locator('.swatch[aria-label="fire"]').click();
+  await dialog.getByLabel('Эмодзи-статус').fill('🔥');
+  await dialog.getByRole('button', { name: 'Сохранить' }).click();
+  await expect(boss.getByText('Профиль обновлён')).toBeVisible();
+  await expect(boss.locator('.list-item', { hasText: `Переименован${run}` })).toContainText('🔥');
+
+  await boss
+    .locator('.list-item', { hasText: `Переименован${run}` })
+    .getByRole('button', { name: 'more' })
+    .click();
+  await boss.getByRole('menuitem', { name: 'Спамблок на 1 день' }).click();
+  await expect(boss.locator('.list-item', { hasText: `Переименован${run}` })).toContainText('спамблок');
+
+  // Спамер не может написать первым.
+  await spammer.getByPlaceholder('Поиск по @имени или чатам').fill(`@victv${run}`);
+  await spammer.locator('.list-item', { hasText: 'Жертва' }).click();
+  await spammer.getByPlaceholder('Сообщение').fill('купи слона');
+  await spammer.getByPlaceholder('Сообщение').press('Enter');
+  await expect(spammer.getByText('Вы в спамблоке и не можете писать первым')).toBeVisible();
+});
+
 test('без сети сообщение ждёт с «часиками» и уходит, когда сеть появилась', async ({ browser }) => {
   const alice = await signUp(browser, 'Алиса', `aliceo${run}`);
   const bob = await signUp(browser, 'Боб', `bobo${run}`);

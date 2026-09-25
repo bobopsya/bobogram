@@ -66,7 +66,8 @@
     "tooManyMembers": "成员太多",
     "pinLimit": "最多置顶 5 个聊天（Premium 可置顶 10 个）",
     "bioTooLong": "简介最多 70 字（Premium 200 字）",
-    "upload": "文件上传失败"
+    "upload": "文件上传失败",
+    "spamblock": "您已被限制，无法主动发起私信"
   },
   "chats": {
     "title": "聊天",
@@ -315,7 +316,18 @@
     "noRequests": "暂无申请",
     "approve": "授予",
     "reject": "拒绝",
-    "duration": "期限"
+    "duration": "期限",
+    "editProfile": "修改资料",
+    "editProfileFor": "@{{username}} 的资料",
+    "profileSaved": "资料已更新",
+    "makeAdmin": "设为管理员",
+    "removeAdmin": "取消管理员",
+    "owner": "所有者",
+    "spamblock1": "封禁私信 1 天",
+    "spamblock7": "封禁私信 7 天",
+    "spamblockForever": "永久封禁私信",
+    "spamblockRemove": "解除封禁",
+    "spamblocked": "私信封禁"
   },
   "notify": {
     "newMessage": "新消息",
@@ -399,5 +411,13 @@
     "taken": "该名称已被占用",
     "free": "名称可用",
     "hint": "之后不能再作为普通用户名使用"
+  },
+  "style": {
+    "title": "资料样式",
+    "nameColor": "昵称颜色",
+    "emoji": "表情状态",
+    "background": "资料背景",
+    "none": "无",
+    "premiumOnly": "资料样式需要高级会员"
   }
 }

@@ -10,7 +10,7 @@ import { Menu, type MenuItem } from '../../ui/Menu';
 import { displayNameOf, usePresence, useProfile } from '../../app/profiles';
 import { useLongPress } from '../../ui/useLongPress';
 import { Badges } from '../../ui/Badges';
-import { callText, ChatAvatar, systemText, useChatMeta , mediaLabel } from './chatMeta';
+import { callText, ChatAvatar, systemText, useChatMeta, mediaLabel } from './chatMeta';
 
 interface Props {
   chat: Chat;
@@ -53,7 +53,11 @@ export const ChatListItem = memo(function ChatListItem({ chat, active, onClick }
       .then(() => refreshChats(0))
       .catch((err) => showToast(t(errorKey(err))));
   const items: MenuItem[] = [
-    { icon: 'pin', label: chat.pinned ? t('chats.unpin') : t('chats.pin'), onClick: () => setPrefs({ pinned: !chat.pinned }) },
+    {
+      icon: 'pin',
+      label: chat.pinned ? t('chats.unpin') : t('chats.pin'),
+      onClick: () => setPrefs({ pinned: !chat.pinned }),
+    },
     chat.muted
       ? { icon: 'bell', label: t('chats.unmute'), onClick: () => setPrefs({ muted: false }) }
       : { icon: 'bellOff', label: t('chats.mute'), onClick: () => setPrefs({ muted: true }) },
@@ -76,7 +80,9 @@ export const ChatListItem = memo(function ChatListItem({ chat, active, onClick }
             <span className="list-item-title">
               {chat.type === 'group' && <Icon name="users" size={15} className="title-icon" />}
               {chat.type === 'channel' && <Icon name="megaphone" size={15} className="title-icon" />}
-              <span className="ellipsis">{meta.title}</span>
+              <span className="ellipsis" style={meta.nameStyle}>
+                {meta.title}
+              </span>
               <Badges {...meta.badges} size={15} />
               {chat.muted && <Icon name="bellOff" size={14} className="muted-icon" />}
             </span>
@@ -86,7 +92,9 @@ export const ChatListItem = memo(function ChatListItem({ chat, active, onClick }
               ) : (
                 last?.senderId === me &&
                 !last.system &&
-                chat.type !== 'saved' && <Icon name={readByOther ? 'checks' : 'check'} size={16} className="tick" />
+                chat.type !== 'saved' && (
+                  <Icon name={readByOther ? 'checks' : 'check'} size={16} className="tick" />
+                )
               )}
               {date ? formatChatListTime(date, i18n.language) : ''}
             </span>
@@ -97,7 +105,9 @@ export const ChatListItem = memo(function ChatListItem({ chat, active, onClick }
               {preview || (last ? '' : chat.type === 'saved' ? t('chats.savedHint') : t('chats.noMessages'))}
             </span>
             {chat.unread > 0 ? (
-              <span className={chat.muted ? 'badge muted' : 'badge'}>{chat.unread > 999 ? '999+' : chat.unread}</span>
+              <span className={chat.muted ? 'badge muted' : 'badge'}>
+                {chat.unread > 999 ? '999+' : chat.unread}
+              </span>
             ) : (
               chat.pinned && <Icon name="pin" size={16} className="pin-icon" />
             )}

@@ -10,6 +10,9 @@ import {
   adminSetChatBadges,
   adminSetPremium,
   adminSetUserBadges,
+  adminSetRole,
+  adminSetSpamblock,
+  getOwnerId,
   deleteChat,
   errorKey,
   listUsers,
@@ -17,7 +20,7 @@ import {
   setBanned,
   type PremiumRequest,
 } from '../../supabase/api';
-import { isPremium, type UserProfile } from '../../supabase/types';
+import { isPremium, isSpamblocked, type UserProfile } from '../../supabase/types';
 import { useApp, useMe } from '../../app/store';
 import { displayNameOf, useProfile } from '../../app/profiles';
 import { Avatar } from '../../ui/Avatar';
@@ -27,6 +30,8 @@ import { Menu, type MenuItem } from '../../ui/Menu';
 import { Confirm, Modal } from '../../ui/Modal';
 import { PageHeader, Spinner } from '../../ui/misc';
 import { NftDialog } from './NftDialog';
+import { nameColorStyle } from '../../app/themes';
+import { AdminEditProfileDialog } from './AdminEditProfileDialog';
 
 type AdminChat = Awaited<ReturnType<typeof adminListChats>>[number];
 type Tab = 'users' | 'chats' | 'requests';
@@ -98,11 +103,20 @@ function UsersTab({ q }: { q: string }) {
   const [menu, setMenu] = useState<{ user: UserProfile; x: number; y: number } | null>(null);
   const [resetFor, setResetFor] = useState<UserProfile | null>(null);
   const [nftFor, setNftFor] = useState<UserProfile | null>(null);
+  const [editFor, setEditFor] = useState<UserProfile | null>(null);
+  const [ownerId, setOwnerId] = useState<string | null>(null);
   const [password, setPassword] = useState('');
 
   const load = () => void listUsers().then(setUsers).catch(fail);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(load, []);
+  useEffect(
+    () =>
+      void getOwnerId()
+        .then(setOwnerId)
+        .catch(() => undefined),
+    [],
+  );
 
   const patch = (uid: string, p: Partial<UserProfile>) =>
     setUsers((list) => list?.map((u) => (u.uid === uid ? { ...u, ...p } : u)) ?? null);
@@ -120,7 +134,9 @@ function UsersTab({ q }: { q: string }) {
   }
 
   const items = (u: UserProfile): MenuItem[] => {
+    const isOwner = u.uid === ownerId;
     const list: MenuItem[] = [
+      { icon: 'edit', label: t('admin.editProfile'), onClick: () => setEditFor(u) },
       {
         icon: 'check',
         label: u.verified ? t('admin.unverify') : t('admin.verify'),
@@ -157,7 +173,40 @@ function UsersTab({ q }: { q: string }) {
         onClick: () => act(adminSetPremium(u.uid, null), u.uid, { premiumUntil: null }),
       });
     }
-    if (u.uid !== me) {
+    if (u.uid !== me && !isOwner) {
+      list.push({
+        icon: 'shield',
+        label: u.role === 'admin' ? t('admin.removeAdmin') : t('admin.makeAdmin'),
+        onClick: () => {
+          const role = u.role === 'admin' ? 'user' : 'admin';
+          act(adminSetRole(u.uid, role === 'admin'), u.uid, { role });
+        },
+      });
+      if (isSpamblocked(u)) {
+        list.push({
+          icon: 'close',
+          label: t('admin.spamblockRemove'),
+          onClick: () => act(adminSetSpamblock(u.uid, null), u.uid, { spamUntil: null }),
+        });
+      } else {
+        for (const [label, days] of [
+          [t('admin.spamblock1'), 1],
+          [t('admin.spamblock7'), 7],
+          [t('admin.spamblockForever'), null],
+        ] as const) {
+          list.push({
+            icon: 'ban',
+            label,
+            danger: true,
+            onClick: () => {
+              const until = untilIso(days);
+              act(adminSetSpamblock(u.uid, until), u.uid, { spamUntil: Date.parse(until) });
+            },
+          });
+        }
+      }
+    }
+    if (u.uid !== me && !isOwner) {
       list.push({
         icon: 'lock',
         label: t('admin.resetPassword'),
@@ -192,13 +241,23 @@ function UsersTab({ q }: { q: string }) {
               <Avatar name={u.displayName} seed={u.uid} src={u.avatar} size={40} />
               <div className="list-item-body">
                 <div className="list-item-title">
-                  <span className="ellipsis">{u.displayName}</span>
-                  <Badges verified={u.verified} scam={u.scam} premium={isPremium(u)} size={15} />
+                  <span className="ellipsis" style={nameColorStyle(u.nameColor)}>
+                    {u.displayName}
+                  </span>
+                  <Badges
+                    verified={u.verified}
+                    scam={u.scam}
+                    premium={isPremium(u)}
+                    emoji={u.emojiStatus}
+                    size={15}
+                  />
                   {u.role === 'admin' && '🛡️'}
                 </div>
                 <div className={u.banned ? 'list-item-sub danger' : 'list-item-sub'}>
                   @{u.username}
                   {u.nftUsernames.length > 0 && ` · 💎 ${u.nftUsernames.length}`}
+                  {isSpamblocked(u) && ` · 🚫 ${t('admin.spamblocked')}`}
+                  {u.uid === ownerId && ` · 👑 ${t('admin.owner')}`}
                   {u.banned && ` · ${t('admin.banned')}`}
                   {isPremium(u) &&
                     ` · ⭐ ${
@@ -209,7 +268,12 @@ function UsersTab({ q }: { q: string }) {
                 </div>
               </div>
             </button>
-            <button className="icon-btn" aria-label={t('nft.menu')} title={t('nft.menu')} onClick={() => setNftFor(u)}>
+            <button
+              className="icon-btn"
+              aria-label={t('nft.menu')}
+              title={t('nft.menu')}
+              onClick={() => setNftFor(u)}
+            >
               <Icon name="gem" />
             </button>
             <button
@@ -222,6 +286,13 @@ function UsersTab({ q }: { q: string }) {
           </div>
         ))}
       {menu && <Menu x={menu.x} y={menu.y} items={items(menu.user)} onClose={() => setMenu(null)} />}
+      {editFor && (
+        <AdminEditProfileDialog
+          user={editFor}
+          onSaved={(p) => patch(editFor.uid, p)}
+          onClose={() => setEditFor(null)}
+        />
+      )}
       {nftFor && (
         <NftDialog
           user={nftFor}

@@ -529,3 +529,86 @@ describe('очистка истории у себя', () => {
     await fails(rpc(carol, 'clear_chat_for_me', { p_chat: chat }));
   });
 });
+
+describe('v4: админка, спамблок, стиль профиля', () => {
+  let boss: User, user1: User, user2: User, prem: User;
+  const until = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString();
+
+  beforeAll(async () => {
+    boss = await user('v4boss');
+    user1 = await user('v4user');
+    user2 = await user('v4other');
+    prem = await user('v4prem');
+    await admin.from('profiles').update({ role: 'admin' }).eq('id', boss.id);
+    await admin
+      .from('profiles')
+      .update({ premium_until: until(30) })
+      .eq('id', prem.id);
+  });
+
+  it('админ меняет имя, @имя, «О себе» и аватар; обычный пользователь — нет', async () => {
+    const args = {
+      p_user: user2.id,
+      p_display_name: 'Новое имя',
+      p_username: `renamed${run}`,
+      p_bio: 'привет',
+    };
+    await fails(rpc(user1, 'admin_update_profile', args));
+    await rpc(boss, 'admin_update_profile', { ...args, p_avatar: 'data:image/png;base64,AAAA' });
+    const { data: p } = await user1.db.from('profiles').select('*').eq('id', user2.id).single();
+    expect(p).toMatchObject({ display_name: 'Новое имя', username: `renamed${run}`, bio: 'привет' });
+    expect(p!.avatar).toMatch(/^data:image\/png/);
+    await fails(rpc(boss, 'admin_update_profile', { p_user: user2.id, p_username: user1.name }));
+    await fails(rpc(boss, 'admin_update_profile', { p_user: user2.id, p_avatar: 'javascript:alert(1)' }));
+  });
+
+  it('любой админ выдаёт и снимает админку, но не владельцу и не себе', async () => {
+    await fails(rpc(user1, 'admin_set_role', { p_user: user1.id, p_admin: true }));
+    await rpc(boss, 'admin_set_role', { p_user: user1.id, p_admin: true });
+    // Новый админ тоже может назначать.
+    await rpc(user1, 'admin_set_role', { p_user: prem.id, p_admin: true });
+    await rpc(user1, 'admin_set_role', { p_user: prem.id, p_admin: false });
+    await fails(rpc(user1, 'admin_set_role', { p_user: user1.id, p_admin: false }));
+    const owner = await rpc<string>(user1, 'get_owner_id');
+    await fails(rpc(user1, 'admin_set_role', { p_user: owner, p_admin: false }));
+    await fails(rpc(user1, 'set_banned', { p_user: owner, p_banned: true }));
+    await fails(rpc(user1, 'admin_set_spamblock', { p_user: owner, p_until: until(1) }));
+    await rpc(boss, 'admin_set_role', { p_user: user1.id, p_admin: false });
+  });
+
+  it('спамблок: первым писать и добавлять в группы нельзя, отвечать можно', async () => {
+    await fails(rpc(user1, 'admin_set_spamblock', { p_user: user2.id, p_until: until(1) }));
+    await rpc(boss, 'admin_set_spamblock', { p_user: user1.id, p_until: until(1) });
+    const chat = await rpc<string>(user1, 'get_or_create_private_chat', { p_other: user2.id });
+    await expect(send(user1, chat, 'спам')).rejects.toThrow(/spamblock/);
+    await send(user2, chat, 'привет');
+    await send(user1, chat, 'ответ');
+    await expect(
+      rpc(user1, 'create_chat', { p_type: 'group', p_title: 'Спам', p_members: [user2.id] }),
+    ).rejects.toThrow(/spamblock/);
+    const g = await rpc<string>(user1, 'create_chat', { p_type: 'group', p_title: 'Моя' });
+    await expect(rpc(user1, 'add_members', { p_chat: g, p_users: [user2.id] })).rejects.toThrow(/spamblock/);
+    await rpc(boss, 'admin_set_spamblock', { p_user: user1.id, p_until: null });
+    await rpc(user1, 'add_members', { p_chat: g, p_users: [user2.id] });
+  });
+
+  it('стиль профиля: премиум — себе, админ — любому, обычный — нет', async () => {
+    const style = { p_color: 'fire', p_emoji: '🔥', p_bg: 'space' };
+    await fails(rpc(user1, 'set_profile_style', { p_user: user1.id, ...style }));
+    await rpc(prem, 'set_profile_style', { p_user: prem.id, ...style });
+    await fails(rpc(prem, 'set_profile_style', { p_user: user1.id, ...style }));
+    await rpc(boss, 'set_profile_style', { p_user: user1.id, ...style });
+    await fails(
+      rpc(boss, 'set_profile_style', { p_user: user1.id, p_color: 'bad', p_emoji: null, p_bg: null }),
+    );
+    const { data } = await user2.db
+      .from('profiles')
+      .select('name_color, emoji_status, profile_bg')
+      .eq('id', user1.id)
+      .single();
+    expect(data).toEqual({ name_color: 'fire', emoji_status: '🔥', profile_bg: 'space' });
+    // Напрямую колонку не поменять.
+    const { error } = await user1.db.from('profiles').update({ name_color: 'red' }).eq('id', user1.id);
+    expect(error).not.toBeNull();
+  });
+});
