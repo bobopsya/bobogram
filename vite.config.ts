@@ -3,8 +3,12 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import pkg from './package.json' with { type: 'json' };
 
+const base = process.env.BASE_PATH || '/';
+
 export default defineConfig({
-  base: '/bobogram/',
+  // Сайт живёт в корне своего домена bobogram.org. Без домена (…github.io/bobogram/) —
+  // задать переменную BASE_PATH=/bobogram/ в Settings → Secrets and variables → Actions → Variables.
+  base,
   define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   plugins: [
     react(),
@@ -19,8 +23,8 @@ export default defineConfig({
         short_name: 'Bobogram',
         description: 'Мессенджер для друзей',
         lang: 'ru',
-        start_url: '/bobogram/',
-        scope: '/bobogram/',
+        start_url: base,
+        scope: base,
         display: 'standalone',
         background_color: '#17212b',
         theme_color: '#2aabee',

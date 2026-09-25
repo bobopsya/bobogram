@@ -1,6 +1,6 @@
 # Bobogram
 
-Мессенджер для друзей в духе Telegram. Работает в браузере на ПК и как приложение на iPhone и Android (PWA, «На экран Домой»). Сайт хостится на GitHub Pages: **https://bobopsya.github.io/bobogram/**
+Мессенджер для друзей в духе Telegram. Работает в браузере на ПК и как приложение на iPhone и Android (PWA, «На экран Домой»). Сайт хостится на GitHub Pages: **https://bobogram.org/**
 
 ## Возможности
 

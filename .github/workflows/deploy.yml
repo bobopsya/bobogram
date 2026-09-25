@@ -36,9 +36,11 @@ jobs:
           # Свой TURN-сервер для звонков (docs/SETUP.md → «Звонки»)
           TURN_SECRET: ${{ secrets.TURN_SECRET }}
           TURN_HOST: ${{ vars.TURN_HOST || '78.17.112.164' }}
-          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+          # Адрес сайта (свой домен: Settings → Pages → Custom domain)
+          SITE_URL: ${{ vars.SITE_URL || 'https://bobogram.org/' }}
       - run: npm run build
         env:
+          BASE_PATH: ${{ vars.BASE_PATH || '/' }}
           VITE_SUPABASE_URL: ${{ steps.supabase.outputs.SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ steps.supabase.outputs.SUPABASE_ANON_KEY }}
       - uses: actions/upload-pages-artifact@v3
