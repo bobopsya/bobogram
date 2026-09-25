@@ -148,6 +148,7 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
               scam={sender?.scam}
               premium={isPremium(sender)}
               emoji={sender?.emojiStatus}
+              developer={sender?.developer}
               size={14}
             />
           </button>

@@ -54,6 +54,8 @@ export function toProfile(r: Row): UserProfile {
     spamUntil: msOrNull(r.spam_until),
     profileLocked: r.profile_locked === true,
     isBot: r.is_bot === true,
+    coOwner: r.co_owner === true,
+    developer: r.developer === true,
     nftUsernames: ((r.nft_usernames as { username: string }[] | null) ?? []).map((n) => n.username).sort(),
   };
 }
@@ -214,10 +216,12 @@ export function errorKey(err: unknown): string {
   if (code === 'weak_password') return 'errors.weakPassword';
   if (code === 'over_request_rate_limit' || code === 'over_email_send_rate_limit')
     return 'errors.tooManyRequests';
+  if (msg.includes('protected user')) return 'errors.protectedUser';
   if (code === '42501') return /blocked/.test(msg) ? 'chat.blockedByThem' : 'errors.permission';
   if (msg.includes('spamblock')) return 'errors.spamblock';
   if (msg.includes('profile locked')) return 'errors.profileLocked';
   if (msg.includes('too many reports')) return 'report.tooMany';
+  if (msg.includes('protected user')) return 'errors.protectedUser';
   if (msg.includes('too many members')) return 'errors.tooManyMembers';
   if (msg.includes('pin limit')) return 'errors.pinLimit';
   if (msg.includes('bio too long')) return 'errors.bioTooLong';
@@ -648,6 +652,14 @@ export async function adminResolveReport(id: number): Promise<void> {
 
 export async function adminStats(): Promise<Record<string, number>> {
   return check(await supabase.rpc('admin_stats')) as Record<string, number>;
+}
+
+export async function ownerSetCoOwner(uid: string, on: boolean): Promise<void> {
+  check(await supabase.rpc('owner_set_co_owner', { p_user: uid, p_on: on }));
+}
+
+export async function ownerSetDeveloper(uid: string, on: boolean): Promise<void> {
+  check(await supabase.rpc('owner_set_developer', { p_user: uid, p_on: on }));
 }
 
 export async function getOwnerId(): Promise<string | null> {

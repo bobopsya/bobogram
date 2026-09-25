@@ -90,6 +90,7 @@ const ICONS = {
   micOff: (
     <path d="M1 1l22 22M9 9v3a3 3 0 005.12 2.12M15 9.34V4a3 3 0 00-5.94-.6M17 16.95A7 7 0 015 12v-2m14 0v2a7 7 0 01-.11 1.23M12 19v4M8 23h8" />
   ),
+  code: <path d="M8 6l-6 6 6 6M16 6l6 6-6 6M14 4l-4 16" />,
   flag: <path d="M4 22V4M4 4h13l-2 4 2 4H4" />,
   chart: <path d="M3 3v18h18M8 17V11M13 17V7M18 17v-4" />,
   gem: <path d="M6 3h12l4 6-10 12L2 9l4-6zM2 9h20M12 21L8 9l4-6 4 6-4 12" />,
