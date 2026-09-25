@@ -11,7 +11,12 @@ import { Icon } from '../../ui/Icon';
 import { Badges } from '../../ui/Badges';
 import { ChatAvatar, useChatMeta } from '../chats/chatMeta';
 
-export function lastSeenText(p: Presence | null | undefined, hideMine: boolean, t: TFunction, locale: string): string {
+export function lastSeenText(
+  p: Presence | null | undefined,
+  hideMine: boolean,
+  t: TFunction,
+  locale: string,
+): string {
   if (!p || p.hidden) return t('chats.lastSeenRecently');
   if (p.online) return t('chats.online');
   if (hideMine || !p.lastSeen) return t('chats.lastSeenRecently');
@@ -58,7 +63,8 @@ export function ChatHeader({ chat, me, onSearch, onCall, onClear, onMenu }: Prop
   if (typing.length > 0) {
     accent = true;
     if (chat.type === 'private') subtitle = t('chats.typing');
-    else if (typing.length === 1) subtitle = t('chats.typingName', { name: displayNameOf(peekProfile(typing[0]), '…') });
+    else if (typing.length === 1)
+      subtitle = t('chats.typingName', { name: displayNameOf(peekProfile(typing[0]), '…') });
     else subtitle = t('chats.typingMany', { count: typing.length });
   } else if (chat.type === 'private') {
     subtitle = lastSeenText(presence, hideMine, t, i18n.language);
@@ -84,15 +90,23 @@ export function ChatHeader({ chat, me, onSearch, onCall, onClear, onMenu }: Prop
         <ChatAvatar meta={meta} size={40} />
         <div className="chat-header-text">
           <div className="chat-header-title">
-            <span className="ellipsis">{meta.title}</span>
+            <span className="ellipsis" style={meta.nameStyle}>
+              {meta.title}
+            </span>
             <Badges {...meta.badges} />
           </div>
-          {subtitle && <div className={accent ? 'chat-header-sub accent-text' : 'chat-header-sub'}>{subtitle}</div>}
+          {subtitle && (
+            <div className={accent ? 'chat-header-sub accent-text' : 'chat-header-sub'}>{subtitle}</div>
+          )}
         </div>
       </button>
       {chat.type === 'private' && (
         <>
-          <button className="icon-btn hide-narrow" onClick={() => onCall(true)} aria-label={t('chat.callVideo')}>
+          <button
+            className="icon-btn hide-narrow"
+            onClick={() => onCall(true)}
+            aria-label={t('chat.callVideo')}
+          >
             <Icon name="video" />
           </button>
           <button className="icon-btn" onClick={() => onCall(false)} aria-label={t('chat.callAudio')}>
@@ -104,7 +118,12 @@ export function ChatHeader({ chat, me, onSearch, onCall, onClear, onMenu }: Prop
         <Icon name="search" />
       </button>
       {onClear && (
-        <button className="icon-btn" onClick={onClear} aria-label={t('chat.clearForMe')} title={t('chat.clearForMe')}>
+        <button
+          className="icon-btn"
+          onClick={onClear}
+          aria-label={t('chat.clearForMe')}
+          title={t('chat.clearForMe')}
+        >
           <Icon name="trash" />
         </button>
       )}

@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 /** Цветовые темы, фоны чата и цвета пузырей для экрана «Оформление». */
 
 export interface Palette {
@@ -14,14 +15,54 @@ export interface ThemePreset {
 }
 
 export const THEMES: ThemePreset[] = [
-  { id: 'classic', premium: false, light: { accent: '#3390ec', bubbleOut: '#e3fee0' }, dark: { accent: '#8774e1', bubbleOut: '#766ac8' } },
-  { id: 'ocean', premium: false, light: { accent: '#0a9396', bubbleOut: '#d8f3f1' }, dark: { accent: '#2ec4b6', bubbleOut: '#1b6f6a' } },
-  { id: 'forest', premium: false, light: { accent: '#2e9d4f', bubbleOut: '#dcf5d6' }, dark: { accent: '#4caf6e', bubbleOut: '#2f6b3f' } },
-  { id: 'sunset', premium: false, light: { accent: '#f07c2a', bubbleOut: '#ffe9d4' }, dark: { accent: '#ff9f43', bubbleOut: '#8a4a1c' } },
-  { id: 'rose', premium: false, light: { accent: '#e0457b', bubbleOut: '#ffe0ec' }, dark: { accent: '#ff6b9d', bubbleOut: '#8e2f55' } },
-  { id: 'gold', premium: true, light: { accent: '#c9942b', bubbleOut: '#fff3cf' }, dark: { accent: '#e8b64c', bubbleOut: '#7a5a17' } },
-  { id: 'neon', premium: true, light: { accent: '#7c3aed', bubbleOut: '#ede4ff' }, dark: { accent: '#c084fc', bubbleOut: '#5b21b6' } },
-  { id: 'midnight', premium: true, light: { accent: '#1e3a8a', bubbleOut: '#dbe6ff' }, dark: { accent: '#60a5fa', bubbleOut: '#1e3a8a' } },
+  {
+    id: 'classic',
+    premium: false,
+    light: { accent: '#3390ec', bubbleOut: '#e3fee0' },
+    dark: { accent: '#8774e1', bubbleOut: '#766ac8' },
+  },
+  {
+    id: 'ocean',
+    premium: false,
+    light: { accent: '#0a9396', bubbleOut: '#d8f3f1' },
+    dark: { accent: '#2ec4b6', bubbleOut: '#1b6f6a' },
+  },
+  {
+    id: 'forest',
+    premium: false,
+    light: { accent: '#2e9d4f', bubbleOut: '#dcf5d6' },
+    dark: { accent: '#4caf6e', bubbleOut: '#2f6b3f' },
+  },
+  {
+    id: 'sunset',
+    premium: false,
+    light: { accent: '#f07c2a', bubbleOut: '#ffe9d4' },
+    dark: { accent: '#ff9f43', bubbleOut: '#8a4a1c' },
+  },
+  {
+    id: 'rose',
+    premium: false,
+    light: { accent: '#e0457b', bubbleOut: '#ffe0ec' },
+    dark: { accent: '#ff6b9d', bubbleOut: '#8e2f55' },
+  },
+  {
+    id: 'gold',
+    premium: true,
+    light: { accent: '#c9942b', bubbleOut: '#fff3cf' },
+    dark: { accent: '#e8b64c', bubbleOut: '#7a5a17' },
+  },
+  {
+    id: 'neon',
+    premium: true,
+    light: { accent: '#7c3aed', bubbleOut: '#ede4ff' },
+    dark: { accent: '#c084fc', bubbleOut: '#5b21b6' },
+  },
+  {
+    id: 'midnight',
+    premium: true,
+    light: { accent: '#1e3a8a', bubbleOut: '#dbe6ff' },
+    dark: { accent: '#60a5fa', bubbleOut: '#1e3a8a' },
+  },
 ];
 
 export interface Background {
@@ -64,7 +105,8 @@ export const BACKGROUNDS: Background[] = [
   {
     id: 'galaxy',
     premium: true,
-    light: 'radial-gradient(circle at 20% 20%, #fbe9ff 0%, transparent 40%), radial-gradient(circle at 80% 70%, #d7ecff 0%, transparent 45%), #f4f1ff',
+    light:
+      'radial-gradient(circle at 20% 20%, #fbe9ff 0%, transparent 40%), radial-gradient(circle at 80% 70%, #d7ecff 0%, transparent 45%), #f4f1ff',
     dark: 'radial-gradient(circle at 20% 20%, #3b1f5e 0%, transparent 40%), radial-gradient(circle at 80% 70%, #0e3b63 0%, transparent 45%), #07070f',
   },
   {
@@ -157,4 +199,49 @@ export function appearanceVars(a: Appearance, dark: boolean, premium: boolean): 
     '--bubble-radius': `${clamp(a.radius, RADIUS_RANGE)}px`,
     '--msg-font': `${clamp(a.fontSize, FONT_RANGE)}px`,
   };
+}
+
+// ---------- стиль профиля (цвет имени, фон профиля) ----------
+/** id совпадают с check в миграции 20260930000000_admin_v4.sql. */
+export const NAME_COLORS: { id: string; css: string; gradient?: boolean }[] = [
+  { id: 'red', css: '#e53935' },
+  { id: 'orange', css: '#fb8c00' },
+  { id: 'gold', css: '#d4a017' },
+  { id: 'green', css: '#43a047' },
+  { id: 'teal', css: '#00897b' },
+  { id: 'blue', css: '#1e88e5' },
+  { id: 'violet', css: '#8e24aa' },
+  { id: 'pink', css: '#d81b60' },
+  { id: 'fire', css: 'linear-gradient(90deg, #ff512f, #f09819)', gradient: true },
+  { id: 'ocean', css: 'linear-gradient(90deg, #2193b0, #6dd5ed)', gradient: true },
+  { id: 'aurora', css: 'linear-gradient(90deg, #00c9a7, #845ec2)', gradient: true },
+  {
+    id: 'rainbow',
+    css: 'linear-gradient(90deg, #ff5f6d, #ffc371, #47e5bc, #4a90e2, #b36bff)',
+    gradient: true,
+  },
+];
+
+export const PROFILE_BGS: { id: string; css: string }[] = [
+  { id: 'sunset', css: 'linear-gradient(160deg, #ff7e5f, #feb47b)' },
+  { id: 'ocean', css: 'linear-gradient(160deg, #2193b0, #6dd5ed)' },
+  { id: 'forest', css: 'linear-gradient(160deg, #134e5e, #71b280)' },
+  { id: 'night', css: 'linear-gradient(160deg, #232526, #414345)' },
+  { id: 'candy', css: 'linear-gradient(160deg, #f78ca0, #f9748f, #fe9a8b)' },
+  { id: 'gold', css: 'linear-gradient(160deg, #b8860b, #ffd76e)' },
+  { id: 'aurora', css: 'linear-gradient(160deg, #00c9a7, #845ec2)' },
+  { id: 'space', css: 'radial-gradient(circle at 30% 20%, #3a1c71, #1a1a2e 60%, #0f0c29)' },
+];
+
+/** Стиль для текста имени: сплошной цвет или градиент по буквам. */
+export function nameColorStyle(id: string | null | undefined): CSSProperties | undefined {
+  const c = NAME_COLORS.find((x) => x.id === id);
+  if (!c) return undefined;
+  return c.gradient
+    ? { backgroundImage: c.css, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }
+    : { color: c.css };
+}
+
+export function profileBgCss(id: string | null | undefined): string | undefined {
+  return PROFILE_BGS.find((x) => x.id === id)?.css;
 }

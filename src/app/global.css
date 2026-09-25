@@ -2121,3 +2121,46 @@ button.setting-row:hover {
   border-radius: 10px;
   background: var(--bg-secondary);
 }
+
+/* ============ Стиль профиля ============ */
+.emoji-status {
+  line-height: 1;
+}
+.profile-hero.styled {
+  color: #fff;
+  border-radius: 0 0 24px 24px;
+  padding-bottom: 16px;
+}
+.profile-hero.styled .muted,
+.profile-hero.styled .accent-text {
+  color: rgba(255, 255, 255, 0.85);
+}
+.style-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+.swatch.wide {
+  width: 52px;
+  border-radius: 10px;
+}
+.swatch.none {
+  background: repeating-linear-gradient(45deg, var(--bg-secondary), var(--bg-secondary) 4px, transparent 4px, transparent 8px);
+}
+.swatch.active {
+  border-color: var(--accent);
+  outline: 2px solid var(--bg);
+  outline-offset: -4px;
+}

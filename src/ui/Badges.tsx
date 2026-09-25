@@ -4,19 +4,35 @@ export interface BadgeFlags {
   verified?: boolean;
   scam?: boolean;
   premium?: boolean;
+  /** Эмодзи-статус: показывается вместо звезды премиума. */
+  emoji?: string | null;
 }
 
 /** Галочка верификации, как в Telegram: синяя «печать» с белой галочкой. */
 export function VerifiedIcon({ size = 16 }: { size?: number }) {
   const { t } = useTranslation();
   return (
-    <svg className="badge-icon verified" width={size} height={size} viewBox="0 0 24 24" role="img" aria-label={t('badges.verified')}>
+    <svg
+      className="badge-icon verified"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      role="img"
+      aria-label={t('badges.verified')}
+    >
       <title>{t('badges.verified')}</title>
       <path
         fill="currentColor"
         d="M12 1.5l2.39 1.74 2.95-.12.97 2.79 2.47 1.63-.72 2.87L21.5 12l-1.44 2.59.72 2.87-2.47 1.63-.97 2.79-2.95-.12L12 22.5l-2.39-1.74-2.95.12-.97-2.79-2.47-1.63.72-2.87L2.5 12l1.44-2.59-.72-2.87 2.47-1.63.97-2.79 2.95.12z"
       />
-      <path fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" d="M7.8 12.3l2.8 2.7 5.6-5.8" />
+      <path
+        fill="none"
+        stroke="#fff"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M7.8 12.3l2.8 2.7 5.6-5.8"
+      />
     </svg>
   );
 }
@@ -25,7 +41,14 @@ export function VerifiedIcon({ size = 16 }: { size?: number }) {
 export function PremiumIcon({ size = 16 }: { size?: number }) {
   const { t } = useTranslation();
   return (
-    <svg className="badge-icon premium" width={size} height={size} viewBox="0 0 24 24" role="img" aria-label={t('badges.premium')}>
+    <svg
+      className="badge-icon premium"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      role="img"
+      aria-label={t('badges.premium')}
+    >
       <title>{t('badges.premium')}</title>
       <defs>
         <linearGradient id="bg-premium" x1="0" y1="0" x2="1" y2="1">
@@ -52,12 +75,18 @@ export function ScamBadge() {
 }
 
 /** Все значки подряд — ставится сразу после имени. */
-export function Badges({ verified, scam, premium, size = 16 }: BadgeFlags & { size?: number }) {
-  if (!verified && !scam && !premium) return null;
+export function Badges({ verified, scam, premium, emoji, size = 16 }: BadgeFlags & { size?: number }) {
+  if (!verified && !scam && !premium && !emoji) return null;
   return (
     <span className="badges">
       {verified && <VerifiedIcon size={size} />}
-      {premium && !verified && <PremiumIcon size={size} />}
+      {emoji ? (
+        <span className="emoji-status" style={{ fontSize: size }}>
+          {emoji}
+        </span>
+      ) : (
+        premium && !verified && <PremiumIcon size={size} />
+      )}
       {scam && <ScamBadge />}
     </span>
   );

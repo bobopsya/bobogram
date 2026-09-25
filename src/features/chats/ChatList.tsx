@@ -177,7 +177,13 @@ export function ChatList() {
                   <div className="list-item-body">
                     <div className="list-item-title">
                       <span className="ellipsis">{p.displayName}</span>
-                      <Badges verified={p.verified} scam={p.scam} premium={isPremium(p)} size={15} />
+                      <Badges
+                        verified={p.verified}
+                        scam={p.scam}
+                        premium={isPremium(p)}
+                        emoji={p.emojiStatus}
+                        size={15}
+                      />
                     </div>
                     <div className="list-item-sub accent">{usernameLabel(p, query)}</div>
                   </div>

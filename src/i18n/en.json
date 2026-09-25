@@ -66,7 +66,8 @@
     "tooManyMembers": "Too many members",
     "pinLimit": "You can pin up to 5 chats (10 with Premium)",
     "bioTooLong": "Bio is limited to 70 characters (200 with Premium)",
-    "upload": "Could not upload the file"
+    "upload": "Could not upload the file",
+    "spamblock": "You are spam-blocked and can’t message first"
   },
   "chats": {
     "title": "Chats",
@@ -317,7 +318,18 @@
     "noRequests": "No requests",
     "approve": "Grant",
     "reject": "Reject",
-    "duration": "Duration"
+    "duration": "Duration",
+    "editProfile": "Edit profile",
+    "editProfileFor": "@{{username}} profile",
+    "profileSaved": "Profile updated",
+    "makeAdmin": "Make admin",
+    "removeAdmin": "Remove admin",
+    "owner": "owner",
+    "spamblock1": "Spam block for 1 day",
+    "spamblock7": "Spam block for 7 days",
+    "spamblockForever": "Spam block forever",
+    "spamblockRemove": "Remove spam block",
+    "spamblocked": "spam block"
   },
   "notify": {
     "newMessage": "New message",
@@ -402,5 +414,13 @@
     "taken": "Already taken",
     "free": "Available",
     "hint": "It can’t be taken as a regular username"
+  },
+  "style": {
+    "title": "Profile style",
+    "nameColor": "Name color",
+    "emoji": "Emoji status",
+    "background": "Profile background",
+    "none": "None",
+    "premiumOnly": "Profile styling is available with premium"
   }
 }

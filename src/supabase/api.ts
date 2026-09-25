@@ -48,6 +48,10 @@ export function toProfile(r: Row): UserProfile {
     verified: r.verified === true,
     scam: r.scam === true,
     premiumUntil: msOrNull(r.premium_until),
+    nameColor: (r.name_color as string | null) ?? null,
+    emojiStatus: (r.emoji_status as string | null) ?? null,
+    profileBg: (r.profile_bg as string | null) ?? null,
+    spamUntil: msOrNull(r.spam_until),
     nftUsernames: ((r.nft_usernames as { username: string }[] | null) ?? []).map((n) => n.username).sort(),
   };
 }
@@ -209,6 +213,7 @@ export function errorKey(err: unknown): string {
   if (code === 'over_request_rate_limit' || code === 'over_email_send_rate_limit')
     return 'errors.tooManyRequests';
   if (code === '42501') return /blocked/.test(msg) ? 'chat.blockedByThem' : 'errors.permission';
+  if (msg.includes('spamblock')) return 'errors.spamblock';
   if (msg.includes('too many members')) return 'errors.tooManyMembers';
   if (msg.includes('pin limit')) return 'errors.pinLimit';
   if (msg.includes('bio too long')) return 'errors.bioTooLong';
@@ -556,6 +561,52 @@ export async function adminBoostMessage(msgId: string, views: number, reactions:
 
 /** Премиум «навсегда» — дата в далёком будущем. */
 export const PREMIUM_FOREVER = '9999-12-31T00:00:00Z';
+
+export async function adminUpdateProfile(
+  uid: string,
+  patch: { displayName?: string; username?: string; bio?: string; avatar?: string | null },
+): Promise<void> {
+  check(
+    await supabase.rpc('admin_update_profile', {
+      p_user: uid,
+      p_display_name: patch.displayName ?? null,
+      p_username: patch.username !== undefined ? normalizeUsername(patch.username) : null,
+      p_bio: patch.bio ?? null,
+      p_avatar: patch.avatar ?? null,
+      p_clear_avatar: patch.avatar === null,
+    }),
+  );
+}
+
+export async function adminSetRole(uid: string, admin: boolean): Promise<void> {
+  check(await supabase.rpc('admin_set_role', { p_user: uid, p_admin: admin }));
+}
+
+export async function adminSetSpamblock(uid: string, until: string | null): Promise<void> {
+  check(await supabase.rpc('admin_set_spamblock', { p_user: uid, p_until: until }));
+}
+
+export async function getOwnerId(): Promise<string | null> {
+  return (check(await supabase.rpc('get_owner_id')) as string | null) ?? null;
+}
+
+export interface ProfileStyle {
+  nameColor: string | null;
+  emojiStatus: string | null;
+  profileBg: string | null;
+}
+
+/** Админ — любому, премиум-пользователь — себе. */
+export async function setProfileStyle(uid: string, style: ProfileStyle): Promise<void> {
+  check(
+    await supabase.rpc('set_profile_style', {
+      p_user: uid,
+      p_color: style.nameColor,
+      p_emoji: style.emojiStatus,
+      p_bg: style.profileBg,
+    }),
+  );
+}
 
 export async function adminGrantNft(uid: string, username: string): Promise<void> {
   check(

@@ -11,6 +11,7 @@ import { Badges } from '../../ui/Badges';
 import { callText, systemText } from '../chats/chatMeta';
 import { isEmojiOnly, MessageText } from './MessageText';
 import { PhotoMedia, VoiceMedia } from './MediaViews';
+import { nameColorStyle } from '../../app/themes';
 
 const NAME_COLORS = ['#e17076', '#eda86c', '#a695e7', '#7bc862', '#6ec9cb', '#65aadd', '#ee7aae'];
 function nameColor(uid: string): string {
@@ -138,11 +139,17 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
         {showSender && first && (
           <button
             className="msg-sender plain"
-            style={{ color: nameColor(msg.senderId) }}
+            style={nameColorStyle(sender?.nameColor) ?? { color: nameColor(msg.senderId) }}
             onClick={() => onOpenProfile(msg.senderId)}
           >
             {displayNameOf(sender, '…')}
-            <Badges verified={sender?.verified} scam={sender?.scam} premium={isPremium(sender)} size={14} />
+            <Badges
+              verified={sender?.verified}
+              scam={sender?.scam}
+              premium={isPremium(sender)}
+              emoji={sender?.emojiStatus}
+              size={14}
+            />
           </button>
         )}
         {msg.forwardedFrom && (
