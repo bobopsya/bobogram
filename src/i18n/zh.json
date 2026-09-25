@@ -102,7 +102,8 @@
     "muteForever": "永久",
     "deletedMessage": "消息已删除",
     "deletedAccount": "已删除的账号",
-    "noMessages": "没有消息"
+    "noMessages": "没有消息",
+    "bot": "机器人"
   },
   "chat": {
     "placeholder": "消息",
@@ -250,7 +251,10 @@
     "newPassword": "新密码",
     "passwordChanged": "密码已修改",
     "enterToSend": "按 Enter 发送",
-    "enterToSendHint": "否则 Enter 换行，用按钮或 Ctrl+Enter 发送"
+    "enterToSendHint": "否则 Enter 换行，用按钮或 Ctrl+Enter 发送",
+    "soundKind": "提示音",
+    "sound_new": "新",
+    "sound_classic": "经典"
   },
   "calls": {
     "calling": "正在呼叫…",
@@ -332,7 +336,9 @@
     "premiumMenu": "高级会员…",
     "spamblockMenu": "私信封禁…",
     "lockProfile": "禁止修改资料",
-    "unlockProfile": "允许修改资料"
+    "unlockProfile": "允许修改资料",
+    "tab_reports": "举报",
+    "tab_stats": "统计"
   },
   "notify": {
     "newMessage": "新消息",
@@ -424,5 +430,35 @@
     "background": "资料背景",
     "none": "无",
     "premiumOnly": "资料样式需要高级会员"
+  },
+  "report": {
+    "action": "举报",
+    "title": "举报",
+    "send": "提交举报",
+    "sent": "举报已发送给管理员",
+    "comment": "备注（可选）",
+    "reason_spam": "垃圾信息",
+    "reason_abuse": "辱骂",
+    "reason_scam": "诈骗",
+    "reason_other": "其他",
+    "tooMany": "举报过多，请稍后再试",
+    "showResolved": "显示已处理",
+    "none": "暂无举报",
+    "resolve": "已处理"
+  },
+  "stats": {
+    "users": "用户",
+    "newDay": "今日新增",
+    "newWeek": "本周新增",
+    "onlineNow": "当前在线",
+    "onlineHour": "近一小时在线",
+    "messagesDay": "今日消息",
+    "messagesWeek": "本周消息",
+    "groups": "群组",
+    "channels": "频道",
+    "premium": "高级会员",
+    "banned": "已封禁",
+    "spamblocked": "私信受限",
+    "reportsOpen": "未处理举报"
   }
 }

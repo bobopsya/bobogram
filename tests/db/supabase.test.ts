@@ -641,3 +641,136 @@ describe('запрет на смену профиля', () => {
     expect(ok).toBeNull();
   });
 });
+
+describe('@bobotools: логи, команды, жалобы, статистика', () => {
+  let boss: User, member: User, newbie: User, logChat: string, group: string;
+
+  async function botTexts(u: User, chat: string): Promise<string[]> {
+    const { data: bot } = await u.db.from('profiles').select('id').eq('username', 'bobotools').single();
+    const { data } = await u.db
+      .from('messages')
+      .select('text')
+      .eq('chat_id', chat)
+      .eq('sender_id', bot!.id)
+      .order('created_at', { ascending: true });
+    return (data ?? []).map((m) => m.text as string);
+  }
+  const last = async (u: User, chat: string) => (await botTexts(u, chat)).at(-1) ?? '';
+
+  beforeAll(async () => {
+    boss = await user('tboss');
+    member = await user('tmember');
+    newbie = await user('tnewbie');
+    await admin.from('profiles').update({ role: 'admin' }).eq('id', boss.id);
+    logChat = await rpc<string>(boss, 'create_chat', { p_type: 'group', p_title: 'Логи' });
+    group = await rpc<string>(boss, 'create_chat', {
+      p_type: 'group',
+      p_title: 'Команда',
+      p_members: [member.id],
+    });
+  });
+
+  it('/setlogs делает группу лог-группой; обычному пользователю — отказ', async () => {
+    await send(member, group, '/setlogs');
+    expect(await last(member, group)).toMatch(/только администраторам сервиса/);
+    await send(boss, logChat, '/setlogs');
+    expect(await last(boss, logChat)).toMatch(/логи администрации приходят сюда/);
+  });
+
+  it('действия админов и пользователей попадают в лог', async () => {
+    await rpc(boss, 'admin_set_role', { p_user: member.id, p_admin: true });
+    expect(await last(boss, logChat)).toBe(
+      `🛡️ Администратор @${boss.name} выдал(а) права администрации @${member.name}`,
+    );
+    await rpc(boss, 'admin_set_role', { p_user: member.id, p_admin: false });
+    await rpc(boss, 'admin_set_spamblock', { p_user: member.id, p_until: '9999-12-31T00:00:00Z' });
+    expect(await last(boss, logChat)).toMatch(/выдал\(а\) спамблок .* навсегда/);
+    await rpc(boss, 'admin_set_spamblock', { p_user: member.id, p_until: null });
+    await rpc(boss, 'admin_grant_nft_username', { p_user: member.id, p_username: `lognft${run}` });
+    expect(await last(boss, logChat)).toMatch(/💎 .*выдал\(а\) НФТ-юзернейм @lognft/);
+    const newName = `renamed2${run}`;
+    await newbie.db.from('profiles').update({ username: newName }).eq('id', newbie.id);
+    expect(await last(boss, logChat)).toBe(`✏️ @${newbie.name} теперь @${newName}`);
+    newbie.name = newName;
+    await rpc(newbie, 'request_premium', { p_note: 'пожалуйста' });
+    expect(await last(boss, logChat)).toMatch(/просит премиум: «пожалуйста»/);
+    // Новая регистрация.
+    const fresh = await user('tfresh');
+    expect(await last(boss, logChat)).toMatch(new RegExp(`Новый пользователь @${fresh.name}`));
+  });
+
+  it('/invite и /kick: админ группы и сервиса могут, участник — нет', async () => {
+    await send(member, group, `/invite @${newbie.name}`);
+    expect(await last(member, group)).toMatch(/администраторам группы и сервиса/);
+    await send(boss, group, `/invite @${newbie.name}`);
+    const { data: m } = await boss.db
+      .from('chat_members')
+      .select('user_id')
+      .eq('chat_id', group)
+      .eq('user_id', newbie.id);
+    expect(m).toHaveLength(1);
+    await send(boss, group, `/invite @${newbie.name}`);
+    expect(await last(boss, group)).toMatch(/уже в группе/);
+    await send(boss, group, `/kick @${newbie.name}`);
+    const { data: m2 } = await boss.db
+      .from('chat_members')
+      .select('user_id')
+      .eq('chat_id', group)
+      .eq('user_id', newbie.id);
+    expect(m2).toHaveLength(0);
+    await send(boss, group, '/invite @nobody_такого_нет');
+    expect(await last(boss, group)).toMatch(/не найден/);
+  });
+
+  it('/ban, /admin, /info, /stats — только админы сервиса; владельца не тронуть', async () => {
+    await send(boss, group, `/ban @${member.name}`);
+    const { data: p } = await boss.db.from('profiles').select('banned').eq('id', member.id).single();
+    expect(p!.banned).toBe(true);
+    expect(await last(boss, logChat)).toMatch(/забанил\(а\)/);
+    await send(boss, group, `/unban @${member.name}`);
+    await send(boss, group, `/admin @${member.name}`);
+    expect(await last(boss, group)).toMatch(/теперь администратор/);
+    await send(boss, group, `/unadmin @${member.name}`);
+    const owner = await rpc<string>(boss, 'get_owner_id');
+    if (owner && owner !== boss.id) {
+      const { data: o } = await boss.db.from('profiles').select('username').eq('id', owner).single();
+      await send(boss, group, `/ban @${o!.username}`);
+      expect(await last(boss, group)).toMatch(/нельзя/);
+    }
+    await send(boss, group, `/info @${member.name}`);
+    expect(await last(boss, group)).toMatch(/Регистрация: .*\nРоль: пользователь/s);
+    await send(boss, group, '/stats');
+    expect(await last(boss, group)).toMatch(/Пользователей: \d+/);
+    expect(await rpc<Record<string, number>>(boss, 'admin_stats')).toHaveProperty('users');
+    await fails(rpc(member, 'admin_stats'));
+  });
+
+  it('/broadcast из лог-группы — всем в личку от бота', async () => {
+    await send(boss, group, '/broadcast тест');
+    expect(await last(boss, group)).toMatch(/только из лог-группы/);
+    await send(boss, logChat, '/broadcast Завтра обновление');
+    expect(await last(boss, logChat)).toMatch(/Рассылка отправлена: \d+/);
+    const chats = await rpc<{ id: string; type: string; last_message: { text: string } | null }[]>(
+      newbie,
+      'get_chats',
+    );
+    expect(chats.some((c) => c.type === 'private' && c.last_message?.text === '📣 Завтра обновление')).toBe(
+      true,
+    );
+  });
+
+  it('жалоба на сообщение уходит в лог и видна только админам', async () => {
+    const chat = await rpc<string>(newbie, 'get_or_create_private_chat', { p_other: member.id });
+    const msg = await send(member, chat, 'плохое сообщение');
+    await fails(rpc(carol, 'report', { p_user: null, p_message: msg, p_reason: 'spam', p_comment: '' }));
+    await rpc(newbie, 'report', { p_user: null, p_message: msg, p_reason: 'abuse', p_comment: 'грубит' });
+    expect(await last(boss, logChat)).toMatch(
+      /🚩 Жалоба от @.* на @.* \(оскорбления\)\nСообщение: «плохое сообщение»\nКомментарий: грубит/,
+    );
+    const { data: mine } = await newbie.db.from('reports').select('id');
+    expect(mine).toEqual([]);
+    const { data: all } = await boss.db.from('reports').select('id').eq('message_id', msg);
+    expect(all).toHaveLength(1);
+    await rpc(boss, 'admin_resolve_report', { p_id: all![0].id });
+  });
+});

@@ -53,6 +53,7 @@ export function toProfile(r: Row): UserProfile {
     profileBg: (r.profile_bg as string | null) ?? null,
     spamUntil: msOrNull(r.spam_until),
     profileLocked: r.profile_locked === true,
+    isBot: r.is_bot === true,
     nftUsernames: ((r.nft_usernames as { username: string }[] | null) ?? []).map((n) => n.username).sort(),
   };
 }
@@ -216,6 +217,7 @@ export function errorKey(err: unknown): string {
   if (code === '42501') return /blocked/.test(msg) ? 'chat.blockedByThem' : 'errors.permission';
   if (msg.includes('spamblock')) return 'errors.spamblock';
   if (msg.includes('profile locked')) return 'errors.profileLocked';
+  if (msg.includes('too many reports')) return 'report.tooMany';
   if (msg.includes('too many members')) return 'errors.tooManyMembers';
   if (msg.includes('pin limit')) return 'errors.pinLimit';
   if (msg.includes('bio too long')) return 'errors.bioTooLong';
@@ -590,6 +592,62 @@ export async function adminSetSpamblock(uid: string, until: string | null): Prom
 
 export async function adminSetProfileLock(uid: string, locked: boolean): Promise<void> {
   check(await supabase.rpc('admin_set_profile_lock', { p_user: uid, p_locked: locked }));
+}
+
+export type ReportReason = 'spam' | 'abuse' | 'scam' | 'other';
+
+/** Жалоба на сообщение (автор берётся из него) или на пользователя. */
+export async function reportAbuse(p: {
+  userId?: string;
+  messageId?: string;
+  reason: ReportReason;
+  comment: string;
+}): Promise<void> {
+  check(
+    await supabase.rpc('report', {
+      p_user: p.userId ?? null,
+      p_message: p.messageId ?? null,
+      p_reason: p.reason,
+      p_comment: p.comment,
+    }),
+  );
+}
+
+export interface ReportRow {
+  id: number;
+  reporterId: string;
+  targetUser: string | null;
+  chatId: string | null;
+  reason: ReportReason;
+  comment: string;
+  snippet: string | null;
+  createdAt: number;
+  resolved: boolean;
+}
+
+export async function adminListReports(): Promise<ReportRow[]> {
+  const rows = check(
+    await supabase.from('reports').select('*').order('created_at', { ascending: false }).limit(200),
+  ) as Row[];
+  return rows.map((r) => ({
+    id: Number(r.id),
+    reporterId: String(r.reporter_id),
+    targetUser: (r.target_user as string | null) ?? null,
+    chatId: (r.chat_id as string | null) ?? null,
+    reason: r.reason as ReportReason,
+    comment: String(r.comment ?? ''),
+    snippet: (r.snippet as string | null) ?? null,
+    createdAt: ms(r.created_at),
+    resolved: r.resolved_at != null,
+  }));
+}
+
+export async function adminResolveReport(id: number): Promise<void> {
+  check(await supabase.rpc('admin_resolve_report', { p_id: id }));
+}
+
+export async function adminStats(): Promise<Record<string, number>> {
+  return check(await supabase.rpc('admin_stats')) as Record<string, number>;
 }
 
 export async function getOwnerId(): Promise<string | null> {

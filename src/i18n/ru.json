@@ -108,7 +108,8 @@
     "muteForever": "Навсегда",
     "deletedMessage": "Сообщение удалено",
     "deletedAccount": "Удалённый аккаунт",
-    "noMessages": "Нет сообщений"
+    "noMessages": "Нет сообщений",
+    "bot": "бот"
   },
   "chat": {
     "placeholder": "Сообщение",
@@ -256,7 +257,10 @@
     "newPassword": "Новый пароль",
     "passwordChanged": "Пароль изменён",
     "enterToSend": "Отправка по Enter",
-    "enterToSendHint": "Иначе Enter переносит строку, а отправка — кнопкой или Ctrl+Enter"
+    "enterToSendHint": "Иначе Enter переносит строку, а отправка — кнопкой или Ctrl+Enter",
+    "soundKind": "Звук",
+    "sound_new": "Новый",
+    "sound_classic": "Классический"
   },
   "calls": {
     "calling": "Вызов…",
@@ -338,7 +342,9 @@
     "premiumMenu": "Premium…",
     "spamblockMenu": "Спамблок…",
     "lockProfile": "Запретить менять профиль",
-    "unlockProfile": "Разрешить менять профиль"
+    "unlockProfile": "Разрешить менять профиль",
+    "tab_reports": "Жалобы",
+    "tab_stats": "Статистика"
   },
   "notify": {
     "newMessage": "Новое сообщение",
@@ -433,5 +439,35 @@
     "background": "Фон профиля",
     "none": "Без стиля",
     "premiumOnly": "Оформление профиля доступно с премиумом"
+  },
+  "report": {
+    "action": "Пожаловаться",
+    "title": "Пожаловаться",
+    "send": "Отправить жалобу",
+    "sent": "Жалоба отправлена администраторам",
+    "comment": "Комментарий (необязательно)",
+    "reason_spam": "Спам",
+    "reason_abuse": "Оскорбления",
+    "reason_scam": "Мошенничество",
+    "reason_other": "Другое",
+    "tooMany": "Слишком много жалоб, попробуйте позже",
+    "showResolved": "Показывать рассмотренные",
+    "none": "Жалоб нет",
+    "resolve": "Рассмотрено"
+  },
+  "stats": {
+    "users": "Пользователей",
+    "newDay": "Новых за день",
+    "newWeek": "Новых за неделю",
+    "onlineNow": "В сети сейчас",
+    "onlineHour": "Были в сети за час",
+    "messagesDay": "Сообщений за день",
+    "messagesWeek": "Сообщений за неделю",
+    "groups": "Групп",
+    "channels": "Каналов",
+    "premium": "С премиумом",
+    "banned": "Забанено",
+    "spamblocked": "В спамблоке",
+    "reportsOpen": "Открытых жалоб"
   }
 }

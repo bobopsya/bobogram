@@ -200,8 +200,18 @@ Deno.serve(async (req) => {
       const { data: profile } = await admin.from('profiles').select('role, banned').eq('id', caller.id).single();
       if (profile?.role !== 'admin' || profile.banned) return json({ error: 'forbidden' }, 403);
       if (typeof body.password !== 'string' || body.password.length < 6) return json({ error: 'weak password' }, 400);
+      // Пароль владельца может сменить только он сам; боту — никому.
+      const { data: owner } = await admin.rpc('get_owner_id');
+      const { data: target } = await admin.from('profiles').select('username, is_bot').eq('id', body.userId).single();
+      if (!target || target.is_bot || (body.userId === owner && caller.id !== owner)) {
+        return json({ error: 'forbidden' }, 403);
+      }
       const { error } = await admin.auth.admin.updateUserById(body.userId, { password: body.password });
       if (error) return json({ error: error.message }, 400);
+      const { data: me } = await admin.from('profiles').select('username').eq('id', caller.id).single();
+      await admin.rpc('service_log', {
+        p_text: `🔑 Администратор @${me?.username ?? '?'} задал(а) новый пароль @${target.username}`,
+      });
       return json({ ok: true });
     }
 

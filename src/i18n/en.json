@@ -104,7 +104,8 @@
     "muteForever": "Forever",
     "deletedMessage": "Message deleted",
     "deletedAccount": "Deleted account",
-    "noMessages": "No messages"
+    "noMessages": "No messages",
+    "bot": "bot"
   },
   "chat": {
     "placeholder": "Message",
@@ -252,7 +253,10 @@
     "newPassword": "New password",
     "passwordChanged": "Password changed",
     "enterToSend": "Send with Enter",
-    "enterToSendHint": "Otherwise Enter adds a new line; send with the button or Ctrl+Enter"
+    "enterToSendHint": "Otherwise Enter adds a new line; send with the button or Ctrl+Enter",
+    "soundKind": "Sound",
+    "sound_new": "New",
+    "sound_classic": "Classic"
   },
   "calls": {
     "calling": "Calling…",
@@ -334,7 +338,9 @@
     "premiumMenu": "Premium…",
     "spamblockMenu": "Spam block…",
     "lockProfile": "Lock profile editing",
-    "unlockProfile": "Unlock profile editing"
+    "unlockProfile": "Unlock profile editing",
+    "tab_reports": "Reports",
+    "tab_stats": "Stats"
   },
   "notify": {
     "newMessage": "New message",
@@ -427,5 +433,35 @@
     "background": "Profile background",
     "none": "None",
     "premiumOnly": "Profile styling is available with premium"
+  },
+  "report": {
+    "action": "Report",
+    "title": "Report",
+    "send": "Send report",
+    "sent": "Report sent to admins",
+    "comment": "Comment (optional)",
+    "reason_spam": "Spam",
+    "reason_abuse": "Abuse",
+    "reason_scam": "Scam",
+    "reason_other": "Other",
+    "tooMany": "Too many reports, try later",
+    "showResolved": "Show resolved",
+    "none": "No reports",
+    "resolve": "Resolved"
+  },
+  "stats": {
+    "users": "Users",
+    "newDay": "New today",
+    "newWeek": "New this week",
+    "onlineNow": "Online now",
+    "onlineHour": "Online in the last hour",
+    "messagesDay": "Messages today",
+    "messagesWeek": "Messages this week",
+    "groups": "Groups",
+    "channels": "Channels",
+    "premium": "Premium",
+    "banned": "Banned",
+    "spamblocked": "Spam-blocked",
+    "reportsOpen": "Open reports"
   }
 }
