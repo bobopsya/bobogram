@@ -25,6 +25,7 @@ export function NftDialog({
   const [busy, setBusy] = useState(false);
   const name = normalizeUsername(value);
   const invalid = name ? validateUsername(name) : null;
+  const matchesPrimary = !!name && name.toLowerCase() === user.username.toLowerCase();
 
   useEffect(() => {
     setFree(null);
@@ -71,7 +72,7 @@ export function NftDialog({
       footer={
         <button
           className="btn btn-primary"
-          disabled={!name || !!invalid || free !== true || busy}
+          disabled={!name || !!invalid || matchesPrimary || free !== true || busy}
           onClick={() => void grant()}
         >
           {t('nft.grant')}
@@ -111,7 +112,7 @@ export function NftDialog({
         <span className={invalid || free === false ? 'field-hint danger' : 'field-hint'}>
           {invalid
             ? t(`username.${invalid}`)
-            : free === false
+            : matchesPrimary || free === false
               ? t('nft.taken')
               : free
                 ? t('nft.free')

@@ -395,7 +395,7 @@
     "collectible": "Second usernames",
     "menu": "Second usernames",
     "title": "Second usernames of @{{username}}",
-    "grant": "Grant",
+    "grant": "Add",
     "revoke": "Revoke",
     "none": "No second usernames yet.",
     "newName": "New second username",

@@ -392,7 +392,7 @@
     "collectible": "第二用户名",
     "menu": "第二用户名",
     "title": "@{{username}} 的第二用户名",
-    "grant": "授予",
+    "grant": "添加",
     "revoke": "收回",
     "none": "还没有第二用户名。",
     "newName": "新的第二用户名",
