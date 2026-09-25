@@ -7,7 +7,7 @@ import { useApp } from '../../app/store';
 import { Icon } from '../../ui/Icon';
 import { Modal } from '../../ui/Modal';
 
-/** Выдача и отзыв вторых/коллекционных юзернеймов пользователя. */
+/** Выдача и отзыв НФТ-юзернеймов пользователя (только админ). */
 export function NftDialog({
   user,
   onChange,

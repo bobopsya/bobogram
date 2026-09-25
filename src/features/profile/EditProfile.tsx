@@ -2,7 +2,6 @@ import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useApp, useMe, useMyProfile } from '../../app/store';
-import { putProfile } from '../../app/profiles';
 import { errorKey, updateProfile } from '../../supabase/api';
 import { BIO_MAX, BIO_MAX_PREMIUM, isPremium } from '../../supabase/types';
 import { makeAvatar } from '../../lib/image';
@@ -10,7 +9,6 @@ import { Avatar } from '../../ui/Avatar';
 import { Icon } from '../../ui/Icon';
 import { PageHeader } from '../../ui/misc';
 import { UsernameField, type UsernameStatus } from '../auth/UsernameField';
-import { NftDialog } from '../admin/NftDialog';
 
 export function EditProfileScreen() {
   const { t } = useTranslation();
@@ -23,7 +21,6 @@ export function EditProfileScreen() {
   const [username, setUsername] = useState(profile.username);
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>('free');
   const [avatar, setAvatar] = useState(profile.avatar);
-  const [nftOpen, setNftOpen] = useState(false);
   const bioMax = isPremium(profile) ? BIO_MAX_PREMIUM : BIO_MAX;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,13 +29,6 @@ export function EditProfileScreen() {
   const usernameChanged = username !== profile.username;
   const canSave =
     name.trim().length > 0 && (!usernameChanged || usernameStatus === 'free' || usernameStatus === 'idle');
-  const nftUsernames = profile.nftUsernames ?? [];
-
-  const updateNftUsernames = (names: string[]) => {
-    const next = { ...profile, nftUsernames: names };
-    putProfile(next);
-    useApp.setState({ profile: next });
-  };
 
   const pickAvatar = async (file: File | undefined) => {
     if (!file) return;
@@ -114,15 +104,6 @@ export function EditProfileScreen() {
           <input value={name} onChange={(e) => setName(e.target.value)} maxLength={64} />
         </label>
         <UsernameField value={username} onChange={setUsername} onStatus={setUsernameStatus} current={profile.username} />
-        <button className="info-item block" onClick={() => setNftOpen(true)}>
-          <Icon name="gem" />
-          <div className="min0">
-            <div className="ellipsis">
-              {nftUsernames.length > 0 ? nftUsernames.map((n) => `@${n}`).join(', ') : t('nft.none')}
-            </div>
-            <div className="muted small">{t('nft.collectible')}</div>
-          </div>
-        </button>
         <label className="field">
           <span className="field-label">{t('profile.bio')}</span>
           <textarea
@@ -139,9 +120,6 @@ export function EditProfileScreen() {
           {t('common.save')}
         </button>
       </div>
-      {nftOpen && (
-        <NftDialog user={profile} onChange={updateNftUsernames} onClose={() => setNftOpen(false)} />
-      )}
     </div>
   );
 }
