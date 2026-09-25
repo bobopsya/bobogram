@@ -392,15 +392,15 @@
     "badPhoto": "Could not open the photo"
   },
   "nft": {
-    "collectible": "Second usernames",
-    "menu": "Second usernames",
-    "title": "Second usernames of @{{username}}",
-    "grant": "Add",
+    "collectible": "Collectible usernames",
+    "menu": "NFT usernames",
+    "title": "NFT usernames of @{{username}}",
+    "grant": "Grant",
     "revoke": "Revoke",
-    "none": "No second usernames yet.",
-    "newName": "New second username",
+    "none": "No collectible usernames yet.",
+    "newName": "New NFT username",
     "taken": "Already taken",
     "free": "Available",
-    "hint": "It works as an extra profile link and can’t overlap with regular usernames"
+    "hint": "It can’t be taken as a regular username"
   }
 }

@@ -13,11 +13,11 @@ export interface UserProfile {
   scam: boolean;
   /** До какого момента действует премиум (мс), null — нет премиума. */
   premiumUntil: number | null;
-  /** Вторые/коллекционные юзернеймы, выданные админом. */
+  /** Коллекционные (НФТ) юзернеймы, выданные админом. */
   nftUsernames: string[];
 }
 
-/** Какое из имён человека совпало с поиском: основное или второе. */
+/** Какое из имён человека совпало с поиском: основное или НФТ. */
 export function matchedUsername(p: UserProfile, query: string): { name: string; nft: boolean } {
   const q = query.replace(/^@/, '').toLowerCase();
   if (!q || p.username.toLowerCase().startsWith(q)) return { name: p.username, nft: false };

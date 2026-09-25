@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useApp, useMe } from '../../app/store';
 import { errorKey, findUserByUsername, openPrivateChat, profileLink, setBlocked } from '../../supabase/api';
-import { putProfile, usePresence, useProfile } from '../../app/profiles';
+import { usePresence, useProfile } from '../../app/profiles';
 import { refreshBlocked } from '../../app/session';
 import { useOpenChatWith } from '../chats/ChatList';
 import { Avatar } from '../../ui/Avatar';
@@ -15,7 +15,6 @@ import { startCall } from '../calls/callStore';
 import { ShareProfile } from './ShareProfile';
 import { Badges, ScamWarning } from '../../ui/Badges';
 import { isPremium } from '../../supabase/types';
-import { NftDialog } from '../admin/NftDialog';
 
 /** Открытие профиля по ссылке …/#/u/username */
 export function UsernameRoute() {
@@ -63,7 +62,6 @@ function ProfileScreen({ uid }: { uid: string }) {
   const showToast = useApp((s) => s.showToast);
   const [confirmBlock, setConfirmBlock] = useState(false);
   const [share, setShare] = useState(false);
-  const [nftOpen, setNftOpen] = useState(false);
   const openChatWith = useOpenChatWith();
   const block = (b: boolean) =>
     void setBlocked(uid, b)
@@ -83,12 +81,6 @@ function ProfileScreen({ uid }: { uid: string }) {
   }
 
   const isMe = uid === me;
-  const nftUsernames = profile.nftUsernames ?? [];
-  const updateNftUsernames = (names: string[]) => {
-    const next = { ...profile, nftUsernames: names };
-    putProfile(next);
-    if (isMe) useApp.setState({ profile: next });
-  };
   const call = async (video: boolean) => {
     try {
       startCall(await openPrivateChat(uid), uid, video);
@@ -165,23 +157,12 @@ function ProfileScreen({ uid }: { uid: string }) {
               <div className="muted small">{t('profile.username')}</div>
             </div>
           </button>
-          {isMe && (
-            <button className="info-item" onClick={() => setNftOpen(true)}>
-              <Icon name="gem" />
-              <div className="min0">
-                <div className="ellipsis">
-                  {nftUsernames.length > 0 ? nftUsernames.map((name) => `@${name}`).join(', ') : t('nft.none')}
-                </div>
-                <div className="muted small">{t('nft.collectible')}</div>
-              </div>
-            </button>
-          )}
-          {!isMe && nftUsernames.length > 0 && (
+          {(profile.nftUsernames ?? []).length > 0 && (
             <div className="info-item">
               <Icon name="gem" />
               <div className="min0">
                 <div className="nft-names">
-                  {nftUsernames.map((name) => (
+                  {profile.nftUsernames.map((name) => (
                     <button
                       key={name}
                       className="nft-name plain"
@@ -245,9 +226,6 @@ function ProfileScreen({ uid }: { uid: string }) {
         />
       )}
       {share && <ShareProfile username={profile.username} onClose={() => setShare(false)} />}
-      {nftOpen && (
-        <NftDialog user={profile} onChange={updateNftUsernames} onClose={() => setNftOpen(false)} />
-      )}
     </div>
   );
 }

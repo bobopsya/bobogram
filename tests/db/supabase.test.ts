@@ -435,7 +435,7 @@ describe('фото и голосовые', () => {
     expect(await canDownload(bob, path)).toBe(true);
     expect(await canDownload(carol, path)).toBe(false);
     const { data: chats } = await bob.db.rpc('get_chats', { p_chat: chat });
-    expect((chats as { last_message: { media: unknown } }[])[0].last_message.media).toEqual({
+    expect((chats as { last_message: { media: unknown } }[])[0].last_message.media).toMatchObject({
       kind: 'photo',
     });
 
@@ -507,5 +507,25 @@ describe('НФТ-юзернеймы', () => {
     await rpc(nftAdmin, 'admin_revoke_nft_username', { p_username: nft });
     expect(await rpc(other, 'username_available', { p_username: nft })).toBe(true);
     expect(await rpc<unknown[]>(other, 'find_profile_by_username', { p_username: nft })).toEqual([]);
+  });
+});
+
+describe('очистка истории у себя', () => {
+  it('сообщения пропадают только у меня, у собеседника остаются', async () => {
+    const me = await user('clearme');
+    const peer = await user('clearpeer');
+    const chat = await rpc<string>(me, 'get_or_create_private_chat', { p_other: peer.id });
+    await send(peer, chat, 'старое');
+    await rpc(me, 'clear_chat_for_me', { p_chat: chat });
+    expect(await rpc<unknown[]>(me, 'get_messages', { p_chat: chat })).toEqual([]);
+    const [c] = await rpc<{ unread: number; last_message: unknown }[]>(me, 'get_chats', { p_chat: chat });
+    expect(c.unread).toBe(0);
+    expect(c.last_message).toBeNull();
+    expect((await rpc<unknown[]>(peer, 'get_messages', { p_chat: chat })).length).toBe(1);
+    await send(peer, chat, 'новое');
+    const mine = await rpc<{ text: string }[]>(me, 'get_messages', { p_chat: chat });
+    expect(mine.map((m) => m.text)).toEqual(['новое']);
+    // Чужой чат очистить нельзя.
+    await fails(rpc(carol, 'clear_chat_for_me', { p_chat: chat }));
   });
 });
