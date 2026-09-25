@@ -14,7 +14,7 @@ import { execFileSync } from 'node:child_process';
 
 const API = process.env.SUPABASE_API_URL || 'https://api.supabase.com/v1';
 const token = process.env.SUPABASE_ACCESS_TOKEN;
-const siteUrl = process.env.SITE_URL || 'https://bobopsya.github.io/bobogram/';
+const siteUrl = process.env.SITE_URL || 'https://bobogram.org/';
 
 function output(name, value) {
   console.log(`${name}=${name.includes('KEY') ? '***' : value}`);
@@ -129,7 +129,8 @@ await api(`/projects/${ref}/config/auth`, {
   method: 'PATCH',
   body: JSON.stringify({
     site_url: siteUrl,
-    uri_allow_list: siteUrl,
+    // Старый адрес на GitHub Pages тоже пускаем: он перенаправляет на домен.
+    uri_allow_list: `${siteUrl},https://bobopsya.github.io/bobogram/`,
     external_email_enabled: true,
     mailer_autoconfirm: true,
     mailer_secure_email_change_enabled: false,

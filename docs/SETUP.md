@@ -40,7 +40,7 @@
 
 1. Откройте pull request с кодом Bobogram: **<https://github.com/bobopsya/bobogram/pulls>**.
 2. **Merge pull request → Confirm merge**.
-3. Через 3–4 минуты сайт откроется по адресу **<https://bobopsya.github.io/bobogram/>**.
+3. Через 3–4 минуты сайт откроется по адресу **<https://bobogram.org/>** (свой домен; без него — `https://bobopsya.github.io/bobogram/`, см. раздел «Свой домен»).
 
 Как идёт публикация, видно на вкладке **Actions**: зелёная галочка значит, что всё готово.
 
@@ -74,7 +74,18 @@
 4. Если IP сервера не `78.17.112.164`, в **Settings → Secrets and variables → Actions → Variables** добавьте `TURN_HOST` с IP.
 5. **Actions → Deploy → Run workflow**.
 
-Проверить, что звонок идёт именно через сервер: открыть сайт с `?relay` в адресе (`…/bobogram/?relay`) и позвонить.
+Проверить, что звонок идёт именно через сервер: открыть сайт с `?relay` в адресе (`https://bobogram.org/?relay`) и позвонить.
+
+## Свой домен
+
+Сейчас сайт настроен на **bobogram.org**.
+
+1. У регистратора домена добавьте DNS-записи **A** для `@`: `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`.
+2. **<https://github.com/bobopsya/bobogram/settings/pages>** → **Custom domain** → домен → **Save**. Когда проверка DNS пройдёт, включите **Enforce HTTPS**.
+3. Другой домен: **Settings → Secrets and variables → Actions → Variables** → `SITE_URL` = `https://ваш-домен/`, затем **Actions → Deploy → Run workflow**.
+4. Без своего домена (адрес `…github.io/bobogram/`): там же переменные `BASE_PATH` = `/bobogram/` и `SITE_URL` = `https://bobopsya.github.io/bobogram/`.
+
+После переезда на новый адрес браузер считает его другим сайтом: один раз нужно заново войти, включить уведомления и добавить иконку «На экран Домой».
 
 ## Если что-то пошло не так
 
@@ -107,7 +118,7 @@
 npm install
 npm run db:start      # локальный Supabase: база, вход, realtime, серверная функция
 cp .env.example .env.local   # вставьте ANON_KEY из `npx supabase status`
-npm run dev           # http://localhost:5173/bobogram/
+npm run dev           # http://localhost:5173/
 ```
 
 Проверки:
