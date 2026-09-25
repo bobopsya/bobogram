@@ -2186,3 +2186,52 @@ button.setting-row:hover {
 .bare-fieldset:disabled {
   opacity: 0.6;
 }
+
+/* ============ Жалобы и статистика ============ */
+.radio-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+.report-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--bg-secondary);
+}
+.report-card.resolved {
+  opacity: 0.55;
+}
+.report-card .btn {
+  align-self: flex-start;
+  padding-left: 0;
+}
+.report-snippet {
+  margin: 2px 0;
+  padding-left: 8px;
+  border-left: 3px solid var(--danger);
+  white-space: pre-wrap;
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  padding-top: 8px;
+  padding-bottom: 16px;
+}
+.stat-tile {
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--bg-secondary);
+}
+.stat-value {
+  font-size: 1.5em;
+  font-weight: 600;
+}
+.stat-label {
+  font-size: 0.8em;
+  color: var(--text-secondary);
+}

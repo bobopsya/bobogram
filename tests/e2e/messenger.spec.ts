@@ -308,6 +308,55 @@ test('админ v4: правка профиля, стиль, спамблок',
   await expect(spammer.getByText('Вы в спамблоке и не можете писать первым')).toBeVisible();
 });
 
+test('@bobotools: /setlogs, /invite, жалоба в лог, статистика', async ({ browser }) => {
+  const boss = await signUp(browser, 'Босс', `bossb${run}`);
+  const friend = await signUp(browser, 'Друг', `frndb${run}`, true);
+  await signUp(browser, 'Новичок', `newb${run}`);
+  const { data } = await service.from('profiles').select('id').eq('username', `bossb${run}`).single();
+  await service.from('profiles').update({ role: 'admin' }).eq('id', data!.id);
+  await boss.reload();
+
+  // Группа с другом и лог-группа.
+  async function newGroup(title: string, members: string[]) {
+    await boss.goto('./#/new/group');
+    for (const m of members) {
+      await boss.locator('.people-picker input').fill(m);
+      await boss.locator('.people-picker .list-item', { hasText: m }).first().click();
+    }
+    await boss.getByRole('button', { name: 'Далее' }).click();
+    await boss.getByLabel('Название группы').fill(title);
+    await boss.getByRole('button', { name: 'Создать группу' }).click();
+    await expect(boss.getByPlaceholder('Сообщение')).toBeVisible();
+  }
+  await newGroup(`Логи ${run}`, []);
+  await boss.getByPlaceholder('Сообщение').fill('/setlogs');
+  await boss.keyboard.press('Enter');
+  await expect(boss.locator('.bubble', { hasText: 'Теперь логи администрации приходят сюда' })).toBeVisible();
+
+  await newGroup(`Команда ${run}`, [`frndb${run}`]);
+  await boss.getByPlaceholder('Сообщение').fill(`/invite @newb${run}`);
+  await boss.keyboard.press('Enter');
+  await expect(boss.locator('.msg-row.system', { hasText: 'Новичок' })).toBeVisible();
+
+  // Друг жалуется на сообщение босса.
+  await boss.getByPlaceholder('Сообщение').fill('грубое сообщение');
+  await boss.keyboard.press('Enter');
+  await friend.locator('.chat-item', { hasText: `Команда ${run}` }).click();
+  const bubble = friend.locator('.bubble', { hasText: 'грубое сообщение' });
+  await bubble.click({ button: 'right' });
+  await friend.getByRole('menuitem', { name: 'Пожаловаться' }).click();
+  await friend.getByLabel('Оскорбления').check();
+  await friend.getByRole('button', { name: 'Отправить жалобу' }).click();
+  await expect(friend.getByText('Жалоба отправлена администраторам')).toBeVisible();
+
+  await boss.locator('.chat-item', { hasText: `Логи ${run}` }).click();
+  await expect(boss.locator('.bubble', { hasText: '🚩 Жалоба от' })).toContainText('грубое сообщение');
+
+  await boss.goto('./#/admin');
+  await boss.getByRole('button', { name: 'Статистика' }).click();
+  await expect(boss.locator('.stat-tile', { hasText: 'Пользователей' })).toBeVisible();
+});
+
 test('без сети сообщение ждёт с «часиками» и уходит, когда сеть появилась', async ({ browser }) => {
   const alice = await signUp(browser, 'Алиса', `aliceo${run}`);
   const bob = await signUp(browser, 'Боб', `bobo${run}`);

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
+import { playMessageSound } from '../../app/sounds';
 import { useApp, useMe, useMyProfile, type ThemeMode } from '../../app/store';
 import { changePassword, errorKey, logout, updateProfile } from '../../supabase/api';
 import { disablePush, enablePush, pushState, type PushState } from '../../supabase/push';
@@ -21,6 +22,8 @@ export function SettingsScreen() {
   const theme = useApp((s) => s.theme);
   const setTheme = useApp((s) => s.setTheme);
   const sound = useApp((s) => s.sound);
+  const soundKind = useApp((s) => s.soundKind);
+  const setSoundKind = useApp((s) => s.setSoundKind);
   const setSound = useApp((s) => s.setSound);
   const enterToSend = useApp((s) => s.enterToSend);
   const setEnterToSend = useApp((s) => s.setEnterToSend);
@@ -118,6 +121,26 @@ export function SettingsScreen() {
             <span>{t('settings.sounds')}</span>
             <Switch checked={sound} onChange={setSound} />
           </div>
+          {sound && (
+            <div className="setting-row">
+              <Icon name="bell" />
+              <span>{t('settings.soundKind')}</span>
+              <div className="segmented small">
+                {(['new', 'classic'] as const).map((k) => (
+                  <button
+                    key={k}
+                    className={soundKind === k ? 'active' : ''}
+                    onClick={() => {
+                      setSoundKind(k);
+                      playMessageSound(k);
+                    }}
+                  >
+                    {t(`settings.sound_${k}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="setting-row">
             <Icon name="send" />
             <span>{t('settings.enterToSend')}</span>

@@ -30,6 +30,7 @@ import { MessageBubble } from './MessageBubble';
 import { Composer, splitText } from './Composer';
 import { EmojiPicker } from './EmojiPicker';
 import { PinnedBar } from './PinnedBar';
+import { ReportDialog } from './ReportDialog';
 import { ForwardDialog } from './ForwardDialog';
 import { startCall } from '../calls/callStore';
 import { BoostDialog } from '../admin/BoostDialog';
@@ -90,6 +91,7 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
   const [clearConfirm, setClearConfirm] = useState(false);
   const [forwarding, setForwarding] = useState<Message | null>(null);
   const [boosting, setBoosting] = useState<Message | null>(null);
+  const [reporting, setReporting] = useState<Message | null>(null);
   const other = useProfile(chat.type === 'private' ? chat.otherId : null);
   const scam = chat.scam || (chat.type === 'private' && other?.scam === true);
   const [highlight, setHighlight] = useState<string | null>(null);
@@ -327,6 +329,9 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
       items.push({ icon: 'edit', label: t('chat.edit'), onClick: () => setEditing(msg) });
     if (isGlobalAdmin && moderatable && !msg.system) {
       items.push({ icon: 'star', label: t('admin.boostPost'), onClick: () => setBoosting(msg) });
+    }
+    if (!own && !msg.system && !msg.pending && msg.senderId !== me) {
+      items.push({ icon: 'flag', label: t('report.action'), onClick: () => setReporting(msg) });
     }
     items.push({ icon: 'trash', label: t('common.delete'), danger: true, onClick: () => setDeleting(msg) });
     return items;
@@ -700,6 +705,7 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
       )}
 
       {boosting && <BoostDialog msg={boosting} onClose={() => setBoosting(null)} />}
+      {reporting && <ReportDialog messageId={reporting.id} onClose={() => setReporting(null)} />}
       {forwarding && <ForwardDialog msg={forwarding} fromChat={chat} onClose={() => setForwarding(null)} />}
     </div>
   );

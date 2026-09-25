@@ -104,7 +104,8 @@
     "muteForever": "हमेशा के लिए",
     "deletedMessage": "संदेश हटा दिया गया",
     "deletedAccount": "हटाया गया खाता",
-    "noMessages": "कोई संदेश नहीं"
+    "noMessages": "कोई संदेश नहीं",
+    "bot": "बॉट"
   },
   "chat": {
     "placeholder": "संदेश",
@@ -252,7 +253,10 @@
     "newPassword": "नया पासवर्ड",
     "passwordChanged": "पासवर्ड बदल गया",
     "enterToSend": "Enter से भेजें",
-    "enterToSendHint": "अन्यथा Enter नई पंक्ति जोड़ता है; बटन या Ctrl+Enter से भेजें"
+    "enterToSendHint": "अन्यथा Enter नई पंक्ति जोड़ता है; बटन या Ctrl+Enter से भेजें",
+    "soundKind": "ध्वनि",
+    "sound_new": "नई",
+    "sound_classic": "क्लासिक"
   },
   "calls": {
     "calling": "कॉल हो रही है…",
@@ -334,7 +338,9 @@
     "premiumMenu": "Premium…",
     "spamblockMenu": "स्पैम ब्लॉक…",
     "lockProfile": "प्रोफ़ाइल बदलना रोकें",
-    "unlockProfile": "प्रोफ़ाइल बदलने दें"
+    "unlockProfile": "प्रोफ़ाइल बदलने दें",
+    "tab_reports": "शिकायतें",
+    "tab_stats": "आँकड़े"
   },
   "notify": {
     "newMessage": "नया संदेश",
@@ -427,5 +433,35 @@
     "background": "प्रोफ़ाइल बैकग्राउंड",
     "none": "कोई नहीं",
     "premiumOnly": "प्रोफ़ाइल स्टाइल प्रीमियम के साथ उपलब्ध है"
+  },
+  "report": {
+    "action": "शिकायत करें",
+    "title": "शिकायत करें",
+    "send": "शिकायत भेजें",
+    "sent": "शिकायत एडमिन को भेज दी गई",
+    "comment": "टिप्पणी (वैकल्पिक)",
+    "reason_spam": "स्पैम",
+    "reason_abuse": "अपमान",
+    "reason_scam": "धोखाधड़ी",
+    "reason_other": "अन्य",
+    "tooMany": "बहुत सारी शिकायतें, बाद में कोशिश करें",
+    "showResolved": "हल की गई दिखाएँ",
+    "none": "कोई शिकायत नहीं",
+    "resolve": "हल हो गया"
+  },
+  "stats": {
+    "users": "उपयोगकर्ता",
+    "newDay": "आज नए",
+    "newWeek": "इस हफ़्ते नए",
+    "onlineNow": "अभी ऑनलाइन",
+    "onlineHour": "पिछले घंटे ऑनलाइन",
+    "messagesDay": "आज के संदेश",
+    "messagesWeek": "इस हफ़्ते के संदेश",
+    "groups": "ग्रुप",
+    "channels": "चैनल",
+    "premium": "प्रीमियम",
+    "banned": "बैन",
+    "spamblocked": "स्पैम ब्लॉक",
+    "reportsOpen": "खुली शिकायतें"
   }
 }

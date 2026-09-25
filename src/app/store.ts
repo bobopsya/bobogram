@@ -3,6 +3,7 @@ import { normalizeMessage, type Chat, type Message, type UserProfile } from '../
 import { DEFAULT_APPEARANCE, type Appearance } from './themes';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
+export type SoundKind = 'new' | 'classic';
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -35,6 +36,8 @@ interface AppState {
   theme: ThemeMode;
   appearance: Appearance;
   sound: boolean;
+  /** Какой звук у входящих: новый (mp3) или классический сигнал. */
+  soundKind: SoundKind;
   /** Enter отправляет сообщение (на телефоне тоже); иначе переносит строку. */
   enterToSend: boolean;
   toast: string | null;
@@ -42,6 +45,7 @@ interface AppState {
   setTheme: (t: ThemeMode) => void;
   setAppearance: (patch: Partial<Appearance>) => void;
   setSound: (on: boolean) => void;
+  setSoundKind: (k: SoundKind) => void;
   setEnterToSend: (v: boolean) => void;
   showToast: (text: string) => void;
 }
@@ -63,6 +67,7 @@ export const useApp = create<AppState>((set) => ({
   theme: read<ThemeMode>('bobogram.theme', 'system'),
   appearance: { ...DEFAULT_APPEARANCE, ...read<Partial<Appearance>>('bobogram.appearance', {}) },
   sound: read<boolean>('bobogram.sound', true),
+  soundKind: read<SoundKind>('bobogram.soundKind', 'new'),
   enterToSend: read<boolean>('bobogram.enterToSend', true),
   toast: null,
 
@@ -79,6 +84,10 @@ export const useApp = create<AppState>((set) => ({
   setSound: (sound) => {
     write('bobogram.sound', sound);
     set({ sound });
+  },
+  setSoundKind: (soundKind) => {
+    write('bobogram.soundKind', soundKind);
+    set({ soundKind });
   },
   setEnterToSend: (enterToSend) => {
     write('bobogram.enterToSend', enterToSend);

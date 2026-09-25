@@ -90,6 +90,7 @@ export interface Presence {
   online: boolean;
   lastSeen: number | null;
   hidden: boolean;
+  bot: boolean;
 }
 
 function subscribeOnline(l: () => void) {
@@ -101,7 +102,7 @@ export function usePresence(uid: string | null | undefined): Presence | null {
   const profile = useProfile(uid);
   const online = useSyncExternalStore(subscribeOnline, () => (uid ? getOnline().has(uid) : false));
   if (!uid || !profile) return null;
-  return { online, lastSeen: profile.lastSeen, hidden: profile.hideLastSeen };
+  return { online, lastSeen: profile.lastSeen, hidden: profile.hideLastSeen, bot: !!profile.isBot };
 }
 
 export function displayNameOf(p: UserProfile | null | undefined, fallback = ''): string {

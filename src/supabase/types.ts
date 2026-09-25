@@ -23,6 +23,8 @@ export interface UserProfile {
   spamUntil: number | null;
   /** Админ запретил менять имя, @имя, «О себе» и аватарку. */
   profileLocked: boolean;
+  /** Служебный бот (@bobotools). */
+  isBot: boolean;
 }
 
 export function isSpamblocked(p: Pick<UserProfile, 'spamUntil'> | null | undefined): boolean {

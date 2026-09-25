@@ -17,7 +17,7 @@ export default defineConfig({
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.ts',
-      injectManifest: { globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'] },
+      injectManifest: { globPatterns: ['**/*.{js,css,html,svg,png,webmanifest,mp3}'] },
       manifest: {
         name: 'Bobogram',
         short_name: 'Bobogram',

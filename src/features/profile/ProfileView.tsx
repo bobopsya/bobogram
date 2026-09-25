@@ -13,6 +13,7 @@ import { FullScreenSpinner, PageHeader } from '../../ui/misc';
 import { lastSeenText } from '../chat/ChatHeader';
 import { startCall } from '../calls/callStore';
 import { ShareProfile } from './ShareProfile';
+import { ReportDialog } from '../chat/ReportDialog';
 import { Badges, ScamWarning } from '../../ui/Badges';
 import { isPremium } from '../../supabase/types';
 import { nameColorStyle, profileBgCss } from '../../app/themes';
@@ -63,6 +64,7 @@ function ProfileScreen({ uid }: { uid: string }) {
   const showToast = useApp((s) => s.showToast);
   const [confirmBlock, setConfirmBlock] = useState(false);
   const [share, setShare] = useState(false);
+  const [reporting, setReporting] = useState(false);
   const openChatWith = useOpenChatWith();
   const block = (b: boolean) =>
     void setBlocked(uid, b)
@@ -224,6 +226,12 @@ function ProfileScreen({ uid }: { uid: string }) {
               <div>{blocked ? t('profile.unblock') : t('profile.block')}</div>
             </button>
           )}
+          {!isMe && !profile.isBot && (
+            <button className="info-item danger" onClick={() => setReporting(true)}>
+              <Icon name="flag" />
+              <div>{t('report.action')}</div>
+            </button>
+          )}
         </div>
       </div>
 
@@ -238,6 +246,7 @@ function ProfileScreen({ uid }: { uid: string }) {
         />
       )}
       {share && <ShareProfile username={profile.username} onClose={() => setShare(false)} />}
+      {reporting && <ReportDialog userId={uid} onClose={() => setReporting(false)} />}
     </div>
   );
 }

@@ -31,11 +31,12 @@ import { Menu, type MenuItem } from '../../ui/Menu';
 import { Confirm, Modal } from '../../ui/Modal';
 import { PageHeader, Spinner } from '../../ui/misc';
 import { NftDialog } from './NftDialog';
+import { ReportsTab, StatsTab } from './AdminExtras';
 import { nameColorStyle } from '../../app/themes';
 import { AdminEditProfileDialog } from './AdminEditProfileDialog';
 
 type AdminChat = Awaited<ReturnType<typeof adminListChats>>[number];
-type Tab = 'users' | 'chats' | 'requests';
+type Tab = 'users' | 'chats' | 'requests' | 'reports' | 'stats';
 
 const DAY = 86_400_000;
 const untilIso = (days: number | null) =>
@@ -63,14 +64,14 @@ export default function AdminPanel() {
     <div className="screen">
       <PageHeader title={t('admin.title')} back="/" />
       <div className="tabs">
-        {(['users', 'chats', 'requests'] as Tab[]).map((x) => (
+        {(['users', 'chats', 'requests', 'reports', 'stats'] as Tab[]).map((x) => (
           <button key={x} className={tab === x ? 'active' : ''} onClick={() => setTab(x)}>
             {t(`admin.tab_${x}`)}
           </button>
         ))}
       </div>
       <div className="scroll">
-        {tab !== 'requests' && (
+        {(tab === 'users' || tab === 'chats') && (
           <div className="pad-x">
             <input
               className="input"
@@ -83,6 +84,8 @@ export default function AdminPanel() {
         {tab === 'users' && <UsersTab q={q} />}
         {tab === 'chats' && <ChatsTab q={q} />}
         {tab === 'requests' && <RequestsTab />}
+        {tab === 'reports' && <ReportsTab />}
+        {tab === 'stats' && <StatsTab />}
       </div>
     </div>
   );

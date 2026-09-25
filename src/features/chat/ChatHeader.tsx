@@ -17,6 +17,7 @@ export function lastSeenText(
   t: TFunction,
   locale: string,
 ): string {
+  if (p?.bot) return t('chats.bot');
   if (!p || p.hidden) return t('chats.lastSeenRecently');
   if (p.online) return t('chats.online');
   if (hideMine || !p.lastSeen) return t('chats.lastSeenRecently');
