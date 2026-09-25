@@ -68,7 +68,8 @@
     "bioTooLong": "简介最多 70 字（Premium 200 字）",
     "upload": "文件上传失败",
     "spamblock": "您已被限制，无法主动发起私信",
-    "profileLocked": "管理员已禁止你修改资料"
+    "profileLocked": "管理员已禁止你修改资料",
+    "protectedUser": "只有所有者可以修改此用户"
   },
   "chats": {
     "title": "聊天",
@@ -338,7 +339,13 @@
     "lockProfile": "禁止修改资料",
     "unlockProfile": "允许修改资料",
     "tab_reports": "举报",
-    "tab_stats": "统计"
+    "tab_stats": "统计",
+    "makeCoOwner": "设为共同所有者",
+    "removeCoOwner": "取消共同所有者",
+    "coOwner": "共同所有者",
+    "makeDeveloper": "授予开发者徽章",
+    "removeDeveloper": "移除开发者徽章",
+    "protected": "仅所有者可管理"
   },
   "notify": {
     "newMessage": "新消息",
@@ -350,7 +357,9 @@
     "scam": "SCAM",
     "scamHint": "已被标记为诈骗",
     "scamWarningTitle": "⚠️ 注意：诈骗账号",
-    "scamWarningText": "管理员已将此账号标记为诈骗。请勿转账或透露密码。"
+    "scamWarningText": "管理员已将此账号标记为诈骗。请勿转账或透露密码。",
+    "developer": "Bobogram 开发者",
+    "developerHint": "此人参与开发 Bobogram，徽章由所有者授予。"
   },
   "appearance": {
     "title": "外观",

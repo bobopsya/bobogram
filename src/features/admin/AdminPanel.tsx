@@ -13,6 +13,8 @@ import {
   adminSetRole,
   adminSetSpamblock,
   adminSetProfileLock,
+  ownerSetCoOwner,
+  ownerSetDeveloper,
   getOwnerId,
   deleteChat,
   errorKey,
@@ -145,9 +147,33 @@ function UsersTab({ q }: { q: string }) {
     if (at) setSubMenu({ items: subItems, x: at.x, y: at.y });
   };
 
+  const iAmOwner = !!ownerId && me === ownerId;
+  /** Владельца и со-владельцев может менять только владелец (свой профиль — сам человек). */
+  const lockedFor = (u: UserProfile) => !iAmOwner && u.uid !== me && (u.uid === ownerId || u.coOwner);
+
   const items = (u: UserProfile): MenuItem[] => {
     const isOwner = u.uid === ownerId;
+    const ownerItems: MenuItem[] = [];
+    if (iAmOwner && !u.isBot) {
+      if (u.uid !== me) {
+        ownerItems.push({
+          icon: 'shield',
+          label: u.coOwner ? t('admin.removeCoOwner') : t('admin.makeCoOwner'),
+          onClick: () =>
+            act(ownerSetCoOwner(u.uid, !u.coOwner), u.uid, {
+              coOwner: !u.coOwner,
+              role: !u.coOwner ? 'admin' : u.role,
+            }),
+        });
+      }
+      ownerItems.push({
+        icon: 'code',
+        label: u.developer ? t('admin.removeDeveloper') : t('admin.makeDeveloper'),
+        onClick: () => act(ownerSetDeveloper(u.uid, !u.developer), u.uid, { developer: !u.developer }),
+      });
+    }
     const list: MenuItem[] = [
+      ...ownerItems,
       { icon: 'edit', label: t('admin.editProfile'), onClick: () => setEditFor(u) },
       {
         icon: 'check',
@@ -277,6 +303,7 @@ function UsersTab({ q }: { q: string }) {
                     scam={u.scam}
                     premium={isPremium(u)}
                     emoji={u.emojiStatus}
+                    developer={u.developer}
                     size={15}
                   />
                   {u.role === 'admin' && '🛡️'}
@@ -287,6 +314,7 @@ function UsersTab({ q }: { q: string }) {
                   {isSpamblocked(u) && ` · 🚫 ${t('admin.spamblocked')}`}
                   {u.profileLocked && ` · 🔒`}
                   {u.uid === ownerId && ` · 👑 ${t('admin.owner')}`}
+                  {u.coOwner && ` · 🤝 ${t('admin.coOwner')}`}
                   {u.banned && ` · ${t('admin.banned')}`}
                   {isPremium(u) &&
                     ` · ⭐ ${
@@ -297,25 +325,33 @@ function UsersTab({ q }: { q: string }) {
                 </div>
               </div>
             </button>
-            <button
-              className="icon-btn"
-              aria-label={t('nft.menu')}
-              title={t('nft.menu')}
-              onClick={() => setNftFor(u)}
-            >
-              <Icon name="gem" />
-            </button>
-            <button
-              className="icon-btn"
-              aria-label="more"
-              onClick={(e) => {
-                const pos = { x: e.clientX - 200, y: e.clientY };
-                lastMenuPos.current = pos;
-                setMenu({ user: u, ...pos });
-              }}
-            >
-              <Icon name="more" />
-            </button>
+            {lockedFor(u) ? (
+              <span className="icon-btn muted" title={t('admin.protected')} aria-label={t('admin.protected')}>
+                <Icon name="lock" />
+              </span>
+            ) : (
+              <>
+                <button
+                  className="icon-btn"
+                  aria-label={t('nft.menu')}
+                  title={t('nft.menu')}
+                  onClick={() => setNftFor(u)}
+                >
+                  <Icon name="gem" />
+                </button>
+                <button
+                  className="icon-btn"
+                  aria-label="more"
+                  onClick={(e) => {
+                    const pos = { x: e.clientX - 200, y: e.clientY };
+                    lastMenuPos.current = pos;
+                    setMenu({ user: u, ...pos });
+                  }}
+                >
+                  <Icon name="more" />
+                </button>
+              </>
+            )}
           </div>
         ))}
       {menu && <Menu x={menu.x} y={menu.y} items={items(menu.user)} onClose={() => setMenu(null)} />}

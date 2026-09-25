@@ -68,7 +68,8 @@
     "bioTooLong": "Bio is limited to 70 characters (200 with Premium)",
     "upload": "Could not upload the file",
     "spamblock": "You are spam-blocked and can’t message first",
-    "profileLocked": "An admin has locked your profile"
+    "profileLocked": "An admin has locked your profile",
+    "protectedUser": "Only the owner can change this user"
   },
   "chats": {
     "title": "Chats",
@@ -340,7 +341,13 @@
     "lockProfile": "Lock profile editing",
     "unlockProfile": "Unlock profile editing",
     "tab_reports": "Reports",
-    "tab_stats": "Stats"
+    "tab_stats": "Stats",
+    "makeCoOwner": "Make co-owner",
+    "removeCoOwner": "Remove co-owner",
+    "coOwner": "co-owner",
+    "makeDeveloper": "Give developer badge",
+    "removeDeveloper": "Remove developer badge",
+    "protected": "Only the owner can manage"
   },
   "notify": {
     "newMessage": "New message",
@@ -352,7 +359,9 @@
     "scam": "SCAM",
     "scamHint": "Marked as a scammer",
     "scamWarningTitle": "⚠️ Warning: scammer",
-    "scamWarningText": "The administrators marked this account as a scam. Do not send money or share passwords."
+    "scamWarningText": "The administrators marked this account as a scam. Do not send money or share passwords.",
+    "developer": "Bobogram developer",
+    "developerHint": "This person builds Bobogram. The badge is given by the owner."
   },
   "appearance": {
     "title": "Appearance",

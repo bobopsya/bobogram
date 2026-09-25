@@ -47,6 +47,7 @@ export function useChatMeta(
           scam: other?.scam,
           premium: isPremium(other),
           emoji: other?.emojiStatus,
+          developer: other?.developer,
         },
         nameStyle: nameColorStyle(other?.nameColor),
       };

@@ -774,3 +774,58 @@ describe('@bobotools: логи, команды, жалобы, статистик
     await rpc(boss, 'admin_resolve_report', { p_id: all![0].id });
   });
 });
+
+describe('владелец, со-владелец, значок разработчика', () => {
+  let owner: User, co: User, adm: User;
+
+  beforeAll(async () => {
+    co = await user('coown');
+    adm = await user('coadm');
+    await admin.from('profiles').update({ role: 'admin' }).eq('id', adm.id);
+    // Владелец — alice (первый админ этой базы).
+    await admin.from('profiles').update({ role: 'admin' }).eq('id', alice.id);
+    await admin.rpc('set_config_if_absent', { p_key: 'owner_id', p_value: alice.id });
+    owner = alice;
+  });
+
+  it('со-владельца и разработчика назначает только владелец', async () => {
+    // Тест рассчитан на чистую базу (как в CI): владелец — alice.
+    expect(await rpc<string>(adm, 'get_owner_id')).toBe(owner.id);
+    await fails(rpc(adm, 'owner_set_co_owner', { p_user: co.id, p_on: true }));
+    await rpc(owner, 'owner_set_co_owner', { p_user: co.id, p_on: true });
+    await fails(rpc(co, 'owner_set_developer', { p_user: co.id, p_on: true }));
+    await rpc(owner, 'owner_set_developer', { p_user: co.id, p_on: true });
+    const { data } = await adm.db
+      .from('profiles')
+      .select('co_owner, developer, role')
+      .eq('id', co.id)
+      .single();
+    expect(data).toEqual({ co_owner: true, developer: true, role: 'admin' });
+  });
+
+  it('другие админы не могут трогать владельца и со-владельца', async () => {
+    for (const target of [owner, co]) {
+      await expect(
+        rpc(adm, 'admin_update_profile', { p_user: target.id, p_display_name: 'Взлом' }),
+      ).rejects.toThrow(/protected user|not allowed/);
+      await fails(rpc(adm, 'admin_set_user_badges', { p_user: target.id, p_verified: false, p_scam: true }));
+      await fails(rpc(adm, 'admin_set_premium', { p_user: target.id, p_until: null }));
+      await fails(rpc(adm, 'set_banned', { p_user: target.id, p_banned: true }));
+      await fails(
+        rpc(adm, 'admin_grant_nft_username', {
+          p_user: target.id,
+          p_username: `prot${target.name.slice(-6)}x`,
+        }),
+      );
+    }
+    await fails(rpc(adm, 'admin_set_role', { p_user: co.id, p_admin: false }));
+    // Со-владелец тоже не может трогать владельца.
+    await fails(rpc(co, 'admin_set_user_badges', { p_user: owner.id, p_verified: false, p_scam: true }));
+    // А владелец может всё.
+    await rpc(owner, 'admin_update_profile', { p_user: co.id, p_display_name: 'Со-владелец' });
+    await rpc(owner, 'admin_set_user_badges', { p_user: co.id, p_verified: true, p_scam: false });
+    // Свой профиль со-владелец меняет сам.
+    const { error } = await co.db.from('profiles').update({ bio: 'я со-владелец' }).eq('id', co.id);
+    expect(error).toBeNull();
+  });
+});

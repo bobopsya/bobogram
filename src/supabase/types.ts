@@ -25,6 +25,10 @@ export interface UserProfile {
   profileLocked: boolean;
   /** Служебный бот (@bobotools). */
   isBot: boolean;
+  /** Со-владелец: защищён от других админов, назначает владелец. */
+  coOwner: boolean;
+  /** Значок разработчика Bobogram (выдаёт владелец). */
+  developer: boolean;
 }
 
 export function isSpamblocked(p: Pick<UserProfile, 'spamUntil'> | null | undefined): boolean {

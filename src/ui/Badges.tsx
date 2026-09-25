@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 export interface BadgeFlags {
@@ -6,6 +7,49 @@ export interface BadgeFlags {
   premium?: boolean;
   /** Эмодзи-статус: показывается вместо звезды премиума. */
   emoji?: string | null;
+  /** Разработчик Bobogram: зелёный «</>». */
+  developer?: boolean;
+}
+
+/** Зелёный «</>»; по нажатию — подсказка «Разработчик Bobogram». */
+export function DeveloperBadge({ size = 16 }: { size?: number }) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    const timer = window.setTimeout(() => setOpen(false), 4000);
+    document.addEventListener('pointerdown', close);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener('pointerdown', close);
+    };
+  }, [open]);
+  return (
+    <span
+      ref={ref}
+      className="dev-badge"
+      role="button"
+      tabIndex={0}
+      aria-label={t('badges.developer')}
+      style={{ fontSize: Math.round(size * 0.62), height: size }}
+      onClick={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        setOpen((v) => !v);
+      }}
+      onKeyDown={(e) => e.key === 'Enter' && setOpen((v) => !v)}
+    >
+      {'</>'}
+      {open && (
+        <span className="dev-popover" role="tooltip">
+          <strong>{t('badges.developer')}</strong>
+          <span>{t('badges.developerHint')}</span>
+        </span>
+      )}
+    </span>
+  );
 }
 
 /** Галочка верификации, как в Telegram: синяя «печать» с белой галочкой. */
@@ -75,11 +119,19 @@ export function ScamBadge() {
 }
 
 /** Все значки подряд — ставится сразу после имени. */
-export function Badges({ verified, scam, premium, emoji, size = 16 }: BadgeFlags & { size?: number }) {
-  if (!verified && !scam && !premium && !emoji) return null;
+export function Badges({
+  verified,
+  scam,
+  premium,
+  emoji,
+  developer,
+  size = 16,
+}: BadgeFlags & { size?: number }) {
+  if (!verified && !scam && !premium && !emoji && !developer) return null;
   return (
     <span className="badges">
       {verified && <VerifiedIcon size={size} />}
+      {developer && <DeveloperBadge size={size} />}
       {emoji ? (
         <span className="emoji-status" style={{ fontSize: size }}>
           {emoji}

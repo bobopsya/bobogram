@@ -125,6 +125,7 @@ function ProfileScreen({ uid }: { uid: string }) {
               scam={profile.scam}
               premium={isPremium(profile)}
               emoji={profile.emojiStatus}
+              developer={profile.developer}
               size={22}
             />
           </h2>

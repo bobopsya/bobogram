@@ -182,6 +182,7 @@ export function ChatList() {
                         scam={p.scam}
                         premium={isPremium(p)}
                         emoji={p.emojiStatus}
+                        developer={p.developer}
                         size={15}
                       />
                     </div>
