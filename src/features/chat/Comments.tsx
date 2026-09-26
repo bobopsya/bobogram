@@ -80,7 +80,9 @@ export function CommentsSheet({
     });
   }, [post.id]);
 
-  useEffect(() => bottom.current?.scrollIntoView({ block: 'end' }), [list?.length]);
+  useEffect(() => {
+    bottom.current?.scrollIntoView({ block: 'end' });
+  }, [list?.length]);
 
   const send = () => {
     const v = text.trim();
