@@ -459,6 +459,48 @@ test('после обновления сайта админка открывае
   expect(failed).toBe(true);
 });
 
+test('сторис из списка чатов открывается на весь экран и закрывается крестиком', async ({ browser }) => {
+  const alice = await signUp(browser, 'Алиса', `sta${run}`, true);
+  const { data: a } = await service.from('profiles').select('id').eq('username', `sta${run}`).single();
+  const { data: b } = await service.auth.admin.createUser({
+    email: `${crypto.randomUUID()}@users.bobogram.app`,
+    password: 'secret123',
+    email_confirm: true,
+    user_metadata: { username: `stb${run}`, display_name: 'Сторисный' },
+  });
+  const bid = b.user!.id;
+  const path = `${bid}/story-${crypto.randomUUID()}.jpg`;
+  await service.storage
+    .from('media')
+    .upload(path, Buffer.from('ffd8ffd9', 'hex'), { contentType: 'image/jpeg' });
+  await service.from('stories').insert({ author_id: bid, media_path: path, width: 10, height: 10 });
+  const key = [a!.id, bid].sort().join('_');
+  const { data: chat } = await service
+    .from('chats')
+    .insert({ type: 'private', private_key: key })
+    .select('id')
+    .single();
+  await service.from('chat_members').insert([
+    { chat_id: chat!.id, user_id: a!.id },
+    { chat_id: chat!.id, user_id: bid },
+  ]);
+  await service.from('messages').insert({ chat_id: chat!.id, sender_id: bid, text: 'смотри сторис' });
+
+  await alice.reload();
+  const row = alice.locator('.chat-item', { hasText: 'Сторисный' });
+  await row.locator('.story-avatar.unviewed').click();
+  const viewer = alice.locator('.story-viewer');
+  await expect(viewer).toBeVisible();
+  const box = await viewer.boundingBox();
+  expect(box!.height).toBeGreaterThan(600);
+  await viewer.getByRole('button', { name: 'Закрыть' }).click();
+  await expect(viewer).toHaveCount(0);
+  // Закрытие сторис не открывает чат.
+  await expect(alice.getByPlaceholder('Сообщение')).toHaveCount(0);
+  await row.click();
+  await expect(alice.locator('.bubble', { hasText: 'смотри сторис' })).toBeVisible();
+});
+
 test('без сети сообщение ждёт с «часиками» и уходит, когда сеть появилась', async ({ browser }) => {
   const alice = await signUp(browser, 'Алиса', `aliceo${run}`);
   const bob = await signUp(browser, 'Боб', `bobo${run}`);
