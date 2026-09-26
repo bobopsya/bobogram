@@ -20,7 +20,18 @@ export function Modal({ title, onClose, children, footer, wide }: Props) {
 
   return createPortal(
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={wide ? 'modal modal-wide' : 'modal'} role="dialog" aria-modal="true">
+      <div
+        className={wide ? 'modal modal-wide' : 'modal'}
+        role="dialog"
+        aria-modal="true"
+        onFocus={(e) => {
+          // iPhone: поле, на которое нажали, — в видимую часть над клавиатурой, когда она выедет.
+          const el = e.target;
+          if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+            window.setTimeout(() => el.scrollIntoView({ block: 'nearest' }), 300);
+          }
+        }}
+      >
         {title !== undefined && (
           <div className="modal-header">
             <h2>{title}</h2>
@@ -47,7 +58,15 @@ interface ConfirmProps {
   extra?: ReactNode;
 }
 
-export function Confirm({ text, confirmLabel, cancelLabel, danger, onConfirm, onClose, extra }: ConfirmProps) {
+export function Confirm({
+  text,
+  confirmLabel,
+  cancelLabel,
+  danger,
+  onConfirm,
+  onClose,
+  extra,
+}: ConfirmProps) {
   return (
     <Modal
       onClose={onClose}

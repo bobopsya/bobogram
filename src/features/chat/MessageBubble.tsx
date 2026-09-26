@@ -2,7 +2,7 @@ import { memo, useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isPremium, type ChatType, type Message } from '../../supabase/types';
 import { formatCount } from '../../lib/time';
-import { displayNameOf, useProfile } from '../../app/profiles';
+import { displayNameOf, systemUids, useProfile, useProfilesLoaded } from '../../app/profiles';
 import { formatDuration, formatTime, toDate } from '../../lib/time';
 import { Icon } from '../../ui/Icon';
 import { Avatar } from '../../ui/Avatar';
@@ -61,6 +61,7 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
   const date = toDate(msg.createdAt);
   // Только что пришедшее или отправленное сообщение плавно появляется; история — без анимации.
   const [fresh] = useState(() => Date.now() - msg.createdAt < 4000);
+  useProfilesLoaded(systemUids(msg.system, msg.senderId));
 
   if (msg.system) {
     return (

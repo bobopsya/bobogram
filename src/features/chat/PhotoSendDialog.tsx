@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Modal } from '../../ui/Modal';
 import { MESSAGE_MAX_LENGTH } from '../../supabase/types';
@@ -17,8 +17,13 @@ export function PhotoSendDialog({
 }) {
   const { t } = useTranslation();
   const [caption, setCaption] = useState(initialCaption.trim());
-  const previews = useMemo(() => files.map((f) => URL.createObjectURL(f)), [files]);
-  useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews]);
+  const [previews, setPreviews] = useState<string[]>([]);
+  // Ссылки создаются и отзываются в одном эффекте — иначе повторный запуск эффекта оставлял битые картинки.
+  useEffect(() => {
+    const urls = files.map((f) => URL.createObjectURL(f));
+    setPreviews(urls);
+    return () => urls.forEach((u) => URL.revokeObjectURL(u));
+  }, [files]);
 
   return (
     <Modal

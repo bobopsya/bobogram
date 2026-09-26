@@ -7,7 +7,7 @@ import { refreshChats } from '../../app/session';
 import { formatChatListTime, toDate } from '../../lib/time';
 import { Icon } from '../../ui/Icon';
 import { Menu, type MenuItem } from '../../ui/Menu';
-import { displayNameOf, usePresence, useProfile } from '../../app/profiles';
+import { displayNameOf, systemUids, usePresence, useProfile, useProfilesLoaded } from '../../app/profiles';
 import { useLongPress } from '../../ui/useLongPress';
 import { Badges } from '../../ui/Badges';
 import { callText, ChatAvatar, systemText, useChatMeta, mediaLabel } from './chatMeta';
@@ -27,6 +27,7 @@ export const ChatListItem = memo(function ChatListItem({ chat, active, onClick }
   const last = chat.lastMessage;
   const lastSender = useProfile(last && chat.type === 'group' && last.senderId !== me ? last.senderId : null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  useProfilesLoaded(last?.system ? systemUids(last.system, last.senderId) : []);
 
   const openMenu = (x: number, y: number) => setMenu({ x, y });
   const longPress = useLongPress(openMenu);
