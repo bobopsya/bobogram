@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, useEffect } from 'react';
 import { HashRouter, Navigate, Route, Routes } from 'react-router';
 import { isConfigured } from '../supabase/client';
 import { useApp } from './store';
@@ -10,21 +10,29 @@ import { Layout } from './Layout';
 import { ErrorBoundary } from './ErrorBoundary';
 import { ChatScreen } from '../features/chat/ChatScreen';
 import { EmptyMain } from './EmptyMain';
-import { ProfileRoute, UsernameRoute } from '../features/profile/ProfileView';
-import { SettingsScreen } from '../features/settings/SettingsScreen';
-import { EditProfileScreen } from '../features/profile/EditProfile';
-import { BlocklistScreen } from '../features/settings/Blocklist';
-import { AppearanceScreen } from '../features/settings/Appearance';
-import { PremiumScreen } from '../features/settings/Premium';
-import { NewGroupScreen } from '../features/groups/NewGroup';
-import { ChatInfoRoute } from '../features/groups/ChatInfo';
-import { JoinScreen } from '../features/groups/Join';
 import { FullScreenSpinner, OfflineBanner, Toast } from '../ui/misc';
 import { CallLayer } from '../features/calls/CallLayer';
 import { useIncomingSounds } from './sounds';
 import { usePushRegistration } from '../supabase/push';
 
 const AdminPanel = lazy(() => import('../features/admin/AdminPanel'));
+// Редкие экраны грузятся отдельными файлами при первом открытии — стартовый бандл меньше.
+const ProfileRoute = lazy(() => import('../features/profile/ProfileView').then((m) => ({ default: m.ProfileRoute })));
+const UsernameRoute = lazy(() => import('../features/profile/ProfileView').then((m) => ({ default: m.UsernameRoute })));
+const SettingsScreen = lazy(() =>
+  import('../features/settings/SettingsScreen').then((m) => ({ default: m.SettingsScreen })),
+);
+const EditProfileScreen = lazy(() =>
+  import('../features/profile/EditProfile').then((m) => ({ default: m.EditProfileScreen })),
+);
+const BlocklistScreen = lazy(() => import('../features/settings/Blocklist').then((m) => ({ default: m.BlocklistScreen })));
+const AppearanceScreen = lazy(() =>
+  import('../features/settings/Appearance').then((m) => ({ default: m.AppearanceScreen })),
+);
+const PremiumScreen = lazy(() => import('../features/settings/Premium').then((m) => ({ default: m.PremiumScreen })));
+const NewGroupScreen = lazy(() => import('../features/groups/NewGroup').then((m) => ({ default: m.NewGroupScreen })));
+const ChatInfoRoute = lazy(() => import('../features/groups/ChatInfo').then((m) => ({ default: m.ChatInfoRoute })));
+const JoinScreen = lazy(() => import('../features/groups/Join').then((m) => ({ default: m.JoinScreen })));
 
 function Gate() {
   const { authReady, userId, profile } = useApp();
@@ -47,6 +55,7 @@ function Messenger() {
           <Route index element={<EmptyMain />} />
           <Route path="c/:chatId" element={<ChatScreen />} />
           <Route path="c/:chatId/info" element={<ChatInfoRoute />} />
+          <Route path="c/:chatId/t/:topicId" element={<ChatScreen />} />
           <Route path="u/:username" element={<UsernameRoute />} />
           <Route path="profile/:uid" element={<ProfileRoute />} />
           <Route path="settings" element={<SettingsScreen />} />
@@ -57,14 +66,7 @@ function Messenger() {
           <Route path="new/group" element={<NewGroupScreen kind="group" />} />
           <Route path="new/channel" element={<NewGroupScreen kind="channel" />} />
           <Route path="join/:code" element={<JoinScreen />} />
-          <Route
-            path="admin"
-            element={
-              <Suspense fallback={<FullScreenSpinner />}>
-                <AdminPanel />
-              </Suspense>
-            }
-          />
+          <Route path="admin" element={<AdminPanel />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

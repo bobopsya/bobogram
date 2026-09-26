@@ -1747,6 +1747,120 @@ button.setting-row:hover {
   }
 }
 
+/* ============ Темы в группах ============ */
+.topic-list {
+  padding: 4px 6px;
+}
+.topic-hint {
+  padding: 16px 24px;
+}
+.topic-icon {
+  flex-shrink: 0;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--bg-secondary);
+}
+.chat-header .topic-icon {
+  font-size: 20px;
+}
+.topic-emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
+}
+.topic-emoji {
+  aspect-ratio: 1;
+  border-radius: 12px;
+  font-size: 22px;
+  border: 2px solid transparent;
+  background: var(--bg-secondary);
+}
+.topic-emoji.active {
+  border-color: var(--accent);
+}
+@media (max-width: 380px) {
+  .topic-emoji-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+/* ============ Плавность ============ */
+:root {
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* Экран, открытый справа (чат, профиль, настройки), плавно въезжает. */
+.main > .screen {
+  animation: screen-in 0.24s var(--ease-out);
+}
+@keyframes screen-in {
+  from {
+    opacity: 0;
+    transform: translateX(18px);
+  }
+}
+@media (min-width: 761px) {
+  @keyframes screen-in {
+    from {
+      opacity: 0;
+    }
+  }
+}
+.msg-row.fresh {
+  animation: msg-in 0.22s var(--ease-out);
+}
+@keyframes msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+}
+@media (min-width: 761px) {
+  .modal {
+    animation: modal-in 0.2s var(--ease-out);
+  }
+  @keyframes modal-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+  }
+}
+@media (max-width: 760px) {
+  .modal {
+    animation: slide-up 0.26s var(--ease-out);
+  }
+}
+.list-item,
+.btn,
+.icon-btn,
+.setting-row {
+  transition:
+    background 0.15s,
+    transform 0.12s var(--ease-out),
+    opacity 0.15s;
+}
+.list-item:active:not(:disabled),
+.btn:active:not(:disabled),
+.icon-btn:active:not(:disabled),
+.setting-row:active {
+  transform: scale(0.97);
+}
+/* Длинный список чатов: невидимые строки не рисуются. */
+.chat-item {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 64px;
+}
+.scroll {
+  overscroll-behavior: contain;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -1834,10 +1948,17 @@ button.setting-row:hover {
   margin: 0 8px;
 }
 .segmented button {
-  flex: 1;
-  padding: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 8px 6px;
   border-radius: 9px;
   font-size: 0.9em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    background 0.18s,
+    color 0.18s;
 }
 .segmented button.active {
   background: var(--bg);
@@ -2272,21 +2393,21 @@ button.setting-row:hover {
   flex-wrap: wrap;
   gap: 8px;
 }
-.swatch {
+.style-swatch {
   width: 32px;
   height: 32px;
   border-radius: 50%;
   border: 2px solid transparent;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
 }
-.swatch.wide {
+.style-swatch.wide {
   width: 52px;
   border-radius: 10px;
 }
-.swatch.none {
+.style-swatch.none {
   background: repeating-linear-gradient(45deg, var(--bg-secondary), var(--bg-secondary) 4px, transparent 4px, transparent 8px);
 }
-.swatch.active {
+.style-swatch.active {
   border-color: var(--accent);
   outline: 2px solid var(--bg);
   outline-offset: -4px;

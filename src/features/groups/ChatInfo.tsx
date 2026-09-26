@@ -15,6 +15,7 @@ import {
   resetInvite,
   setAdmin,
   setChatPrefs,
+  setForum,
   updateChatInfo,
 } from '../../supabase/api';
 import { onDbEvent } from '../../supabase/realtime';
@@ -65,10 +66,12 @@ function MemberRow({ chat, member, me, onChanged }: { chat: Chat; member: Member
   const fail = (e: unknown) => showToast(t(errorKey(e)));
 
   const items: MenuItem[] = [];
+  // Админ сервиса назначает админов в любой группе и канале.
+  const globalAdmin = useApp((s) => s.profile?.role === 'admin');
   const iAmOwner = chat.myRole === 'owner';
-  const canManage = chat.myRole === 'owner' || chat.myRole === 'admin';
+  const canManage = chat.myRole === 'owner' || chat.myRole === 'admin' || globalAdmin;
   if (canManage && uid !== me && member.role !== 'owner') {
-    if (iAmOwner) {
+    if (iAmOwner || globalAdmin) {
       const admin = member.role === 'admin';
       items.push({
         icon: admin ? 'user' : 'shield',
@@ -76,7 +79,7 @@ function MemberRow({ chat, member, me, onChanged }: { chat: Chat; member: Member
         onClick: () => void setAdmin(chat.id, uid, !admin).then(onChanged).catch(fail),
       });
     }
-    if (member.role === 'member' || iAmOwner) {
+    if ((member.role === 'member' && chat.myRole === 'admin') || iAmOwner) {
       items.push({
         icon: 'trash',
         label: t('groups.removeMember'),
@@ -208,6 +211,23 @@ function ChatInfo({ chat, me }: { chat: Chat; me: string }) {
               <Switch
                 checked={!chat.muted}
                 onChange={(on) => void setChatPrefs(chat.id, { muted: !on }).then(() => refreshChats(0))}
+              />
+            </div>
+          )}
+          {chat.type === 'group' && (isAdmin || isGlobalAdmin) && (
+            <div className="info-item">
+              <Icon name="hash" />
+              <div className="grow">
+                <div>{t('topics.toggle')}</div>
+                <div className="muted small">{t('topics.toggleHint')}</div>
+              </div>
+              <Switch
+                checked={chat.forum}
+                onChange={(on) =>
+                  void setForum(chat.id, on)
+                    .then(() => refreshChats(0))
+                    .catch(fail)
+                }
               />
             </div>
           )}

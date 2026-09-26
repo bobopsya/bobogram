@@ -69,7 +69,8 @@
     "upload": "Could not upload the file",
     "spamblock": "You are spam-blocked and can’t message first",
     "profileLocked": "An admin has locked your profile",
-    "protectedUser": "Only the owner can change this user"
+    "protectedUser": "Only the owner can change this user",
+    "verifiedOnly": "Only verified users can message this person"
   },
   "chats": {
     "title": "Chats",
@@ -158,7 +159,8 @@
     "callCancelled": "Cancelled call",
     "info": "Info",
     "failed": "Not sent",
-    "retry": "Retry"
+    "retry": "Retry",
+    "verifiedOnly": "Only verified users can message this person"
   },
   "system": {
     "created": "{{name}} created “{{title}}”",
@@ -347,7 +349,9 @@
     "coOwner": "co-owner",
     "makeDeveloper": "Give developer badge",
     "removeDeveloper": "Remove developer badge",
-    "protected": "Only the owner can manage"
+    "protected": "Only the owner can manage",
+    "dmVerifiedOnlyOn": "Only verified can message",
+    "dmVerifiedOnlyOff": "Everyone can message"
   },
   "notify": {
     "newMessage": "New message",
@@ -489,5 +493,25 @@
     "autoHint": "Every new post instantly gets roughly this many views and reactions.",
     "turnOff": "Turn off",
     "autoOff": "Auto-boost is off"
+  },
+  "topics": {
+    "general": "General",
+    "new": "New topic",
+    "create": "Create",
+    "edit": "Edit topic",
+    "name": "Topic name",
+    "namePlaceholder": "e.g. “Games”",
+    "close": "Close topic",
+    "reopen": "Reopen topic",
+    "delete": "Delete topic",
+    "deleteConfirm": "Delete topic “{{title}}” with all its messages?",
+    "count_one": "{{count}} topic",
+    "count_other": "{{count}} topics",
+    "emptyHint": "Create topics with the “+” button above — e.g. News, Games, Chat.",
+    "toggle": "Topics",
+    "toggleHint": "Split the group into topics, like in Telegram",
+    "closedBar": "Topic is closed — only admins can post",
+    "closedError": "Topic is closed",
+    "tooMany": "Too many topics (max 100)"
   }
 }

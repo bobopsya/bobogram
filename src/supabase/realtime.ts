@@ -6,7 +6,15 @@ import { supabase } from './client';
  * Supabase сам отфильтрует строки по правилам доступа: придут только мои чаты, сообщения и звонки.
  */
 export type DbEvent = {
-  table: 'messages' | 'chats' | 'chat_members' | 'profiles' | 'calls' | 'call_candidates' | 'nft_usernames';
+  table:
+    | 'messages'
+    | 'chats'
+    | 'chat_members'
+    | 'profiles'
+    | 'calls'
+    | 'call_candidates'
+    | 'nft_usernames'
+    | 'topics';
   type: 'INSERT' | 'UPDATE' | 'DELETE';
   row: Record<string, unknown>;
   old: Record<string, unknown>;
@@ -42,6 +50,7 @@ export function startDbChannel(): () => void {
     'calls',
     'call_candidates',
     'nft_usernames',
+    'topics',
   ];
   let ch = supabase.channel('db-changes');
   for (const table of tables) {

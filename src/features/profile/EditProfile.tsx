@@ -30,19 +30,12 @@ export function EditProfileScreen() {
     emojiStatus: profile.emojiStatus ?? null,
     profileBg: profile.profileBg ?? null,
   });
-  const [styleBusy, setStyleBusy] = useState(false);
-  const saveStyle = async () => {
-    setStyleBusy(true);
-    try {
-      await setProfileStyle(profile.uid, style);
-      useApp.setState({ profile: { ...profile, ...style } });
-      showToast(t('profile.saved'));
-    } catch (e) {
-      showToast(t(errorKey(e)));
-    } finally {
-      setStyleBusy(false);
-    }
-  };
+  // Стиль (премиум) сохраняется той же кнопкой «Сохранить», что и остальной профиль.
+  const styleChanged =
+    isPremium(profile) &&
+    (style.nameColor !== (profile.nameColor ?? null) ||
+      style.emojiStatus !== (profile.emojiStatus ?? null) ||
+      style.profileBg !== (profile.profileBg ?? null));
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -63,12 +56,18 @@ export function EditProfileScreen() {
     setBusy(true);
     setError(null);
     try {
-      await updateProfile(me, {
-        displayName: name.trim(),
-        bio: bio.trim(),
-        avatar,
-        ...(usernameChanged ? { username } : {}),
-      });
+      if (!locked) {
+        await updateProfile(me, {
+          displayName: name.trim(),
+          bio: bio.trim(),
+          avatar,
+          ...(usernameChanged ? { username } : {}),
+        });
+      }
+      if (styleChanged) {
+        await setProfileStyle(profile.uid, style);
+        useApp.setState((st) => ({ profile: st.profile ? { ...st.profile, ...style } : st.profile }));
+      }
       showToast(t('profile.saved'));
       navigate(-1);
     } catch (err) {
@@ -87,7 +86,7 @@ export function EditProfileScreen() {
           <button
             className="icon-btn"
             onClick={save}
-            disabled={!canSave || busy || locked}
+            disabled={busy || (locked ? !styleChanged : !canSave)}
             aria-label={t('common.save')}
           >
             <Icon name="check" />
@@ -114,17 +113,17 @@ export function EditProfileScreen() {
                 e.target.value = '';
               }}
             />
-          <div className="row gap">
-            <button className="btn btn-text" onClick={() => fileRef.current?.click()}>
-              {t('profile.changeAvatar')}
-            </button>
-            {avatar && (
-                <button className="btn btn-text danger" onClick={() => setAvatar(null)}>
-                {t('profile.removeAvatar')}
+            <div className="row gap">
+              <button className="btn btn-text" onClick={() => fileRef.current?.click()}>
+                {t('profile.changeAvatar')}
               </button>
-            )}
+              {avatar && (
+                <button className="btn btn-text danger" onClick={() => setAvatar(null)}>
+                  {t('profile.removeAvatar')}
+                </button>
+              )}
+            </div>
           </div>
-        </div>
 
           <label className="field">
             <span className="field-label">{t('auth.displayName')}</span>
@@ -150,12 +149,7 @@ export function EditProfileScreen() {
         </fieldset>
         <div className="section-title">{t('style.title')}</div>
         {isPremium(profile) ? (
-          <>
-            <StylePicker value={style} onChange={setStyle} />
-            <button className="btn btn-block" onClick={() => void saveStyle()} disabled={styleBusy}>
-              {t('common.save')}
-            </button>
-          </>
+          <StylePicker value={style} onChange={setStyle} />
         ) : (
           <button className="info-item" onClick={() => navigate('/settings/premium')}>
             <Icon name="star" />
@@ -163,7 +157,11 @@ export function EditProfileScreen() {
           </button>
         )}
         {error && <p className="form-error">{error}</p>}
-        <button className="btn btn-primary btn-block" onClick={save} disabled={!canSave || busy || locked}>
+        <button
+          className="btn btn-primary btn-block"
+          onClick={save}
+          disabled={busy || (locked ? !styleChanged : !canSave)}
+        >
           {t('common.save')}
         </button>
       </div>

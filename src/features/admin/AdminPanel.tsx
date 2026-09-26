@@ -13,6 +13,7 @@ import {
   adminSetRole,
   adminSetSpamblock,
   adminSetProfileLock,
+  adminSetDmVerifiedOnly,
   ownerSetCoOwner,
   ownerSetDeveloper,
   getOwnerId,
@@ -221,6 +222,12 @@ function UsersTab({ q }: { q: string }) {
           act(adminSetProfileLock(u.uid, !u.profileLocked), u.uid, { profileLocked: !u.profileLocked }),
       });
     }
+    list.push({
+      icon: 'check',
+      label: u.dmVerifiedOnly ? t('admin.dmVerifiedOnlyOff') : t('admin.dmVerifiedOnlyOn'),
+      onClick: () =>
+        act(adminSetDmVerifiedOnly(u.uid, !u.dmVerifiedOnly), u.uid, { dmVerifiedOnly: !u.dmVerifiedOnly }),
+    });
     list.push({ icon: 'gem', label: t('nft.menu'), onClick: () => setNftFor(u) });
     if (u.uid !== me && !isOwner) {
       list.push({
@@ -314,6 +321,7 @@ function UsersTab({ q }: { q: string }) {
                   {u.nftUsernames.length > 0 && ` · 💎 ${u.nftUsernames.length}`}
                   {isSpamblocked(u) && ` · 🚫 ${t('admin.spamblocked')}`}
                   {u.profileLocked && ` · 🔒`}
+                  {u.dmVerifiedOnly && ` · ✔️`}
                   {u.uid === ownerId && ` · 👑 ${t('admin.owner')}`}
                   {u.coOwner && ` · 🤝 ${t('admin.coOwner')}`}
                   {u.banned && ` · ${t('admin.banned')}`}

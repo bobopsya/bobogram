@@ -17,7 +17,7 @@ export function StylePicker({
       <div className="swatches">
         <button
           type="button"
-          className={!value.nameColor ? 'swatch none active' : 'swatch none'}
+          className={!value.nameColor ? 'style-swatch none active' : 'style-swatch none'}
           onClick={() => onChange({ ...value, nameColor: null })}
           aria-label={t('style.none')}
         />
@@ -25,7 +25,7 @@ export function StylePicker({
           <button
             type="button"
             key={c.id}
-            className={value.nameColor === c.id ? 'swatch active' : 'swatch'}
+            className={value.nameColor === c.id ? 'style-swatch active' : 'style-swatch'}
             style={{ background: c.css }}
             onClick={() => onChange({ ...value, nameColor: c.id })}
             aria-label={c.id}
@@ -47,7 +47,7 @@ export function StylePicker({
       <div className="swatches">
         <button
           type="button"
-          className={!value.profileBg ? 'swatch wide none active' : 'swatch wide none'}
+          className={!value.profileBg ? 'style-swatch wide none active' : 'style-swatch wide none'}
           onClick={() => onChange({ ...value, profileBg: null })}
           aria-label={t('style.none')}
         />
@@ -55,7 +55,7 @@ export function StylePicker({
           <button
             type="button"
             key={b.id}
-            className={value.profileBg === b.id ? 'swatch wide active' : 'swatch wide'}
+            className={value.profileBg === b.id ? 'style-swatch wide active' : 'style-swatch wide'}
             style={{ background: b.css }}
             onClick={() => onChange({ ...value, profileBg: b.id })}
             aria-label={b.id}

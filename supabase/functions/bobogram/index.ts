@@ -67,9 +67,17 @@ async function sendTo(userIds: string[], payload: Payload): Promise<SendResult> 
   const result: SendResult = { sent: 0, errors: [] };
   if (!userIds.length) return result;
   await getVapid();
-  const { data: subs } = await admin.from('push_subscriptions').select('endpoint, p256dh, auth').in('user_id', userIds);
+  const { data: subs } = await admin
+    .from('push_subscriptions')
+    .select('endpoint, p256dh, auth, active_until')
+    .in('user_id', userIds);
+  const now = Date.now();
+  // Приложение открыто на этом устройстве — сообщение и так видно, звук играет в самом приложении.
+  const targets = (subs ?? []).filter(
+    (s) => payload.kind === 'call' || !s.active_until || Date.parse(s.active_until) <= now,
+  );
   await Promise.all(
-    (subs ?? []).map(async (s) => {
+    targets.map(async (s) => {
       try {
         await webpush.sendNotification(
           { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
@@ -91,11 +99,11 @@ async function sendTo(userIds: string[], payload: Payload): Promise<SendResult> 
 async function pushMessage(id: string) {
   const { data: msg } = await admin
     .from('messages')
-    .select('id, chat_id, sender_id, text, call, system, media')
+    .select('id, chat_id, sender_id, text, call, system, media, silent')
     .eq('id', id)
     .single();
   const none: SendResult = { sent: 0, errors: [] };
-  if (!msg || msg.system) return none;
+  if (!msg || msg.system || msg.silent) return none;
   const [{ data: chat }, { data: sender }, { data: members }] = await Promise.all([
     admin.from('chats').select('type, title').eq('id', msg.chat_id).single(),
     admin.from('profiles').select('display_name, username').eq('id', msg.sender_id).single(),

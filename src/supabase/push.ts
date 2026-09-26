@@ -49,6 +49,7 @@ export async function enablePush(): Promise<PushState> {
     (await reg.pushManager.getSubscription()) ??
     (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyToBytes(publicKey) }));
   await save(sub);
+  await supabase.rpc('set_push_active', { p_endpoint: sub.endpoint, p_active: true });
   return 'on';
 }
 
@@ -69,5 +70,37 @@ export function usePushRegistration() {
         if (sub && Notification.permission === 'granted') return save(sub);
       })
       .catch(() => undefined);
+  }, [uid]);
+
+  // Пока приложение на экране, сервер не шлёт пуши на это устройство (iOS показывает каждый пуш).
+  useEffect(() => {
+    if (!uid || !supported()) return;
+    let endpoint: string | null = null;
+    const mark = (active: boolean) => {
+      if (!endpoint) return;
+      void supabase.rpc('set_push_active', { p_endpoint: endpoint, p_active: active }).then(
+        () => undefined,
+        () => undefined,
+      );
+    };
+    const tick = () => mark(document.visibilityState === 'visible');
+    const hide = () => mark(false);
+    void currentSubscription()
+      .then((sub) => {
+        endpoint = sub?.endpoint ?? null;
+        tick();
+      })
+      .catch(() => undefined);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') tick();
+    }, 30_000);
+    document.addEventListener('visibilitychange', tick);
+    window.addEventListener('pagehide', hide);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', tick);
+      window.removeEventListener('pagehide', hide);
+      hide();
+    };
   }, [uid]);
 }

@@ -75,7 +75,7 @@ export function useIncomingSounds() {
       if (!last) continue;
       const prev = seen.current.get(chat.id);
       seen.current.set(chat.id, last.id);
-      if (first || prev === last.id || last.senderId === me || last.system || chat.muted) continue;
+      if (first || prev === last.id || last.senderId === me || last.system || last.silent || chat.muted) continue;
       const open = location.pathname === `/c/${chat.id}` && document.visibilityState === 'visible';
       if (!open && Date.now() - last.createdAt < 60_000) play = true;
     }

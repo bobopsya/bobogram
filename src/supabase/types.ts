@@ -29,6 +29,8 @@ export interface UserProfile {
   coOwner: boolean;
   /** Значок разработчика Bobogram (выдаёт владелец). */
   developer: boolean;
+  /** Писать в личку могут только пользователи с галочкой (и админы). */
+  dmVerifiedOnly: boolean;
 }
 
 export function isSpamblocked(p: Pick<UserProfile, 'spamUntil'> | null | undefined): boolean {
@@ -73,6 +75,8 @@ export interface LastMessage {
   system: SystemEvent | null;
   call: CallInfo | null;
   media: { kind: MediaKind } | null;
+  /** Тихое сообщение: без звука и пуша. */
+  silent?: boolean;
 }
 
 export interface Chat {
@@ -102,6 +106,19 @@ export interface Chat {
   othersReadAt: number;
   verified: boolean;
   scam: boolean;
+  /** Группа с темами. */
+  forum: boolean;
+}
+
+/** Тема группы; id null — «Общее» (сообщения без темы). */
+export interface Topic {
+  id: string | null;
+  title: string | null;
+  emoji: string | null;
+  closed: boolean;
+  createdAt: number;
+  lastMessage: LastMessage | null;
+  unread: number;
 }
 
 export interface Member {
@@ -176,6 +193,8 @@ export interface Message {
   /** Накрутка реакций: эмодзи → сколько прибавить. */
   boostReactions: Record<string, number>;
   media: MediaInfo | null;
+  /** Тема группы (null — «Общее» или обычный чат). */
+  topicId?: string | null;
   /** Локальный адрес файла, пока он загружается (только у своих неотправленных). */
   localUrl?: string;
   /** Файл ещё загружается в хранилище. */

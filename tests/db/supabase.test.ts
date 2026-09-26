@@ -901,3 +901,182 @@ describe('накрутка каналов', () => {
     expect(last!.text).toMatch(/Пример: \/boost/);
   });
 });
+
+describe('v6: только с галочкой, админы чатов, пуши', () => {
+  let boss: User, star: User, plain: User, blue: User;
+
+  beforeAll(async () => {
+    boss = await user('v6boss');
+    star = await user('v6star');
+    plain = await user('v6plain');
+    blue = await user('v6blue');
+    await admin.from('profiles').update({ role: 'admin' }).eq('id', boss.id);
+    await admin.from('profiles').update({ verified: true }).eq('id', blue.id);
+  });
+
+  it('писать могут только с галочкой и админы; сам пишет всем', async () => {
+    await fails(rpc(plain, 'admin_set_dm_verified_only', { p_user: star.id, p_on: true }));
+    await rpc(boss, 'admin_set_dm_verified_only', { p_user: star.id, p_on: true });
+    const c1 = await rpc<string>(plain, 'get_or_create_private_chat', { p_other: star.id });
+    await expect(send(plain, c1, 'привет')).rejects.toThrow(/verified only/);
+    const c2 = await rpc<string>(blue, 'get_or_create_private_chat', { p_other: star.id });
+    await send(blue, c2, 'привет');
+    const c3 = await rpc<string>(boss, 'get_or_create_private_chat', { p_other: star.id });
+    await send(boss, c3, 'привет');
+    const c4 = await rpc<string>(star, 'get_or_create_private_chat', { p_other: plain.id });
+    await send(star, c4, 'я пишу всем');
+    // В группах ограничения нет.
+    const g = await rpc<string>(plain, 'create_chat', {
+      p_type: 'group',
+      p_title: 'G',
+      p_members: [star.id],
+    });
+    await send(plain, g, 'в группе можно');
+    await rpc(boss, 'admin_set_dm_verified_only', { p_user: star.id, p_on: false });
+    await send(plain, c1, 'теперь можно');
+  });
+
+  it('админ сервиса назначает админов в чужом канале, обычный участник — нет', async () => {
+    const ch = await rpc<string>(plain, 'create_chat', {
+      p_type: 'channel',
+      p_title: 'Чужой',
+      p_members: [star.id, boss.id],
+    });
+    await fails(rpc(star, 'set_admin', { p_chat: ch, p_user: star.id, p_admin: true }));
+    await rpc(boss, 'set_admin', { p_chat: ch, p_user: star.id, p_admin: true });
+    const { data } = await admin
+      .from('chat_members')
+      .select('role')
+      .eq('chat_id', ch)
+      .eq('user_id', star.id)
+      .single();
+    expect(data!.role).toBe('admin');
+    await send(star, ch, 'пост от нового админа');
+  });
+
+  it('устройство с открытым приложением помечается активным, чужое — не тронуть', async () => {
+    const endpoint = `https://push.example/${crypto.randomUUID()}`;
+    await rpc(plain, 'save_push_subscription', { p_endpoint: endpoint, p_p256dh: 'k', p_auth: 'a' });
+    await rpc(plain, 'set_push_active', { p_endpoint: endpoint, p_active: true });
+    const active = async () =>
+      (await admin.from('push_subscriptions').select('active_until').eq('endpoint', endpoint).single()).data!
+        .active_until as string | null;
+    expect(Date.parse((await active())!)).toBeGreaterThan(Date.now());
+    await rpc(star, 'set_push_active', { p_endpoint: endpoint, p_active: false });
+    expect(await active()).not.toBeNull();
+    await rpc(plain, 'set_push_active', { p_endpoint: endpoint, p_active: false });
+    expect(await active()).toBeNull();
+  });
+});
+
+describe('@claude: фидбек', () => {
+  it('новый пользователь получает тихое сообщение, ответ уходит в логи', async () => {
+    const cl = await user('clbot');
+    await admin
+      .from('profiles')
+      .update({ username: `old${run}` })
+      .ilike('username', 'claude');
+    await admin.from('profiles').update({ username: 'claude' }).eq('id', cl.id);
+    const boss = await user('clboss');
+    await admin.from('profiles').update({ role: 'admin' }).eq('id', boss.id);
+    const logs = await rpc<string>(boss, 'create_chat', { p_type: 'group', p_title: `Логи3${run}` });
+    await send(boss, logs, '/setlogs');
+
+    const u = await user('clfan');
+    const chat = await rpc<string>(u, 'get_or_create_private_chat', { p_other: cl.id });
+    const { data: hello } = await u.db.from('messages').select('text, silent, sender_id').eq('chat_id', chat);
+    expect(hello).toHaveLength(1);
+    expect(hello![0]).toMatchObject({ silent: true, sender_id: cl.id });
+    const chats = await rpc<{ id: string; last_message: { silent: boolean } }[]>(u, 'get_chats');
+    expect(chats.find((c) => c.id === chat)!.last_message.silent).toBe(true);
+
+    await send(u, chat, 'кнопка не работает');
+    const { data: reply } = await u.db
+      .from('messages')
+      .select('text')
+      .eq('chat_id', chat)
+      .eq('silent', false)
+      .eq('sender_id', cl.id);
+    expect(reply!.map((r) => r.text)).toEqual(['Спасибо! Передал команде 👍']);
+    await send(u, chat, 'и ещё');
+    const { count } = await u.db
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('chat_id', chat)
+      .eq('sender_id', cl.id);
+    expect(count).toBe(2);
+    const { data: log } = await boss.db
+      .from('messages')
+      .select('text')
+      .eq('chat_id', logs)
+      .like('text', '🐞%')
+      .order('created_at');
+    expect(log!.map((r) => r.text)).toEqual([
+      `🐞 Фидбек от @${u.name}:\nкнопка не работает`,
+      `🐞 Фидбек от @${u.name}:\nи ещё`,
+    ]);
+    await admin.from('profiles').update({ username: cl.name }).eq('id', cl.id);
+  });
+});
+
+describe('темы в группах', () => {
+  it('админ включает темы и создаёт тему; сообщения делятся по темам; закрытая — только админам', async () => {
+    const own = await user('tpown');
+    const mem = await user('tpmem');
+    const g = await rpc<string>(own, 'create_chat', {
+      p_type: 'group',
+      p_title: 'Форум',
+      p_members: [mem.id],
+    });
+    await fails(rpc(own, 'create_topic', { p_chat: g, p_title: 'Рано' }));
+    await fails(rpc(mem, 'set_forum', { p_chat: g, p_on: true }));
+    await rpc(own, 'set_forum', { p_chat: g, p_on: true });
+    await fails(rpc(mem, 'create_topic', { p_chat: g, p_title: 'Моя' }));
+    const topic = await rpc<string>(own, 'create_topic', { p_chat: g, p_title: 'Игры', p_emoji: '🎮' });
+
+    await send(mem, g, 'в общем');
+    await send(mem, g, 'про игры', { p_topic: topic });
+    const general = await rpc<{ text: string }[]>(own, 'get_messages', {
+      p_chat: g,
+      p_topic: null,
+      p_filter_topic: true,
+    });
+    expect(general.map((m) => m.text).filter(Boolean)).toEqual(['в общем']);
+    const games = await rpc<{ text: string }[]>(own, 'get_messages', {
+      p_chat: g,
+      p_topic: topic,
+      p_filter_topic: true,
+    });
+    expect(games.map((m) => m.text)).toEqual(['про игры']);
+
+    type T = {
+      id: string | null;
+      title: string | null;
+      unread: number;
+      last_message: { text: string } | null;
+    };
+    let topics = await rpc<T[]>(own, 'get_topics', { p_chat: g });
+    expect(topics.map((t) => [t.id, t.title, t.unread, t.last_message?.text])).toEqual([
+      [null, null, 1, 'в общем'],
+      [topic, 'Игры', 1, 'про игры'],
+    ]);
+    await rpc(own, 'mark_topic_read', { p_chat: g, p_topic: topic });
+    topics = await rpc<T[]>(own, 'get_topics', { p_chat: g });
+    expect(topics.map((t) => t.unread)).toEqual([1, 0]);
+
+    await fails(rpc(mem, 'edit_topic', { p_topic: topic, p_title: 'x', p_emoji: null, p_closed: true }));
+    await rpc(own, 'edit_topic', { p_topic: topic, p_title: 'Игры', p_emoji: '🎮', p_closed: true });
+    await expect(send(mem, g, 'нельзя', { p_topic: topic })).rejects.toThrow(/topic closed/);
+    await send(own, g, 'админу можно', { p_topic: topic });
+
+    const other = await rpc<string>(own, 'create_chat', { p_type: 'group', p_title: 'Другая' });
+    await expect(send(own, other, 'чужая тема', { p_topic: topic })).rejects.toThrow(/bad topic/);
+
+    const chats = await rpc<{ id: string; forum: boolean }[]>(mem, 'get_chats');
+    expect(chats.find((c) => c.id === g)!.forum).toBe(true);
+
+    await rpc(own, 'delete_topic', { p_topic: topic });
+    const left = await rpc<{ text: string }[]>(own, 'get_messages', { p_chat: g });
+    expect(left.map((m) => m.text).filter(Boolean)).toEqual(['в общем']);
+  });
+});
