@@ -11,7 +11,7 @@ import { Badges } from '../../ui/Badges';
 import { callText, systemText } from '../chats/chatMeta';
 import { isEmojiOnly, MessageText } from './MessageText';
 import { PollView } from './Poll';
-import { PhotoMedia, VoiceMedia } from './MediaViews';
+import { FileMedia, PhotoMedia, VideoMedia, VideoNoteMedia, VoiceMedia } from './MediaViews';
 import { nameColorStyle } from '../../app/themes';
 
 const NAME_COLORS = ['#e17076', '#eda86c', '#a695e7', '#7bc862', '#6ec9cb', '#65aadd', '#ee7aae'];
@@ -89,6 +89,9 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
   const big = !msg.replyTo && !msg.forwardedFrom && !msg.media && isEmojiOnly(msg.text);
   const photo = msg.media?.kind === 'photo' ? msg.media : null;
   const voice = msg.media?.kind === 'voice' ? msg.media : null;
+  const video = msg.media?.kind === 'video' ? msg.media : null;
+  const file = msg.media?.kind === 'file' ? msg.media : null;
+  const note = msg.media?.kind === 'video_note' ? msg.media : null;
 
   const meta = (
     <span className="msg-meta">
@@ -131,11 +134,13 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
         className={
           big
             ? 'bubble big-emoji'
-            : photo
-              ? msg.text
-                ? 'bubble has-photo'
-                : 'bubble has-photo only-photo'
-              : 'bubble'
+            : note
+              ? 'bubble video-note-bubble'
+              : photo || video
+                ? msg.text
+                  ? 'bubble has-photo'
+                  : 'bubble has-photo only-photo'
+                : 'bubble'
         }
         onContextMenu={onContext}
         onDoubleClick={(e) => onMenu(msg, e.clientX, e.clientY)}
@@ -187,6 +192,14 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
         ) : (
           <>
             {photo && <PhotoMedia media={photo} uploading={msg.uploading} />}
+            {video && <VideoMedia media={video} uploading={msg.uploading} />}
+            {note && (
+              <div className="msg-note">
+                <VideoNoteMedia media={note} uploading={msg.uploading} />
+                {meta}
+              </div>
+            )}
+            {file && <FileMedia media={file} uploading={msg.uploading} />}
             {voice ? (
               <div className="msg-voice">
                 <VoiceMedia media={voice} own={own} />
@@ -198,13 +211,13 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
                 <PollView msg={msg} canVote />
                 {meta}
               </div>
-            ) : msg.text || !msg.media ? (
+            ) : note ? null : msg.text || !msg.media || file ? (
               <div className="msg-text">
                 <MessageText text={msg.text} highlight={search} />
                 {meta}
               </div>
             ) : (
-              photo && <div className="msg-photo-meta">{meta}</div>
+              (photo || video) && <div className="msg-photo-meta">{meta}</div>
             )}
           </>
         )}

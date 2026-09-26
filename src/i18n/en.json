@@ -458,7 +458,13 @@
     "sendPhotos_other": "Send {{count}} photos",
     "micDenied": "No access to the microphone",
     "badPhoto": "Could not open the photo",
-    "photoOrVideo": "Photo or video"
+    "photoOrVideo": "Photo or video",
+    "video": "Video",
+    "videoNote": "Video message",
+    "file": "File",
+    "tooBig": "File is larger than 50 MB",
+    "recordNote": "Record video message",
+    "cameraDenied": "No camera access"
   },
   "stories": {
     "title": "Stories",

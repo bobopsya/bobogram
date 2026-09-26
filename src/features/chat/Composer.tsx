@@ -14,7 +14,8 @@ import { isTouchDevice } from '../../app/effects';
 import { Icon } from '../../ui/Icon';
 import { Menu, type MenuItem } from '../../ui/Menu';
 import { EmojiPicker } from './EmojiPicker';
-import { canRecordVoice, VoiceRecorder, type VoiceResult } from '../../lib/mediaFiles';
+import { canRecordVoice, VoiceRecorder, type VideoNoteResult, type VoiceResult } from '../../lib/mediaFiles';
+import { VideoNoteCapture } from './VideoNoteCapture';
 import { formatDuration } from '../../lib/time';
 import { useApp } from '../../app/store';
 import { PhotoSendDialog } from './PhotoSendDialog';
@@ -34,6 +35,8 @@ interface Props {
   onEditLast: () => void;
   onSendPhotos: (files: File[], caption: string) => void;
   onSendVoice: (voice: VoiceResult) => void;
+  onSendFile?: (file: File) => void;
+  onSendVideoNote?: (note: VideoNoteResult) => void;
   /** Дополнительные пункты меню скрепки (опрос, файл…). */
   attachItems?: MenuItem[];
   /** Группа: при вводе @ подсказывать участников. */
@@ -41,7 +44,7 @@ interface Props {
 }
 
 const imagesOf = (list: FileList | File[] | null | undefined): File[] =>
-  [...(list ?? [])].filter((f) => f.type.startsWith('image/')).slice(0, 10);
+  [...(list ?? [])].filter((f) => f.type.startsWith('image/') || f.type.startsWith('video/')).slice(0, 10);
 
 /** Делит длинный текст на части по 4096 символов (по возможности по переносу строки). */
 export function splitText(text: string, max = MESSAGE_MAX_LENGTH): string[] {
@@ -73,7 +76,11 @@ export function Composer(props: Props) {
     onSendVoice,
     attachItems = [],
     mentions = false,
+    onSendFile,
+    onSendVideoNote,
   } = props;
+  const docInput = useRef<HTMLInputElement>(null);
+  const [noteOpen, setNoteOpen] = useState(false);
   const [members, setMembers] = useState<string[]>([]);
   const [caret, setCaret] = useState(0);
   useEffect(() => {
@@ -466,6 +473,9 @@ export function Composer(props: Props) {
           onClose={() => setAttachMenu(null)}
           items={[
             { icon: 'image', label: t('media.photoOrVideo'), onClick: () => fileInput.current?.click() },
+            ...(onSendFile
+              ? [{ icon: 'file' as const, label: t('media.file'), onClick: () => docInput.current?.click() }]
+              : []),
             ...attachItems,
           ]}
         />
@@ -487,9 +497,28 @@ export function Composer(props: Props) {
         />
       )}
       <input
+        ref={docInput}
+        type="file"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onSendFile?.(f);
+          e.target.value = '';
+        }}
+      />
+      {noteOpen && onSendVideoNote && (
+        <VideoNoteCapture
+          onCancel={() => setNoteOpen(false)}
+          onSend={(note) => {
+            setNoteOpen(false);
+            onSendVideoNote(note);
+          }}
+        />
+      )}
+      <input
         ref={fileInput}
         type="file"
-        accept="image/*"
+        accept="image/*,video/*"
         multiple
         hidden
         onChange={(e) => {
@@ -544,13 +573,19 @@ export function Composer(props: Props) {
             <button
               className="icon-btn"
               onClick={(e) => {
-                if (attachItems.length === 0) return fileInput.current?.click();
+                const count = attachItems.length + (onSendFile ? 1 : 0);
+                if (count === 0) return fileInput.current?.click();
                 const r = e.currentTarget.getBoundingClientRect();
-                setAttachMenu({ x: r.right - 200, y: r.top - 8 - 44 * (attachItems.length + 1) });
+                setAttachMenu({ x: r.right - 200, y: r.top - 8 - 44 * (count + 1) });
               }}
               aria-label={t('media.attach')}
             >
               <Icon name="attach" />
+            </button>
+          )}
+          {!text.trim() && !editing && canRecordVoice() && onSendVideoNote && (
+            <button className="icon-btn" onClick={() => setNoteOpen(true)} aria-label={t('media.recordNote')}>
+              <Icon name="circle" />
             </button>
           )}
           {!text.trim() && !editing && canRecordVoice() ? (

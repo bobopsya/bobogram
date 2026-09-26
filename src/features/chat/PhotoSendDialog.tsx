@@ -36,9 +36,13 @@ export function PhotoSendDialog({
       }
     >
       <div className={files.length > 1 ? 'photo-previews grid' : 'photo-previews'}>
-        {previews.map((u) => (
-          <img key={u} src={u} alt="" />
-        ))}
+        {previews.map((u, i) =>
+          files[i]?.type.startsWith('video/') ? (
+            <video key={u} src={u} muted playsInline controls preload="metadata" />
+          ) : (
+            <img key={u} src={u} alt="" />
+          ),
+        )}
       </div>
       <label className="field">
         <input

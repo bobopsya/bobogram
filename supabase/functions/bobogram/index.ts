@@ -156,12 +156,14 @@ async function pushMessage(id: string) {
     .filter((m) => m.user_id !== msg.sender_id && (!m.muted || mentioned.has(m.user_id)))
     .map((m) => m.user_id);
   const name = sender.display_name || '@' + sender.username;
-  const media =
-    msg.media?.kind === 'voice'
-      ? '🎤 Голосовое · Voice'
-      : msg.media?.kind === 'photo'
-        ? '📷 Фото · Photo'
-        : '';
+  const labels: Record<string, string> = {
+    voice: '🎤 Голосовое · Voice',
+    photo: '📷 Фото · Photo',
+    video: '🎬 Видео · Video',
+    video_note: '⭕ Видеосообщение · Video message',
+    file: '📎 Файл · File',
+  };
+  const media = msg.media?.kind ? (labels[msg.media.kind] ?? '') : '';
   const caption = truncate(stripMarkup(msg.text ?? ''), 300);
   const text = msg.call ? '📞' : media ? (caption ? `${media}: ${caption}` : media) : caption;
   const group = chat.type === 'group';

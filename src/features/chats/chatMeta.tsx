@@ -123,5 +123,16 @@ export function callText(msg: Pick<Message, 'call' | 'senderId'>, t: TFunction, 
 /** «📷 Фото» / «🎤 Голосовое сообщение» — для превью, ответов и закрепов. */
 export function mediaLabel(msg: { media: { kind: string } | null }, t: TFunction): string {
   if (!msg.media) return '';
-  return msg.media.kind === 'voice' ? '🎤 ' + t('media.voice') : '📷 ' + t('media.photo');
+  switch (msg.media.kind) {
+    case 'voice':
+      return '🎤 ' + t('media.voice');
+    case 'video':
+      return '🎬 ' + t('media.video');
+    case 'video_note':
+      return '⭕ ' + t('media.videoNote');
+    case 'file':
+      return '📎 ' + t('media.file');
+    default:
+      return '📷 ' + t('media.photo');
+  }
 }

@@ -2047,6 +2047,147 @@ button.setting-row:hover {
   gap: 10px;
 }
 
+/* ============ Видео, файлы, кружочки ============ */
+.msg-video {
+  position: relative;
+  background: #000;
+}
+.msg-video video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.msg-video-time {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 0.75em;
+  pointer-events: none;
+}
+.msg-file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 220px;
+  max-width: 300px;
+  padding: 6px 4px 2px;
+  color: inherit;
+  text-decoration: none;
+}
+.msg-file-icon {
+  position: relative;
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.72em;
+  font-weight: 700;
+}
+.msg-file-name,
+.msg-file-size {
+  display: block;
+}
+.msg-file-name {
+  font-weight: 600;
+}
+.bubble.video-note-bubble {
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+.msg-note {
+  position: relative;
+}
+.msg-note .msg-meta {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+}
+.video-note {
+  position: relative;
+  width: min(240px, 60vw);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #000;
+  display: block;
+}
+.video-note video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+.video-note-ring,
+.note-capture-circle svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+  pointer-events: none;
+}
+.video-note-ring circle,
+.note-capture-circle svg circle {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.note-capture {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--app-height);
+  z-index: 110;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  animation: fade-in 0.15s;
+}
+.note-capture-circle {
+  position: relative;
+  width: min(300px, 78vw);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #111;
+}
+.note-capture-circle video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+.note-capture-circle svg circle {
+  stroke: var(--accent);
+}
+.note-capture-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 24px;
+  background: var(--bg);
+}
+
 /* ============ Опросы ============ */
 .poll {
   min-width: min(260px, 70vw);
@@ -2582,7 +2723,8 @@ button.setting-row:hover {
   justify-content: center;
   margin-bottom: 12px;
 }
-.photo-previews img {
+.photo-previews img,
+.photo-previews video {
   max-width: 100%;
   /* с открытой клавиатурой превью меньше, подпись и «Отправить» остаются видны */
   max-height: min(50vh, calc(var(--app-height) * 0.35));
@@ -2594,7 +2736,8 @@ button.setting-row:hover {
   grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
   gap: 6px;
 }
-.photo-previews.grid img {
+.photo-previews.grid img,
+.photo-previews.grid video {
   width: 100%;
   max-height: calc(var(--app-height) * 0.18);
   aspect-ratio: 1;

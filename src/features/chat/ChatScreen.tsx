@@ -19,7 +19,14 @@ import {
 } from '../../supabase/api';
 import { refreshBlocked, refreshChats } from '../../app/session';
 import { discardFailed, queueMedia, queueMessage, retryFailed } from '../../app/outbox';
-import { preparePhoto, type VoiceResult } from '../../lib/mediaFiles';
+import {
+  fileExt,
+  FILE_MAX_BYTES,
+  preparePhoto,
+  readVideoMeta,
+  type VideoNoteResult,
+  type VoiceResult,
+} from '../../lib/mediaFiles';
 import { mediaLabel } from '../chats/chatMeta';
 import { dayLabel, isReadByOthers, isSameDay, toDate } from '../../lib/time';
 import { Icon } from '../../ui/Icon';
@@ -244,6 +251,27 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
     setReplyTo(null);
     for (const [i, file] of files.entries()) {
       try {
+        if (file.type.startsWith('video/')) {
+          if (file.size > FILE_MAX_BYTES) {
+            showToast(t('media.tooBig'));
+            continue;
+          }
+          const meta = await readVideoMeta(file);
+          queueMedia(
+            {
+              id: crypto.randomUUID(),
+              chatId: chat.id,
+              topicId,
+              text: i === 0 ? caption : '',
+              replyTo: i === 0 ? reply : null,
+              media: { kind: 'video', mime: file.type, ...meta },
+            },
+            file,
+            fileExt(file),
+            me,
+          );
+          continue;
+        }
         const photo = await preparePhoto(file);
         queueMedia(
           {
@@ -262,6 +290,46 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
         showToast(t('media.badPhoto'));
       }
     }
+    scrollToBottom(false);
+  };
+
+  const sendFile = (file: File) => {
+    if (file.size > FILE_MAX_BYTES) {
+      showToast(t('media.tooBig'));
+      return;
+    }
+    queueMedia(
+      {
+        id: crypto.randomUUID(),
+        chatId: chat.id,
+        topicId,
+        text: '',
+        replyTo: replyRef(),
+        media: { kind: 'file', mime: file.type || 'application/octet-stream', name: file.name.slice(0, 200) },
+      },
+      file,
+      fileExt(file),
+      me,
+    );
+    setReplyTo(null);
+    scrollToBottom(false);
+  };
+
+  const sendVideoNote = (note: VideoNoteResult) => {
+    queueMedia(
+      {
+        id: crypto.randomUUID(),
+        chatId: chat.id,
+        topicId,
+        text: '',
+        replyTo: replyRef(),
+        media: { kind: 'video_note', mime: note.mime, duration: note.duration, width: 480, height: 480 },
+      },
+      note.blob,
+      note.ext,
+      me,
+    );
+    setReplyTo(null);
     scrollToBottom(false);
   };
 
@@ -520,6 +588,8 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
         onEditLast={editLast}
         onSendPhotos={(files, caption) => void sendPhotos(files, caption)}
         onSendVoice={sendVoice}
+        onSendFile={sendFile}
+        onSendVideoNote={sendVideoNote}
         mentions={chat.type === 'group'}
         attachItems={
           moderatable ? [{ icon: 'poll', label: t('poll.new'), onClick: () => setPollOpen(true) }] : []

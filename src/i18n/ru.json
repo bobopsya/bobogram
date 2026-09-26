@@ -466,7 +466,13 @@
     "sendPhotos_other": "Отправить {{count}} фото",
     "micDenied": "Нет доступа к микрофону",
     "badPhoto": "Не удалось открыть фото",
-    "photoOrVideo": "Фото или видео"
+    "photoOrVideo": "Фото или видео",
+    "video": "Видео",
+    "videoNote": "Видеосообщение",
+    "file": "Файл",
+    "tooBig": "Файл больше 50 МБ",
+    "recordNote": "Записать видеосообщение",
+    "cameraDenied": "Нет доступа к камере"
   },
   "stories": {
     "title": "Сторис",

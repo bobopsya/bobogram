@@ -50,7 +50,11 @@ export function PinnedBar({
   }, [id]);
 
   if (!id) return null;
-  const text = msg?.deleted ? t('chats.deletedMessage') : msg ? stripMarkup(msg.text) || mediaLabel(msg, t) : '…';
+  const text = msg?.deleted
+    ? t('chats.deletedMessage')
+    : msg
+      ? stripMarkup(msg.text) || mediaLabel(msg, t)
+      : '…';
 
   return (
     <div className="pinned-bar">

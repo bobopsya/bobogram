@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { MediaInfo } from '../../supabase/types';
 import { useMediaUrl } from '../../supabase/media';
 import { formatDuration } from '../../lib/time';
-import { WAVEFORM_BARS } from '../../lib/mediaFiles';
+import { formatSize, WAVEFORM_BARS } from '../../lib/mediaFiles';
 import { Icon } from '../../ui/Icon';
 
 const PHOTO_MAX = 320;
@@ -158,5 +158,108 @@ export function VoiceMedia({ media, own }: { media: MediaInfo; own: boolean }) {
         <div className="voice-time">{formatDuration(isPlaying || current > 0 ? current : duration)}</div>
       </div>
     </div>
+  );
+}
+
+/** Видео в пузыре: превью по первому кадру, играет по нажатию со звуком. */
+export function VideoMedia({ media, uploading }: { media: MediaInfo; uploading?: boolean }) {
+  const url = useMediaUrl(media.path);
+  const w = media.width ?? 16;
+  const h = media.height ?? 9;
+  const ratio = Math.min(Math.max(h / w, 0.4), 1.6);
+  return (
+    <div
+      className="msg-photo msg-video"
+      style={{ width: PHOTO_MAX, aspectRatio: `1 / ${ratio}` }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {url && <video src={url} controls playsInline preload="metadata" />}
+      {(uploading || !url) && <span className="msg-photo-spinner" />}
+      {!!media.duration && <span className="msg-video-time">{formatDuration(media.duration)}</span>}
+    </div>
+  );
+}
+
+/** Документ: иконка, имя, размер; нажатие — скачать. */
+export function FileMedia({ media, uploading }: { media: MediaInfo; uploading?: boolean }) {
+  const { t } = useTranslation();
+  const url = useMediaUrl(media.path);
+  const name = media.name || t('media.file');
+  const ext = (/\.([a-z0-9]{1,6})$/i.exec(name)?.[1] ?? 'FILE').toUpperCase();
+  return (
+    <a
+      className="msg-file"
+      href={url}
+      download={name}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => {
+        e.stopPropagation();
+        if (!url) e.preventDefault();
+      }}
+    >
+      <span className="msg-file-icon">
+        {uploading || !url ? <span className="msg-photo-spinner" /> : ext}
+      </span>
+      <span className="min0">
+        <span className="msg-file-name ellipsis">{name}</span>
+        <span className="msg-file-size muted small">{formatSize(media.size)}</span>
+      </span>
+    </a>
+  );
+}
+
+/** Кружок: играет без звука по кругу, по нажатию — со звуком с начала. */
+export function VideoNoteMedia({ media, uploading }: { media: MediaInfo; uploading?: boolean }) {
+  const url = useMediaUrl(media.path);
+  const ref = useRef<HTMLVideoElement>(null);
+  const [sound, setSound] = useState(false);
+  const [progress, setProgress] = useState(0);
+  return (
+    <button
+      type="button"
+      className={sound ? 'video-note playing' : 'video-note'}
+      onClick={(e: MouseEvent) => {
+        e.stopPropagation();
+        const v = ref.current;
+        if (!v) return;
+        if (sound) {
+          v.muted = true;
+          setSound(false);
+        } else {
+          v.currentTime = 0;
+          v.muted = false;
+          void v.play();
+          setSound(true);
+        }
+      }}
+    >
+      {url && (
+        <video
+          ref={ref}
+          src={url}
+          muted
+          autoPlay
+          loop={!sound}
+          playsInline
+          onTimeUpdate={(e) => {
+            const v = e.currentTarget;
+            if (v.duration) setProgress(v.currentTime / v.duration);
+          }}
+          onEnded={() => {
+            if (ref.current) ref.current.muted = true;
+            setSound(false);
+            void ref.current?.play();
+          }}
+        />
+      )}
+      {(uploading || !url) && <span className="msg-photo-spinner" />}
+      {sound && (
+        <svg className="video-note-ring" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="48" pathLength="1" strokeDasharray={`${progress} 1`} />
+        </svg>
+      )}
+      {!sound && !!media.duration && <span className="msg-video-time">{formatDuration(media.duration)}</span>}
+    </button>
   );
 }

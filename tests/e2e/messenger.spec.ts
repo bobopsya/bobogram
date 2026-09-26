@@ -710,6 +710,54 @@ test('группа: @упоминание с подсказкой и опрос'
   await mem.screenshot({ path: 'test-results/poll.png' });
 });
 
+test('файл, видео и видеокружочек', async ({ browser }) => {
+  const alice = await signUp(browser, 'Алиса', `vid${run}`);
+  const { data: a } = await service.from('profiles').select('id').eq('username', `vid${run}`).single();
+  const { data: chat } = await service
+    .from('chats')
+    .insert({ type: 'saved', private_key: `saved_${a!.id}` })
+    .select('id')
+    .single();
+  await service.from('chat_members').insert({ chat_id: chat!.id, user_id: a!.id });
+  await alice.goto(`./#/c/${chat!.id}`);
+  const main = alice.getByRole('main');
+
+  // Файл — через меню скрепки.
+  await main.locator('input[type="file"]:not([accept])').setInputFiles({
+    name: 'отчёт.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4 тест'),
+  });
+  await expect(alice.locator('.msg-file', { hasText: 'отчёт.pdf' })).toBeVisible();
+  const kinds = async () =>
+    (
+      await service
+        .from('messages')
+        .select('media')
+        .eq('chat_id', chat!.id)
+        .not('media', 'is', null)
+        .order('created_at')
+    ).data!.map((m) => (m.media as { kind: string }).kind);
+  await expect.poll(kinds).toEqual(['file']);
+
+  // Видео — тем же окном, что и фото.
+  await main
+    .locator('input[type="file"][accept="image/*,video/*"]')
+    .setInputFiles('tests/e2e/fixtures/clip.mp4');
+  await alice.getByRole('dialog').getByRole('button', { name: 'Отправить' }).click();
+  await expect(alice.locator('.msg-video video')).toBeVisible();
+  await expect.poll(kinds, { timeout: 15_000 }).toEqual(['file', 'video']);
+
+  // Кружок с фейковой камеры.
+  await alice.getByRole('button', { name: 'Записать видеосообщение' }).click();
+  await expect(alice.locator('.note-capture video')).toBeVisible();
+  await alice.waitForTimeout(1500);
+  await alice.locator('.note-capture').getByRole('button', { name: 'Отправить' }).click();
+  await expect(alice.locator('.video-note video')).toBeVisible();
+  await expect.poll(kinds, { timeout: 15_000 }).toEqual(['file', 'video', 'video_note']);
+  await alice.screenshot({ path: 'test-results/media-kinds.png' });
+});
+
 test('без сети сообщение ждёт с «часиками» и уходит, когда сеть появилась', async ({ browser }) => {
   const alice = await signUp(browser, 'Алиса', `aliceo${run}`);
   const bob = await signUp(browser, 'Боб', `bobo${run}`);

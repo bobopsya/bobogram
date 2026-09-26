@@ -140,13 +140,15 @@ export interface ForwardRef {
   chatTitle: string | null;
 }
 
-export type MediaKind = 'photo' | 'voice';
+export type MediaKind = 'photo' | 'voice' | 'video' | 'file' | 'video_note';
 
 export interface MediaInfo {
   kind: MediaKind;
   /** Путь в бакете media: <uid>/<uuid>.<ext>. */
   path: string;
   mime?: string;
+  /** Имя файла (для документов). */
+  name?: string;
   size?: number;
   width?: number;
   height?: number;
