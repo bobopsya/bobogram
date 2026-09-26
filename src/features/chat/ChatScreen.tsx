@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { stripMarkup } from '../../lib/markup';
-import { useNavigate, useParams } from 'react-router';
+import { useLocation, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useApp, useMe } from '../../app/store';
 import type { Chat, Message } from '../../supabase/types';
@@ -11,6 +11,8 @@ import {
   errorKey,
   markRead,
   markTopicRead,
+  searchMessages,
+  setChatTtl,
   setBlocked,
   setChatPrefs,
   setPinnedMessages,
@@ -36,6 +38,7 @@ import { FullScreenSpinner, PageHeader, Spinner } from '../../ui/misc';
 import { useChat, useMessages } from './useChatData';
 import { TopicList, useTopic } from './TopicList';
 import { PollDialog } from './Poll';
+import { ScheduleDialog, ScheduledList } from './Scheduled';
 import { ChatHeader } from './ChatHeader';
 import { MessageBubble } from './MessageBubble';
 import { Composer, splitText } from './Composer';
@@ -114,6 +117,9 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
   const [reporting, setReporting] = useState<Message | null>(null);
   const [channelBoostOpen, setChannelBoostOpen] = useState(false);
   const [pollOpen, setPollOpen] = useState(false);
+  const [ttlMenu, setTtlMenu] = useState<MenuItem[] | null>(null);
+  const [scheduleText, setScheduleText] = useState<string | null>(null);
+  const [scheduledOpen, setScheduledOpen] = useState(false);
   const other = useProfile(chat.type === 'private' ? chat.otherId : null);
   const scam = chat.scam || (chat.type === 'private' && other?.scam === true);
   const [highlight, setHighlight] = useState<string | null>(null);
@@ -206,16 +212,46 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
 
   // ---------- поиск по чату ----------
   const q = search.trim().toLowerCase();
+  // По всей истории на сервере; пока ответа нет — по загруженным сообщениям.
+  const [serverMatches, setServerMatches] = useState<string[] | null>(null);
+  useEffect(() => {
+    setServerMatches(null);
+    if (q.length < 2) return;
+    let cancelled = false;
+    const timer = window.setTimeout(
+      () =>
+        void searchMessages(q, chat.id)
+          .then((hits) => !cancelled && setServerMatches(hits.map((h) => h.id)))
+          .catch(() => undefined),
+      250,
+    );
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [q, chat.id]);
   const matches = useMemo(
     () =>
       q
-        ? visible
+        ? (serverMatches ??
+          visible
             .filter((m) => m.text.toLowerCase().includes(q))
             .map((m) => m.id)
-            .reverse()
+            .reverse())
         : [],
-    [visible, q],
+    [visible, q, serverMatches],
   );
+
+  // Переход к сообщению из глобального поиска.
+  const location = useLocation();
+  const jumpTarget = (location.state as { jump?: string } | null)?.jump;
+  useEffect(() => {
+    if (jumpTarget && loaded) {
+      jumpTo(jumpTarget);
+      navigate(location.pathname, { replace: true, state: null });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jumpTarget, loaded]);
   useEffect(() => setSearchIdx(0), [q]);
   useEffect(() => {
     if (matches[searchIdx]) jumpTo(matches[searchIdx]);
@@ -459,6 +495,24 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
     headerItems.push({ icon: 'star', label: t('boost.menu'), onClick: () => setChannelBoostOpen(true) });
   }
   headerItems.push({ icon: 'search', label: t('chat.searchInChat'), onClick: () => setSearchOpen(true) });
+  if (isMember && chat.type !== 'saved' && (chat.type === 'private' || isChatAdmin)) {
+    headerItems.push({
+      icon: 'timer',
+      label: t('ttl.menu'),
+      onClick: () =>
+        setTtlMenu([
+          { icon: 'close', label: t('ttl.off'), onClick: () => void setChatTtl(chat.id, null).catch(fail) },
+          ...[86400, 604800, 2592000].map((s) => ({
+            icon: 'timer' as const,
+            label: t(`ttl.s${s}`),
+            onClick: () => void setChatTtl(chat.id, s).catch(fail),
+          })),
+        ]),
+    });
+  }
+  if (canPost) {
+    headerItems.push({ icon: 'clock', label: t('schedule.list'), onClick: () => setScheduledOpen(true) });
+  }
   if (moderatable)
     headerItems.push({ icon: 'users', label: t('chat.info'), onClick: () => navigate(`/c/${chat.id}/info`) });
   if (otherUid) {
@@ -590,6 +644,7 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
         onSendVoice={sendVoice}
         onSendFile={sendFile}
         onSendVideoNote={sendVideoNote}
+        onSchedule={(text) => setScheduleText(text)}
         mentions={chat.type === 'group'}
         attachItems={
           moderatable ? [{ icon: 'poll', label: t('poll.new'), onClick: () => setPollOpen(true) }] : []
@@ -824,6 +879,18 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
 
       {boosting && <BoostDialog msg={boosting} onClose={() => setBoosting(null)} />}
       {reporting && <ReportDialog messageId={reporting.id} onClose={() => setReporting(null)} />}
+      {ttlMenu && headerMenu === null && (
+        <Menu x={window.innerWidth - 240} y={64} items={ttlMenu} onClose={() => setTtlMenu(null)} />
+      )}
+      {scheduleText !== null && (
+        <ScheduleDialog
+          chatId={chat.id}
+          topicId={topicId}
+          text={scheduleText}
+          onClose={() => setScheduleText(null)}
+        />
+      )}
+      {scheduledOpen && <ScheduledList chatId={chat.id} onClose={() => setScheduledOpen(false)} />}
       {pollOpen && <PollDialog chatId={chat.id} topicId={topicId} onClose={() => setPollOpen(false)} />}
       {channelBoostOpen && (
         <ChannelBoostDialog

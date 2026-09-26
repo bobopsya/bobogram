@@ -2,7 +2,19 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useApp, useMe } from '../../app/store';
-import { errorKey, openPrivateChat, openSavedChat, searchUsers } from '../../supabase/api';
+import {
+  deleteFolder,
+  errorKey,
+  fetchFolders,
+  openPrivateChat,
+  openSavedChat,
+  searchMessages,
+  searchUsers,
+  type ChatFolder,
+  type SearchHit,
+} from '../../supabase/api';
+import { stripMarkup } from '../../lib/markup';
+import { FolderDialog } from './FolderDialog';
 import { isPremium, matchedUsername, type Chat, type UserProfile } from '../../supabase/types';
 import { Badges } from '../../ui/Badges';
 import { Icon } from '../../ui/Icon';
@@ -49,6 +61,16 @@ export function ChatList() {
   const searchRef = useRef<HTMLInputElement>(null);
   const [q, setQ] = useState('');
   const [people, setPeople] = useState<UserProfile[] | null>(null);
+  const [hits, setHits] = useState<SearchHit[] | null>(null);
+  const [folder, setFolder] = useState<string>('all');
+  const [folders, setFolders] = useState<ChatFolder[]>([]);
+  const [folderEdit, setFolderEdit] = useState<ChatFolder | 'new' | null>(null);
+  const [folderMenu, setFolderMenu] = useState<{ f: ChatFolder; x: number; y: number } | null>(null);
+  const loadFolders = () =>
+    void fetchFolders()
+      .then(setFolders)
+      .catch(() => undefined);
+  useEffect(loadFolders, []);
   const openChatWith = useOpenChatWith();
 
   const activeId = location.pathname.match(/^\/c\/([^/]+)/)?.[1] ?? null;
@@ -75,6 +97,11 @@ export function ChatList() {
       searchUsers(query)
         .then((list) => !cancelled && setPeople(list))
         .catch(() => !cancelled && setPeople([]));
+      if (query.length >= 2) {
+        searchMessages(query)
+          .then((list) => !cancelled && setHits(list))
+          .catch(() => !cancelled && setHits([]));
+      } else setHits(null);
     }, 300);
     return () => {
       cancelled = true;
@@ -82,12 +109,24 @@ export function ChatList() {
     };
   }, [query]);
 
+  const inFolder = useMemo(() => {
+    const custom = folders.find((f) => f.id === folder);
+    return sorted.filter((c) => {
+      if (custom) return custom.chatIds.includes(c.id);
+      if (folder === 'private') return c.type === 'private' || c.type === 'saved';
+      if (folder === 'groups') return c.type === 'group';
+      if (folder === 'channels') return c.type === 'channel';
+      if (folder === 'unread') return c.unread > 0;
+      return true;
+    });
+  }, [sorted, folder, folders]);
+
   const matchedChats = useMemo(() => {
-    if (!query) return sorted;
+    if (!query) return inFolder;
     return sorted.filter((c) =>
       chatSearchText(c, t('chats.savedMessages')).includes(query.replace(/^@/, '')),
     );
-  }, [sorted, query, t]);
+  }, [sorted, inFolder, query, t]);
 
   const menuItems: MenuItem[] = [
     { icon: 'user', label: t('profile.myProfile'), onClick: () => navigate('/settings/profile') },
@@ -134,6 +173,50 @@ export function ChatList() {
 
       <div className="chat-list-scroll">
         {!query && <StoriesBar />}
+        {!query && (
+          <div className="folder-tabs" role="tablist">
+            {[
+              ['all', t('folders.all')],
+              ['private', t('folders.private')],
+              ['groups', t('folders.groups')],
+              ['channels', t('folders.channels')],
+              ['unread', t('folders.unread')],
+            ].map(([id, label]) => (
+              <button
+                key={id}
+                role="tab"
+                aria-selected={folder === id}
+                className={folder === id ? 'folder-tab active' : 'folder-tab'}
+                onClick={() => setFolder(id)}
+              >
+                {label}
+              </button>
+            ))}
+            {folders.map((f) => (
+              <button
+                key={f.id}
+                role="tab"
+                aria-selected={folder === f.id}
+                className={folder === f.id ? 'folder-tab active' : 'folder-tab'}
+                onClick={() => setFolder(f.id)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setFolderMenu({ f, x: e.clientX, y: e.clientY });
+                }}
+                onDoubleClick={(e) => setFolderMenu({ f, x: e.clientX, y: e.clientY })}
+              >
+                {f.title}
+              </button>
+            ))}
+            <button
+              className="folder-tab add"
+              onClick={() => setFolderEdit('new')}
+              aria-label={t('folders.new')}
+            >
+              <Icon name="plus" size={16} />
+            </button>
+          </div>
+        )}
         {query && <div className="list-caption">{t('chats.yourChats')}</div>}
         {!chatsLoaded && chats.length === 0 ? (
           <div className="center-pad">
@@ -155,6 +238,34 @@ export function ChatList() {
           ))
         )}
 
+        {query && hits && hits.length > 0 && (
+          <>
+            <div className="list-caption">{t('chats.messages')}</div>
+            {hits.map((h) => {
+              const c = chats.find((x) => x.id === h.chatId);
+              return (
+                <button
+                  key={h.id}
+                  className="list-item search-hit"
+                  onClick={() => {
+                    setQ('');
+                    navigate(`/c/${h.chatId}`, { state: { jump: h.id } });
+                  }}
+                >
+                  <div className="list-item-body">
+                    <div className="list-item-row">
+                      <span className="list-item-title ellipsis">
+                        {c ? chatSearchTitle(c, t('chats.savedMessages')) : '…'}
+                      </span>
+                      <span className="list-item-time">{new Date(h.createdAt).toLocaleDateString()}</span>
+                    </div>
+                    <div className="list-item-sub ellipsis">{stripMarkup(h.text)}</div>
+                  </div>
+                </button>
+              );
+            })}
+          </>
+        )}
         {query && (
           <>
             <div className="list-caption">{t('chats.people')}</div>
@@ -221,8 +332,42 @@ export function ChatList() {
       )}
 
       {menu && <Menu x={menu.x} y={menu.y} items={menuItems} onClose={() => setMenu(null)} />}
+      {folderMenu && (
+        <Menu
+          x={folderMenu.x}
+          y={folderMenu.y}
+          onClose={() => setFolderMenu(null)}
+          items={[
+            { icon: 'edit', label: t('folders.edit'), onClick: () => setFolderEdit(folderMenu.f) },
+            {
+              icon: 'trash',
+              label: t('folders.delete'),
+              danger: true,
+              onClick: () =>
+                void deleteFolder(folderMenu.f.id).then(() => {
+                  setFolder('all');
+                  loadFolders();
+                }),
+            },
+          ]}
+        />
+      )}
+      {folderEdit && (
+        <FolderDialog
+          folder={folderEdit === 'new' ? null : folderEdit}
+          chats={sorted}
+          onClose={() => setFolderEdit(null)}
+          onSaved={loadFolders}
+        />
+      )}
     </div>
   );
+}
+
+export function chatSearchTitle(chat: Chat, savedLabel: string): string {
+  if (chat.type === 'saved') return savedLabel;
+  if (chat.type === 'private' && chat.otherId) return displayNameOf(peekProfile(chat.otherId), '…');
+  return chat.title ?? '';
 }
 
 function chatSearchText(chat: Chat, savedLabel: string): string {

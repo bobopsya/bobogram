@@ -2188,6 +2188,50 @@ button.setting-row:hover {
   background: var(--bg);
 }
 
+/* ============ Папки и поиск ============ */
+.folder-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 2px 2px 8px;
+  scrollbar-width: none;
+}
+.folder-tabs::-webkit-scrollbar {
+  display: none;
+}
+.folder-tab {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 0.88em;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.folder-tab.active {
+  background: var(--accent);
+  color: #fff;
+}
+.folder-tab.add {
+  padding: 6px 9px;
+  display: inline-flex;
+  align-items: center;
+}
+.folder-chats {
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.folder-chat {
+  gap: 10px;
+  min-height: 48px;
+  cursor: pointer;
+}
+.search-hit .list-item-body {
+  padding-left: 4px;
+}
+
 /* ============ Опросы ============ */
 .poll {
   min-width: min(260px, 70vw);

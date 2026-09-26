@@ -110,6 +110,10 @@ export function systemText(ev: SystemEvent, senderId: string, t: TFunction, me: 
       return t('system.removed', { name, user: nameOf(ev.uid, t, me) });
     case 'renamed':
       return t('system.renamed', { name, title: ev.title });
+    case 'ttl':
+      return ev.seconds
+        ? t('system.ttlOn', { name, period: t(`ttl.s${ev.seconds}`) })
+        : t('system.ttlOff', { name });
   }
 }
 

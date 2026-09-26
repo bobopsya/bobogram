@@ -1087,3 +1087,81 @@ export async function fetchPollVoters(messageId: string): Promise<{ option: numb
   const rows = check(await supabase.rpc('get_poll_voters', { p_message: messageId })) as Row[];
   return rows.map((r) => ({ option: Number(r.option), userId: String(r.user_id) }));
 }
+
+// ---------- поиск ----------
+export interface SearchHit {
+  id: string;
+  chatId: string;
+  senderId: string;
+  text: string;
+  createdAt: number;
+}
+
+export async function searchMessages(query: string, chatId?: string): Promise<SearchHit[]> {
+  const rows = check(
+    await supabase.rpc('search_messages', { p_query: query, p_chat: chatId ?? null, p_limit: 50 }),
+  ) as Row[];
+  return rows.map((r) => ({
+    id: String(r.id),
+    chatId: String(r.chat_id),
+    senderId: String(r.sender_id),
+    text: String(r.text ?? ''),
+    createdAt: ms(r.created_at),
+  }));
+}
+
+// ---------- папки ----------
+export interface ChatFolder {
+  id: string;
+  title: string;
+  chatIds: string[];
+}
+
+export async function fetchFolders(): Promise<ChatFolder[]> {
+  const rows = check(await supabase.from('chat_folders').select('*').order('sort').order('created_at')) as Row[];
+  return rows.map((r) => ({ id: String(r.id), title: String(r.title), chatIds: (r.chat_ids as string[]) ?? [] }));
+}
+
+export async function saveFolder(f: { id?: string; title: string; chatIds: string[] }): Promise<void> {
+  if (f.id) check(await supabase.from('chat_folders').update({ title: f.title, chat_ids: f.chatIds }).eq('id', f.id));
+  else check(await supabase.from('chat_folders').insert({ title: f.title, chat_ids: f.chatIds }));
+}
+
+export async function deleteFolder(id: string): Promise<void> {
+  check(await supabase.from('chat_folders').delete().eq('id', id));
+}
+
+// ---------- отложенные ----------
+export interface ScheduledMessage {
+  id: string;
+  chatId: string;
+  text: string;
+  sendAt: number;
+}
+
+export async function scheduleMessage(chatId: string, text: string, at: Date, topicId?: string | null) {
+  check(
+    await supabase.rpc('schedule_message', {
+      p_chat: chatId,
+      p_text: text,
+      p_at: at.toISOString(),
+      p_topic: topicId ?? null,
+    }),
+  );
+}
+
+export async function fetchScheduled(chatId: string): Promise<ScheduledMessage[]> {
+  const rows = check(
+    await supabase.from('scheduled_messages').select('*').eq('chat_id', chatId).order('send_at'),
+  ) as Row[];
+  return rows.map((r) => ({ id: String(r.id), chatId: String(r.chat_id), text: String(r.text), sendAt: ms(r.send_at) }));
+}
+
+export async function deleteScheduled(id: string): Promise<void> {
+  check(await supabase.from('scheduled_messages').delete().eq('id', id));
+}
+
+// ---------- автоудаление ----------
+export async function setChatTtl(chatId: string, seconds: number | null): Promise<void> {
+  check(await supabase.rpc('set_chat_ttl', { p_chat: chatId, p_seconds: seconds }));
+}

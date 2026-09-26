@@ -110,7 +110,8 @@
     "deletedMessage": "Message deleted",
     "deletedAccount": "Deleted account",
     "noMessages": "No messages",
-    "bot": "bot"
+    "bot": "bot",
+    "messages": "Messages"
   },
   "chat": {
     "placeholder": "Message",
@@ -171,7 +172,9 @@
     "left": "{{name}} left",
     "added": "{{name}} added {{users}}",
     "removed": "{{name}} removed {{user}}",
-    "renamed": "{{name}} renamed the chat to “{{title}}”"
+    "renamed": "{{name}} renamed the chat to “{{title}}”",
+    "ttlOn": "{{name}} enabled auto-delete: {{period}}",
+    "ttlOff": "{{name}} disabled auto-delete"
   },
   "profile": {
     "title": "Profile",
@@ -587,5 +590,37 @@
     "whoVoted": "Who voted",
     "votes_one": "{{count}} vote",
     "votes_other": "{{count}} votes"
+  },
+  "folders": {
+    "all": "All",
+    "private": "Personal",
+    "groups": "Groups",
+    "channels": "Channels",
+    "unread": "Unread",
+    "new": "New folder",
+    "edit": "Edit folder",
+    "delete": "Delete folder",
+    "name": "Folder name",
+    "chats_one": "{{count}} chat",
+    "chats_other": "{{count}} chats"
+  },
+  "schedule": {
+    "title": "Send later",
+    "later": "Send later",
+    "send": "Schedule",
+    "when": "Date and time",
+    "in1h": "In 1 hour",
+    "in3h": "In 3 hours",
+    "tomorrow": "Tomorrow 9:00",
+    "done": "Will be sent {{when}}",
+    "list": "Scheduled messages",
+    "empty": "No scheduled messages"
+  },
+  "ttl": {
+    "menu": "Auto-delete",
+    "off": "Turn off",
+    "s86400": "1 day",
+    "s604800": "1 week",
+    "s2592000": "1 month"
   }
 }

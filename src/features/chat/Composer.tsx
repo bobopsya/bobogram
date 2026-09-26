@@ -13,6 +13,7 @@ import { sendTyping } from '../../supabase/realtime';
 import { isTouchDevice } from '../../app/effects';
 import { Icon } from '../../ui/Icon';
 import { Menu, type MenuItem } from '../../ui/Menu';
+import { useLongPress } from '../../ui/useLongPress';
 import { EmojiPicker } from './EmojiPicker';
 import { canRecordVoice, VoiceRecorder, type VideoNoteResult, type VoiceResult } from '../../lib/mediaFiles';
 import { VideoNoteCapture } from './VideoNoteCapture';
@@ -36,6 +37,8 @@ interface Props {
   onSendPhotos: (files: File[], caption: string) => void;
   onSendVoice: (voice: VoiceResult) => void;
   onSendFile?: (file: File) => void;
+  /** Отправить позже (долгое нажатие или правый клик на «Отправить»). */
+  onSchedule?: (text: string) => void;
   onSendVideoNote?: (note: VideoNoteResult) => void;
   /** Дополнительные пункты меню скрепки (опрос, файл…). */
   attachItems?: MenuItem[];
@@ -78,7 +81,12 @@ export function Composer(props: Props) {
     mentions = false,
     onSendFile,
     onSendVideoNote,
+    onSchedule,
   } = props;
+  const [sendMenu, setSendMenu] = useState<{ x: number; y: number } | null>(null);
+  const sendLongPress = useLongPress(
+    (x, y) => !editing && onSchedule && text.trim() && setSendMenu({ x: x - 200, y: y - 60 }),
+  );
   const docInput = useRef<HTMLInputElement>(null);
   const [noteOpen, setNoteOpen] = useState(false);
   const [members, setMembers] = useState<string[]>([]);
@@ -466,6 +474,24 @@ export function Composer(props: Props) {
           ))}
         </div>
       )}
+      {sendMenu && (
+        <Menu
+          x={sendMenu.x}
+          y={sendMenu.y}
+          onClose={() => setSendMenu(null)}
+          items={[
+            {
+              icon: 'clock',
+              label: t('schedule.later'),
+              onClick: () => {
+                onSchedule?.(text.trim());
+                setText('');
+                drafts.delete(chatId);
+              },
+            },
+          ]}
+        />
+      )}
       {attachMenu && (
         <Menu
           x={attachMenu.x}
@@ -603,6 +629,12 @@ export function Composer(props: Props) {
               disabled={!text.trim()}
               aria-label={t('chat.send')}
               onMouseDown={(e) => e.preventDefault()}
+              onContextMenu={(e) => {
+                if (editing || !onSchedule || !text.trim()) return;
+                e.preventDefault();
+                setSendMenu({ x: e.clientX - 200, y: e.clientY - 60 });
+              }}
+              {...sendLongPress}
             >
               <Icon name={editing ? 'check' : 'send'} />
             </button>

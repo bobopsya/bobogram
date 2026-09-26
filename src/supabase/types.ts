@@ -60,7 +60,8 @@ export type SystemEvent =
   | { kind: 'left' }
   | { kind: 'added'; uids: string[] }
   | { kind: 'removed'; uid: string }
-  | { kind: 'renamed'; title: string };
+  | { kind: 'renamed'; title: string }
+  | { kind: 'ttl'; seconds: number | null };
 
 export interface CallInfo {
   video: boolean;

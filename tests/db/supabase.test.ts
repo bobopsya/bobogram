@@ -1279,3 +1279,72 @@ describe('опросы', () => {
     await fails(rpc(stranger, 'get_poll_voters', { p_message: open }));
   });
 });
+
+describe('поиск, папки, отложенные, исчезающие', () => {
+  it('поиск только по своим чатам, без удалённых', async () => {
+    const a = await user('sra');
+    const b = await user('srb');
+    const c = await user('src');
+    const chat = await rpc<string>(a, 'get_or_create_private_chat', { p_other: b.id });
+    await send(a, chat, `секретный пароль ${run}`);
+    const gone = await send(a, chat, `удалённый пароль ${run}`);
+    await rpc(a, 'delete_message', { p_id: gone, p_for_all: true });
+    type R = { text: string };
+    expect((await rpc<R[]>(b, 'search_messages', { p_query: `пароль ${run}` })).map((r) => r.text)).toEqual([
+      `секретный пароль ${run}`,
+    ]);
+    expect(await rpc<R[]>(c, 'search_messages', { p_query: `пароль ${run}` })).toEqual([]);
+    expect(await rpc<R[]>(b, 'search_messages', { p_query: 'п' })).toEqual([]);
+    expect(await rpc<R[]>(b, 'search_messages', { p_query: '100%_' })).toEqual([]);
+  });
+
+  it('папки — только свои', async () => {
+    const a = await user('fla');
+    const b = await user('flb');
+    const { error } = await a.db.from('chat_folders').insert({ title: 'Работа', chat_ids: [] });
+    expect(error).toBeNull();
+    const { data: theirs } = await b.db.from('chat_folders').select('*');
+    expect(theirs).toEqual([]);
+    const { error: fake } = await a.db.from('chat_folders').insert({ title: 'X', user_id: b.id });
+    expect(fake).not.toBeNull();
+  });
+
+  it('отложенное уходит в своё время от автора', async () => {
+    const a = await user('sca');
+    const b = await user('scb');
+    const chat = await rpc<string>(a, 'get_or_create_private_chat', { p_other: b.id });
+    await fails(rpc(a, 'schedule_message', { p_chat: chat, p_text: 'рано', p_at: new Date().toISOString() }));
+    const at = new Date(Date.now() + 60_000).toISOString();
+    const id = await rpc<string>(a, 'schedule_message', { p_chat: chat, p_text: 'через минуту', p_at: at });
+    const { data: list } = await a.db.from('scheduled_messages').select('id');
+    expect(list!.map((r) => r.id)).toContain(id);
+    await admin
+      .from('scheduled_messages')
+      .update({ send_at: new Date(Date.now() - 1000).toISOString() })
+      .eq('id', id);
+    const { data: jobs } = await admin.rpc('run_scheduled_jobs');
+    expect((jobs as { sent: number }).sent).toBeGreaterThanOrEqual(1);
+    const { data: msgs } = await b.db.from('messages').select('text, sender_id').eq('chat_id', chat);
+    expect(msgs).toContainEqual({ text: 'через минуту', sender_id: a.id });
+  });
+
+  it('автоудаление: таймер ставит участник лички, в группе — админ', async () => {
+    const a = await user('tta');
+    const b = await user('ttb');
+    const chat = await rpc<string>(a, 'get_or_create_private_chat', { p_other: b.id });
+    await fails(rpc(a, 'set_chat_ttl', { p_chat: chat, p_seconds: 60 }));
+    await rpc(b, 'set_chat_ttl', { p_chat: chat, p_seconds: 86400 });
+    const id = await send(a, chat, 'исчезну');
+    const { data: m } = await admin.from('messages').select('expires_at').eq('id', id).single();
+    expect(Date.parse(m!.expires_at as string)).toBeGreaterThan(Date.now() + 86000_000);
+    await admin
+      .from('messages')
+      .update({ expires_at: new Date(Date.now() - 1000).toISOString() })
+      .eq('id', id);
+    await admin.rpc('run_scheduled_jobs');
+    const { data: after } = await admin.from('messages').select('deleted, text').eq('id', id).single();
+    expect(after).toEqual({ deleted: true, text: '' });
+    const g = await rpc<string>(a, 'create_chat', { p_type: 'group', p_title: 'TTL', p_members: [b.id] });
+    await fails(rpc(b, 'set_chat_ttl', { p_chat: g, p_seconds: 86400 }));
+  });
+});

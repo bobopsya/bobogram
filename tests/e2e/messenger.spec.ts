@@ -758,6 +758,64 @@ test('файл, видео и видеокружочек', async ({ browser }) =
   await alice.screenshot({ path: 'test-results/media-kinds.png' });
 });
 
+test('поиск по сообщениям, папки, отложенное, автоудаление', async ({ browser }) => {
+  const alice = await signUp(browser, 'Алиса', `srch${run}`);
+  const bob = await signUp(browser, 'Боб', `srchb${run}`);
+  await alice.getByPlaceholder('Поиск по @имени или чатам').fill(`@srchb${run}`);
+  await alice.locator('.list-item', { hasText: 'Боб' }).first().click();
+  const input = alice.getByPlaceholder('Сообщение');
+  await input.fill(`ключевое слово ${run}`);
+  await input.press('Enter');
+  for (let i = 0; i < 3; i++) {
+    await input.fill(`просто сообщение ${i}`);
+    await input.press('Enter');
+  }
+
+  // Глобальный поиск находит сообщение, клик — переход к нему.
+  await bob.getByPlaceholder('Поиск по @имени или чатам').fill(`слово ${run}`);
+  const hit = bob.locator('.search-hit', { hasText: `ключевое слово ${run}` });
+  await expect(hit).toBeVisible();
+  await hit.click();
+  await expect(bob.locator('.msg-row.highlighted', { hasText: `ключевое слово ${run}` })).toBeVisible();
+
+  // Папки: «Группы» — пусто, «Личные» — есть чат.
+  await bob.goto('./');
+  await bob.getByRole('tab', { name: 'Группы' }).click();
+  await expect(bob.locator('.chat-item', { hasText: 'Алиса' })).toHaveCount(0);
+  await bob.getByRole('tab', { name: 'Личные' }).click();
+  await expect(bob.locator('.chat-item', { hasText: 'Алиса' })).toBeVisible();
+  // Своя папка.
+  await bob.getByRole('button', { name: 'Новая папка' }).click();
+  const dialog = bob.getByRole('dialog');
+  await dialog.getByLabel('Название папки').fill('Друзья');
+  await dialog.locator('.folder-chat', { hasText: 'Алиса' }).locator('input').check();
+  await dialog.getByRole('button', { name: 'Сохранить' }).click();
+  await bob.getByRole('tab', { name: 'Друзья' }).click();
+  await expect(bob.locator('.chat-item', { hasText: 'Алиса' })).toBeVisible();
+
+  // Отложенное: правый клик по «Отправить» → «Отправить позже».
+  await input.fill('напомню позже');
+  await alice.getByRole('button', { name: 'Отправить' }).click({ button: 'right' });
+  await alice.getByRole('menuitem', { name: 'Отправить позже' }).click();
+  await alice.getByRole('dialog').getByRole('button', { name: 'Через час' }).click();
+  await alice.getByRole('dialog').getByRole('button', { name: 'Запланировать' }).click();
+  await expect(alice.locator('.toast', { hasText: 'Сообщение уйдёт' })).toBeVisible();
+  await service
+    .from('scheduled_messages')
+    .update({ send_at: new Date(Date.now() - 1000).toISOString() })
+    .neq('text', '');
+  await service.rpc('run_scheduled_jobs');
+  await expect(alice.locator('.bubble', { hasText: 'напомню позже' })).toBeVisible();
+
+  // Автоудаление в личке.
+  await alice.locator('.chat-header').getByRole('button', { name: 'more' }).click();
+  await alice.getByRole('menuitem', { name: 'Автоудаление' }).click();
+  await alice.getByRole('menuitem', { name: '1 день' }).click();
+  await expect(
+    alice.locator('.msg-row.system', { hasText: 'включил(а) автоудаление: 1 день' }),
+  ).toBeVisible();
+});
+
 test('без сети сообщение ждёт с «часиками» и уходит, когда сеть появилась', async ({ browser }) => {
   const alice = await signUp(browser, 'Алиса', `aliceo${run}`);
   const bob = await signUp(browser, 'Боб', `bobo${run}`);
