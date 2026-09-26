@@ -10,7 +10,6 @@ import { Avatar } from '../../ui/Avatar';
 import { Icon } from '../../ui/Icon';
 import { PageHeader } from '../../ui/misc';
 import { UsernameField, type UsernameStatus } from '../auth/UsernameField';
-import { AddStoryButton } from '../stories/Stories';
 
 export function EditProfileScreen() {
   const { t } = useTranslation();
@@ -124,9 +123,6 @@ export function EditProfileScreen() {
                 {t('profile.removeAvatar')}
               </button>
             )}
-          </div>
-          <div className="action-row">
-            <AddStoryButton />
           </div>
         </div>
 

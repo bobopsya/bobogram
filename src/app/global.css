@@ -657,6 +657,20 @@ select {
   background: none;
   font-size: 16px;
 }
+.story-add-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(45, 156, 219, 0.24);
+}
+.story-add-btn:disabled {
+  opacity: 0.55;
+}
 .chat-list-scroll {
   flex: 1;
   overflow-y: auto;

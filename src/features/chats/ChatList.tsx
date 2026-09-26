@@ -11,7 +11,7 @@ import { Spinner } from '../../ui/misc';
 import { ChatListItem } from './ChatListItem';
 import { displayNameOf, peekProfile } from '../../app/profiles';
 import { refreshChats } from '../../app/session';
-import { StoryAvatar } from '../stories/Stories';
+import { AddStoryButton, StoryAvatar } from '../stories/Stories';
 
 /** Открыть личку с человеком (или «Избранное», если это я). */
 export function useOpenChatWith() {
@@ -130,6 +130,7 @@ export function ChatList() {
             </button>
           )}
         </div>
+        <AddStoryButton variant="icon" />
       </header>
 
       <div className="chat-list-scroll">
