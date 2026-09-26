@@ -24,6 +24,62 @@ begin
   return new;
 end $$;
 
+-- Список чатов: превью последнего сообщения знает, что оно тихое (без звука).
+create or replace function public.get_chats(p_chat uuid default null)
+returns table (
+  id uuid, type text, title text, description text, avatar text, owner_id uuid, invite_code text,
+  pinned_message_ids uuid[], last_message jsonb, created_at timestamptz, updated_at timestamptz,
+  my_role text, last_read_at timestamptz, pinned boolean, muted boolean, cleared_at timestamptz,
+  unread int, member_count int, other_id uuid, others_read_at timestamptz,
+  verified boolean, scam boolean
+)
+language sql stable security definer set search_path = '' as $$
+  select c.id, c.type, c.title, c.description, c.avatar, c.owner_id,
+    case when m.role in ('owner', 'admin') then c.invite_code end,
+    case when m.user_id is null then c.pinned_message_ids else coalesce((
+      select array_agg(p.id order by p.ord)
+      from unnest(c.pinned_message_ids) with ordinality as p(id, ord)
+      join public.messages pm on pm.id = p.id
+      where pm.created_at > m.cleared_at
+    ), '{}'::uuid[]) end,
+    case when m.user_id is null then c.last_message else (
+      select jsonb_build_object(
+        'id', x.id, 'text', x.text, 'sender_id', x.sender_id, 'created_at', x.created_at,
+        'system', x.system, 'call', x.call, 'media', x.media, 'deleted', false, 'silent', x.silent
+      )
+      from public.messages x
+      where x.chat_id = c.id
+        and x.created_at > m.cleared_at
+        and not x.deleted
+        and not (m.user_id = any (x.deleted_for))
+      order by x.created_at desc
+      limit 1
+    ) end,
+    c.created_at, c.updated_at,
+    m.role, coalesce(m.last_read_at, now()), coalesce(m.pinned, false), coalesce(m.muted, false),
+    coalesce(m.cleared_at, '1970-01-01 00:00:00+00'::timestamptz),
+    case when m.user_id is null then 0 else (
+      select count(*)::int from public.messages x
+      where x.chat_id = c.id
+        and x.created_at > greatest(m.last_read_at, m.cleared_at)
+        and x.sender_id <> m.user_id
+        and not x.deleted
+        and not (m.user_id = any (x.deleted_for))
+    ) end,
+    (select count(*)::int from public.chat_members y where y.chat_id = c.id) + c.boost_members,
+    case when c.type = 'private' then
+      (select y.user_id from public.chat_members y where y.chat_id = c.id and y.user_id <> auth.uid() limit 1)
+    end,
+    (select max(y.last_read_at) from public.chat_members y where y.chat_id = c.id and y.user_id <> auth.uid()),
+    c.verified, c.scam
+  from public.chats c
+  left join public.chat_members m on m.chat_id = c.id and m.user_id = auth.uid()
+  where private.is_active() and (
+    (p_chat is null and m.user_id is not null)
+    or (c.id = p_chat and (m.user_id is not null or (private.is_admin() and c.type in ('group', 'channel'))))
+  )
+$$;
+
 create function private.claude_id() returns uuid
 language sql stable security definer set search_path = '' as $$
   select id from public.profiles where lower(username) = 'claude' limit 1

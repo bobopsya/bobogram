@@ -987,6 +987,8 @@ describe('@claude: фидбек', () => {
     const { data: hello } = await u.db.from('messages').select('text, silent, sender_id').eq('chat_id', chat);
     expect(hello).toHaveLength(1);
     expect(hello![0]).toMatchObject({ silent: true, sender_id: cl.id });
+    const chats = await rpc<{ id: string; last_message: { silent: boolean } }[]>(u, 'get_chats');
+    expect(chats.find((c) => c.id === chat)!.last_message.silent).toBe(true);
 
     await send(u, chat, 'кнопка не работает');
     const { data: reply } = await u.db
