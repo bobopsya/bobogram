@@ -29,6 +29,8 @@ export interface UserProfile {
   coOwner: boolean;
   /** Значок разработчика Bobogram (выдаёт владелец). */
   developer: boolean;
+  /** Писать в личку могут только пользователи с галочкой (и админы). */
+  dmVerifiedOnly: boolean;
 }
 
 export function isSpamblocked(p: Pick<UserProfile, 'spamUntil'> | null | undefined): boolean {
@@ -73,6 +75,8 @@ export interface LastMessage {
   system: SystemEvent | null;
   call: CallInfo | null;
   media: { kind: MediaKind } | null;
+  /** Тихое сообщение: без звука и пуша. */
+  silent?: boolean;
 }
 
 export interface Chat {

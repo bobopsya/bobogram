@@ -91,6 +91,14 @@ await query(`
   create schema if not exists private;
   create table if not exists private.bobogram_migrations (name text primary key, applied_at timestamptz not null default now());
 `);
+// Переименованные миграции (дубль номера версии ломал supabase start) — не применять повторно.
+const RENAMED = { '20260930000000_stories.sql': '20261003010000_stories.sql' };
+for (const [from, to] of Object.entries(RENAMED)) {
+  await query(
+    `update private.bobogram_migrations set name = '${to}' where name = '${from}'
+       and not exists (select 1 from private.bobogram_migrations where name = '${to}')`,
+  );
+}
 const applied = new Set((await query('select name from private.bobogram_migrations')).map((r) => r.name));
 const files = readdirSync('supabase/migrations').filter((f) => f.endsWith('.sql')).sort();
 for (const file of files) {

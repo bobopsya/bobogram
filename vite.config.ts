@@ -36,6 +36,20 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        // Библиотеки меняются редко — отдельные файлы остаются в кэше между обновлениями.
+        manualChunks(id: string) {
+          if (!id.includes('node_modules')) return undefined;
+          if (/[\\/]node_modules[\\/](react|react-dom|react-router|scheduler)[\\/]/.test(id)) return 'react';
+          if (id.includes('@supabase')) return 'supabase';
+          if (/i18next/.test(id)) return 'i18n';
+          return undefined;
+        },
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
     include: ['tests/unit/**/*.test.ts'],

@@ -285,7 +285,7 @@ test('админ v4: правка профиля, стиль, спамблок',
   await boss.getByRole('menuitem', { name: 'Изменить профиль' }).click();
   const dialog = boss.getByRole('dialog');
   await dialog.getByLabel('Имя', { exact: true }).fill(`Переименован${run}`);
-  await dialog.locator('.swatch[aria-label="fire"]').click();
+  await dialog.locator('.style-swatch[aria-label="fire"]').click();
   await dialog.getByLabel('Эмодзи-статус').fill('🔥');
   await dialog.getByRole('button', { name: 'Сохранить' }).click();
   await expect(boss.getByText('Профиль обновлён')).toBeVisible();

@@ -58,6 +58,7 @@ export function toProfile(r: Row): UserProfile {
     isBot: r.is_bot === true,
     coOwner: r.co_owner === true,
     developer: r.developer === true,
+    dmVerifiedOnly: r.dm_verified_only === true,
     nftUsernames: ((r.nft_usernames as { username: string }[] | null) ?? []).map((n) => n.username).sort(),
   };
 }
@@ -74,6 +75,7 @@ function toLast(v: unknown): LastMessage | null {
     system: (r.system as LastMessage['system']) ?? null,
     call: (r.call as LastMessage['call']) ?? null,
     media: (r.media as LastMessage['media']) ?? null,
+    silent: r.silent === true,
   };
 }
 
@@ -238,6 +240,7 @@ export function errorKey(err: unknown): string {
   if (code === '42501') return /blocked/.test(msg) ? 'chat.blockedByThem' : 'errors.permission';
   if (msg.includes('spamblock')) return 'errors.spamblock';
   if (msg.includes('profile locked')) return 'errors.profileLocked';
+  if (msg.includes('verified only')) return 'errors.verifiedOnly';
   if (msg.includes('too many reports')) return 'report.tooMany';
   if (msg.includes('protected user')) return 'errors.protectedUser';
   if (msg.includes('too many members')) return 'errors.tooManyMembers';
@@ -666,6 +669,10 @@ export async function adminSetSpamblock(uid: string, until: string | null): Prom
 
 export async function adminSetProfileLock(uid: string, locked: boolean): Promise<void> {
   check(await supabase.rpc('admin_set_profile_lock', { p_user: uid, p_locked: locked }));
+}
+
+export async function adminSetDmVerifiedOnly(uid: string, on: boolean): Promise<void> {
+  check(await supabase.rpc('admin_set_dm_verified_only', { p_user: uid, p_on: on }));
 }
 
 export type ReportReason = 'spam' | 'abuse' | 'scam' | 'other';

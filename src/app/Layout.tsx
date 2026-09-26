@@ -1,4 +1,6 @@
+import { Suspense } from 'react';
 import { Outlet, useLocation } from 'react-router';
+import { Spinner } from '../ui/misc';
 import { ChatList } from '../features/chats/ChatList';
 
 /**
@@ -14,7 +16,15 @@ export function Layout() {
         <ChatList />
       </aside>
       <main className="main">
-        <Outlet />
+        <Suspense
+          fallback={
+            <div className="screen center-pad">
+              <Spinner />
+            </div>
+          }
+        >
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   );

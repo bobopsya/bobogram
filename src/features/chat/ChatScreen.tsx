@@ -469,6 +469,8 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
         {t('chat.unblock')}
       </button>
     );
+  } else if (other?.dmVerifiedOnly && !profile?.verified && profile?.role !== 'admin') {
+    bottom = <div className="bottom-bar muted">{t('chat.verifiedOnly')}</div>;
   } else if (!canPost) {
     bottom = (
       <button className="bottom-bar btn-text" onClick={() => setMuted(!muted)}>

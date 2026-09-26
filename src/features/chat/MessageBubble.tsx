@@ -1,4 +1,4 @@
-import { memo, type MouseEvent } from 'react';
+import { memo, useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isPremium, type ChatType, type Message } from '../../supabase/types';
 import { formatCount } from '../../lib/time';
@@ -59,6 +59,8 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
   const replyAuthor = useProfile(msg.replyTo?.senderId ?? null);
   const longPress = useLongPress((x, y) => onMenu(msg, x, y));
   const date = toDate(msg.createdAt);
+  // Только что пришедшее или отправленное сообщение плавно появляется; история — без анимации.
+  const [fresh] = useState(() => Date.now() - msg.createdAt < 4000);
 
   if (msg.system) {
     return (
@@ -107,6 +109,7 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
   );
 
   let cls = 'msg-row';
+  if (fresh) cls += ' fresh';
   if (own) cls += ' own';
   if (last) cls += ' last';
   if (highlighted) cls += ' highlighted';
