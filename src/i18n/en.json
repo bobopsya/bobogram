@@ -493,5 +493,25 @@
     "autoHint": "Every new post instantly gets roughly this many views and reactions.",
     "turnOff": "Turn off",
     "autoOff": "Auto-boost is off"
+  },
+  "topics": {
+    "general": "General",
+    "new": "New topic",
+    "create": "Create",
+    "edit": "Edit topic",
+    "name": "Topic name",
+    "namePlaceholder": "e.g. “Games”",
+    "close": "Close topic",
+    "reopen": "Reopen topic",
+    "delete": "Delete topic",
+    "deleteConfirm": "Delete topic “{{title}}” with all its messages?",
+    "count_one": "{{count}} topic",
+    "count_other": "{{count}} topics",
+    "emptyHint": "Create topics with the “+” button above — e.g. News, Games, Chat.",
+    "toggle": "Topics",
+    "toggleHint": "Split the group into topics, like in Telegram",
+    "closedBar": "Topic is closed — only admins can post",
+    "closedError": "Topic is closed",
+    "tooMany": "Too many topics (max 100)"
   }
 }

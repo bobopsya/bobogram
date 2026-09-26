@@ -9,6 +9,7 @@ import {
   editMessage,
   errorKey,
   markRead,
+  markTopicRead,
   setBlocked,
   setChatPrefs,
   setPinnedMessages,
@@ -25,6 +26,7 @@ import { Menu, type MenuItem } from '../../ui/Menu';
 import { Modal } from '../../ui/Modal';
 import { FullScreenSpinner, PageHeader, Spinner } from '../../ui/misc';
 import { useChat, useMessages } from './useChatData';
+import { TopicList, useTopic } from './TopicList';
 import { ChatHeader } from './ChatHeader';
 import { MessageBubble } from './MessageBubble';
 import { Composer, splitText } from './Composer';
@@ -42,11 +44,11 @@ const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥', '👎
 const GROUP_GAP_MS = 5 * 60 * 1000;
 
 export function ChatScreen() {
-  const { chatId = '' } = useParams();
-  return <ChatView key={chatId} chatId={chatId} />;
+  const { chatId = '', topicId } = useParams();
+  return <ChatView key={`${chatId}/${topicId ?? ''}`} chatId={chatId} topicParam={topicId} />;
 }
 
-function ChatView({ chatId }: { chatId: string }) {
+function ChatView({ chatId, topicParam }: { chatId: string; topicParam?: string }) {
   const { t } = useTranslation();
   const me = useMe();
   const { chat, status } = useChat(chatId);
@@ -62,22 +64,30 @@ function ChatView({ chatId }: { chatId: string }) {
       </div>
     );
   }
+  // Группа с темами: сначала список тем, переписка — внутри темы («general» — «Общее»).
+  if (chat.forum && chat.type === 'group') {
+    if (topicParam === undefined) return <TopicList chat={chat} />;
+    return <ChatBody chat={chat} me={me} topic={topicParam === 'general' ? null : topicParam} />;
+  }
   return <ChatBody chat={chat} me={me} />;
 }
 
-function ChatBody({ chat, me }: { chat: Chat; me: string }) {
+function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string | null }) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const profile = useApp((s) => s.profile);
   const blocked = useApp((s) => s.blocked);
   const showToast = useApp((s) => s.showToast);
-  const { messages, hasMore, loaded, loadMore } = useMessages(chat.id);
+  const { messages, hasMore, loaded, loadMore } = useMessages(chat.id, topic);
+  const topicId = topic ?? null;
+  const topicInfo = useTopic(chat.id, topic);
 
   const isMember = chat.myRole !== null;
   const isChatAdmin = chat.myRole === 'owner' || chat.myRole === 'admin';
   const moderatable = chat.type === 'group' || chat.type === 'channel';
   const isGlobalAdmin = profile?.role === 'admin';
-  const canPost = isMember && (chat.type !== 'channel' || isChatAdmin);
+  const topicClosed = !!topicInfo?.closed && !isChatAdmin && !isGlobalAdmin;
+  const canPost = isMember && (chat.type !== 'channel' || isChatAdmin) && !topicClosed;
   const canPin = isMember && (!moderatable || isChatAdmin);
   const otherUid = chat.type === 'private' ? chat.otherId : null;
   const iBlocked = !!otherUid && blocked.includes(otherUid);
@@ -130,6 +140,18 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
     document.addEventListener('visibilitychange', mark);
     return () => document.removeEventListener('visibilitychange', mark);
   }, [isMember, loaded, lastId, needsRead, chat.id]);
+
+  // Прочитанность темы: при открытии и при новых сообщениях, пока тема на экране.
+  const lastVisibleId = messages[messages.length - 1]?.id;
+  useEffect(() => {
+    if (topic === undefined || !isMember || !loaded) return;
+    const mark = () => {
+      if (document.visibilityState === 'visible') void markTopicRead(chat.id, topic).catch(() => undefined);
+    };
+    mark();
+    document.addEventListener('visibilitychange', mark);
+    return () => document.removeEventListener('visibilitychange', mark);
+  }, [topic, isMember, loaded, lastVisibleId, chat.id]);
 
   // ---------- подгрузка истории при прокрутке вверх ----------
   useEffect(() => {
@@ -197,7 +219,7 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
     const reply = replyRef();
     splitText(text).forEach((part, i) => {
       queueMessage(
-        { id: crypto.randomUUID(), chatId: chat.id, text: part, replyTo: i === 0 ? reply : null },
+        { id: crypto.randomUUID(), chatId: chat.id, topicId, text: part, replyTo: i === 0 ? reply : null },
         me,
       );
     });
@@ -224,6 +246,7 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
           {
             id: crypto.randomUUID(),
             chatId: chat.id,
+            topicId,
             text: i === 0 ? caption : '',
             replyTo: i === 0 ? reply : null,
             media: { kind: 'photo', mime: 'image/jpeg', width: photo.width, height: photo.height },
@@ -244,6 +267,7 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
       {
         id: crypto.randomUUID(),
         chatId: chat.id,
+        topicId,
         text: '',
         replyTo: replyRef(),
         media: {
@@ -471,6 +495,8 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
     );
   } else if (other?.dmVerifiedOnly && !profile?.verified && profile?.role !== 'admin') {
     bottom = <div className="bottom-bar muted">{t('chat.verifiedOnly')}</div>;
+  } else if (topicClosed) {
+    bottom = <div className="bottom-bar muted">{t('topics.closedBar')}</div>;
   } else if (!canPost) {
     bottom = (
       <button className="bottom-bar btn-text" onClick={() => setMuted(!muted)}>
@@ -500,6 +526,14 @@ function ChatBody({ chat, me }: { chat: Chat; me: string }) {
       <ChatHeader
         chat={chat}
         me={me}
+        topic={
+          topic === undefined
+            ? undefined
+            : {
+                title: topicInfo?.title ?? t('topics.general'),
+                emoji: topicInfo?.emoji ?? (topic ? null : '#'),
+              }
+        }
         onSearch={() => setSearchOpen(true)}
         onCall={(video) => otherUid && startCall(chat.id, otherUid, video)}
         onClear={isMember ? () => setClearConfirm(true) : undefined}

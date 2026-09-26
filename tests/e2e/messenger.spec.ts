@@ -170,11 +170,14 @@ test('фото с подписью и голосовое доходят до с�
     ctx.fillRect(0, 0, 400, 300);
     return c.toDataURL('image/png').split(',')[1];
   });
-  await alice.getByRole('main').locator('input[type="file"]').setInputFiles({
-    name: 'pic.png',
-    mimeType: 'image/png',
-    buffer: Buffer.from(png, 'base64'),
-  });
+  await alice
+    .getByRole('main')
+    .locator('input[type="file"]')
+    .setInputFiles({
+      name: 'pic.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(png, 'base64'),
+    });
   await expect(alice.getByPlaceholder('Подпись')).toHaveValue('Смотри');
   await alice.getByRole('dialog').getByRole('button', { name: 'Отправить' }).click();
 
@@ -391,6 +394,51 @@ test('накрутка канала из меню канала', async ({ browse
       timeout: 15_000,
     },
   );
+});
+
+test('темы в группе: включить, создать, писать в тему', async ({ browser }) => {
+  const own = await signUp(browser, 'Хозяин', `tpo${run}`);
+  const mem = await signUp(browser, 'Гость', `tpm${run}`, true);
+  const title = `Форум ${run}`;
+  await own.goto('./#/new/group');
+  await own.getByRole('button', { name: 'Далее' }).click();
+  await own.getByLabel('Название группы').fill(title);
+  await own.getByRole('button', { name: 'Создать группу' }).click();
+  await own.getByPlaceholder('Сообщение').fill('до тем');
+  await own.keyboard.press('Enter');
+  await expect(own.locator('.bubble', { hasText: 'до тем' })).toBeVisible();
+  const chatId = own.url().split('/c/')[1];
+  const { data: m } = await service.from('profiles').select('id').eq('username', `tpm${run}`).single();
+  await service.from('chat_members').insert({ chat_id: chatId, user_id: m!.id });
+
+  await own.goto(`./#/c/${chatId}/info`);
+  await own.locator('.info-item', { hasText: 'Темы' }).getByRole('switch').click();
+  await own.goto(`./#/c/${chatId}`);
+  await expect(own.locator('.chat-item', { hasText: 'Общее' })).toBeVisible();
+  await own.getByRole('button', { name: 'Новая тема' }).click();
+  await own.getByRole('dialog').getByRole('button', { name: '🎮' }).click();
+  await own.getByLabel('Название темы').fill('Игры');
+  await own.getByRole('dialog').getByRole('button', { name: 'Создать' }).click();
+  await expect(own.locator('.chat-header', { hasText: 'Игры' })).toBeVisible();
+  await own.getByPlaceholder('Сообщение').fill('го в доту');
+  await own.keyboard.press('Enter');
+  await expect(own.locator('.bubble', { hasText: 'го в доту' })).toBeVisible();
+  await expect(own.locator('.bubble', { hasText: 'до тем' })).toHaveCount(0);
+
+  await mem.goto(`./#/c/${chatId}`);
+  const games = mem.locator('.chat-item', { hasText: 'Игры' });
+  await expect(games).toContainText('го в доту');
+  await expect(games.locator('.badge')).toHaveText('1');
+  await mem.screenshot({ path: 'test-results/topics-list.png' });
+  await games.click();
+  await expect(mem.locator('.bubble', { hasText: 'го в доту' })).toBeVisible();
+  await mem.getByPlaceholder('Сообщение').fill('я в деле');
+  await mem.keyboard.press('Enter');
+  await expect(own.locator('.bubble', { hasText: 'я в деле' })).toBeVisible();
+  await mem.locator('.chat-header').getByRole('button', { name: 'Назад' }).click();
+  await mem.locator('.chat-item', { hasText: 'Общее' }).click();
+  await expect(mem.locator('.bubble', { hasText: 'до тем' })).toBeVisible();
+  await expect(mem.locator('.bubble', { hasText: 'го в доту' })).toHaveCount(0);
 });
 
 test('без сети сообщение ждёт с «часиками» и уходит, когда сеть появилась', async ({ browser }) => {

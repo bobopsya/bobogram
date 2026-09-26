@@ -32,6 +32,7 @@ export function queueMessage(m: OutgoingMessage, me: string, extra?: Partial<Mes
     boostViews: 0,
     boostReactions: {},
     media: m.media ?? null,
+    topicId: m.topicId ?? null,
     pending: true,
     ...extra,
   };
@@ -107,6 +108,7 @@ export async function flushOutbox(): Promise<void> {
           forwardedFrom: next.forwardedFrom,
           call: next.call,
           media: next.media,
+          topicId: next.topicId,
         });
         // Показываем настоящее сообщение с сервера сразу, не дожидаясь realtime.
         const saved = await fetchMessage(next.id).catch(() => null);

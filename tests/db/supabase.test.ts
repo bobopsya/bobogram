@@ -1018,3 +1018,65 @@ describe('@claude: фидбек', () => {
     await admin.from('profiles').update({ username: cl.name }).eq('id', cl.id);
   });
 });
+
+describe('темы в группах', () => {
+  it('админ включает темы и создаёт тему; сообщения делятся по темам; закрытая — только админам', async () => {
+    const own = await user('tpown');
+    const mem = await user('tpmem');
+    const g = await rpc<string>(own, 'create_chat', {
+      p_type: 'group',
+      p_title: 'Форум',
+      p_members: [mem.id],
+    });
+    await fails(rpc(own, 'create_topic', { p_chat: g, p_title: 'Рано' }));
+    await fails(rpc(mem, 'set_forum', { p_chat: g, p_on: true }));
+    await rpc(own, 'set_forum', { p_chat: g, p_on: true });
+    await fails(rpc(mem, 'create_topic', { p_chat: g, p_title: 'Моя' }));
+    const topic = await rpc<string>(own, 'create_topic', { p_chat: g, p_title: 'Игры', p_emoji: '🎮' });
+
+    await send(mem, g, 'в общем');
+    await send(mem, g, 'про игры', { p_topic: topic });
+    const general = await rpc<{ text: string }[]>(own, 'get_messages', {
+      p_chat: g,
+      p_topic: null,
+      p_filter_topic: true,
+    });
+    expect(general.map((m) => m.text).filter(Boolean)).toEqual(['в общем']);
+    const games = await rpc<{ text: string }[]>(own, 'get_messages', {
+      p_chat: g,
+      p_topic: topic,
+      p_filter_topic: true,
+    });
+    expect(games.map((m) => m.text)).toEqual(['про игры']);
+
+    type T = {
+      id: string | null;
+      title: string | null;
+      unread: number;
+      last_message: { text: string } | null;
+    };
+    let topics = await rpc<T[]>(own, 'get_topics', { p_chat: g });
+    expect(topics.map((t) => [t.id, t.title, t.unread, t.last_message?.text])).toEqual([
+      [null, null, 1, 'в общем'],
+      [topic, 'Игры', 1, 'про игры'],
+    ]);
+    await rpc(own, 'mark_topic_read', { p_chat: g, p_topic: topic });
+    topics = await rpc<T[]>(own, 'get_topics', { p_chat: g });
+    expect(topics.map((t) => t.unread)).toEqual([1, 0]);
+
+    await fails(rpc(mem, 'edit_topic', { p_topic: topic, p_title: 'x', p_emoji: null, p_closed: true }));
+    await rpc(own, 'edit_topic', { p_topic: topic, p_title: 'Игры', p_emoji: '🎮', p_closed: true });
+    await expect(send(mem, g, 'нельзя', { p_topic: topic })).rejects.toThrow(/topic closed/);
+    await send(own, g, 'админу можно', { p_topic: topic });
+
+    const other = await rpc<string>(own, 'create_chat', { p_type: 'group', p_title: 'Другая' });
+    await expect(send(own, other, 'чужая тема', { p_topic: topic })).rejects.toThrow(/bad topic/);
+
+    const chats = await rpc<{ id: string; forum: boolean }[]>(mem, 'get_chats');
+    expect(chats.find((c) => c.id === g)!.forum).toBe(true);
+
+    await rpc(own, 'delete_topic', { p_topic: topic });
+    const left = await rpc<{ text: string }[]>(own, 'get_messages', { p_chat: g });
+    expect(left.map((m) => m.text).filter(Boolean)).toEqual(['в общем']);
+  });
+});

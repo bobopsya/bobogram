@@ -15,6 +15,7 @@ import {
   resetInvite,
   setAdmin,
   setChatPrefs,
+  setForum,
   updateChatInfo,
 } from '../../supabase/api';
 import { onDbEvent } from '../../supabase/realtime';
@@ -210,6 +211,23 @@ function ChatInfo({ chat, me }: { chat: Chat; me: string }) {
               <Switch
                 checked={!chat.muted}
                 onChange={(on) => void setChatPrefs(chat.id, { muted: !on }).then(() => refreshChats(0))}
+              />
+            </div>
+          )}
+          {chat.type === 'group' && (isAdmin || isGlobalAdmin) && (
+            <div className="info-item">
+              <Icon name="hash" />
+              <div className="grow">
+                <div>{t('topics.toggle')}</div>
+                <div className="muted small">{t('topics.toggleHint')}</div>
+              </div>
+              <Switch
+                checked={chat.forum}
+                onChange={(on) =>
+                  void setForum(chat.id, on)
+                    .then(() => refreshChats(0))
+                    .catch(fail)
+                }
               />
             </div>
           )}

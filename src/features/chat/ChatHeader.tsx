@@ -49,9 +49,11 @@ interface Props {
   onCall: (video: boolean) => void;
   onClear?: () => void;
   onMenu: (x: number, y: number) => void;
+  /** Открыта тема группы: её название в шапке, «назад» — к списку тем. */
+  topic?: { title: string; emoji: string | null };
 }
 
-export function ChatHeader({ chat, me, onSearch, onCall, onClear, onMenu }: Props) {
+export function ChatHeader({ chat, me, onSearch, onCall, onClear, onMenu, topic }: Props) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const meta = useChatMeta(chat);
@@ -76,6 +78,8 @@ export function ChatHeader({ chat, me, onSearch, onCall, onClear, onMenu }: Prop
     subtitle = t('chats.subscribers', { count: chat.memberCount });
   }
 
+  if (topic && typing.length === 0) subtitle = meta.title;
+
   const openInfo = () => {
     if (chat.type === 'saved') return;
     if (chat.type === 'private' && meta.otherUid) navigate(`/profile/${meta.otherUid}`);
@@ -84,17 +88,27 @@ export function ChatHeader({ chat, me, onSearch, onCall, onClear, onMenu }: Prop
 
   return (
     <header className="topbar chat-header">
-      <button className="icon-btn back-btn" onClick={() => navigate('/')} aria-label={t('common.back')}>
+      <button
+        className={topic ? 'icon-btn' : 'icon-btn back-btn'}
+        onClick={() => navigate(topic ? `/c/${chat.id}` : '/')}
+        aria-label={t('common.back')}
+      >
         <Icon name="back" />
       </button>
       <button className="chat-header-main plain" onClick={openInfo}>
-        <ChatAvatar meta={meta} size={40} />
+        {topic ? (
+          <span className="topic-icon" style={{ width: 40, height: 40 }}>
+            {topic.emoji ?? '💬'}
+          </span>
+        ) : (
+          <ChatAvatar meta={meta} size={40} />
+        )}
         <div className="chat-header-text">
           <div className="chat-header-title">
-            <span className="ellipsis" style={meta.nameStyle}>
-              {meta.title}
+            <span className="ellipsis" style={topic ? undefined : meta.nameStyle}>
+              {topic ? topic.title : meta.title}
             </span>
-            <Badges {...meta.badges} />
+            {!topic && <Badges {...meta.badges} />}
           </div>
           {subtitle && (
             <div className={accent ? 'chat-header-sub accent-text' : 'chat-header-sub'}>{subtitle}</div>

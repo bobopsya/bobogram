@@ -1747,6 +1747,50 @@ button.setting-row:hover {
   }
 }
 
+/* ============ Темы в группах ============ */
+.topic-list {
+  padding: 4px 6px;
+}
+.topic-hint {
+  padding: 16px 24px;
+}
+.topic-icon {
+  flex-shrink: 0;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--bg-secondary);
+}
+.chat-header .topic-icon {
+  font-size: 20px;
+}
+.topic-emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
+}
+.topic-emoji {
+  aspect-ratio: 1;
+  border-radius: 12px;
+  font-size: 22px;
+  border: 2px solid transparent;
+  background: var(--bg-secondary);
+}
+.topic-emoji.active {
+  border-color: var(--accent);
+}
+@media (max-width: 380px) {
+  .topic-emoji-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
 /* ============ Плавность ============ */
 :root {
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);

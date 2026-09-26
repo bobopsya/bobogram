@@ -10,6 +10,7 @@ import type {
   ReplyRef,
   Story,
   StorySummary,
+  Topic,
   UserProfile,
 } from './types';
 import { normalizeUsername } from '../lib/username';
@@ -103,6 +104,7 @@ export function toChat(r: Row): Chat {
     othersReadAt: ms(r.others_read_at),
     verified: r.verified === true,
     scam: r.scam === true,
+    forum: r.forum === true,
   };
 }
 
@@ -157,6 +159,7 @@ export function toMessage(r: Row): Message {
     boostViews: Number(r.boost_views ?? 0),
     boostReactions: (r.boost_reactions as Record<string, number> | null) ?? {},
     media: (r.media as MediaInfo | null) ?? null,
+    topicId: (r.topic_id as string | null) ?? null,
     pending: false,
   };
 }
@@ -241,6 +244,8 @@ export function errorKey(err: unknown): string {
   if (msg.includes('spamblock')) return 'errors.spamblock';
   if (msg.includes('profile locked')) return 'errors.profileLocked';
   if (msg.includes('verified only')) return 'errors.verifiedOnly';
+  if (msg.includes('topic closed')) return 'topics.closedError';
+  if (msg.includes('too many topics')) return 'topics.tooMany';
   if (msg.includes('too many reports')) return 'report.tooMany';
   if (msg.includes('protected user')) return 'errors.protectedUser';
   if (msg.includes('too many members')) return 'errors.tooManyMembers';
@@ -436,12 +441,20 @@ export async function clearChatForMe(chatId: string): Promise<void> {
 // ---------- сообщения ----------
 export const PAGE_SIZE = 50;
 
-export async function fetchMessages(chatId: string, before?: number, count = PAGE_SIZE): Promise<Message[]> {
+/** topic: undefined — все сообщения чата, null — «Общее», id — одна тема. */
+export async function fetchMessages(
+  chatId: string,
+  before?: number,
+  count = PAGE_SIZE,
+  topic?: string | null,
+): Promise<Message[]> {
   const rows = check(
     await supabase.rpc('get_messages', {
       p_chat: chatId,
       p_before: before ? new Date(before).toISOString() : null,
       p_count: count,
+      p_topic: topic ?? null,
+      p_filter_topic: topic !== undefined,
     }),
   ) as Row[];
   return rows.map(toMessage).reverse();
@@ -460,6 +473,7 @@ export interface OutgoingMessage {
   forwardedFrom?: ForwardRef | null;
   call?: Message['call'];
   media?: MediaInfo | null;
+  topicId?: string | null;
 }
 
 export async function sendMessageNow(m: OutgoingMessage): Promise<void> {
@@ -472,6 +486,7 @@ export async function sendMessageNow(m: OutgoingMessage): Promise<void> {
       p_forwarded_from: m.forwardedFrom ?? null,
       p_call: m.call ?? null,
       p_media: m.media ?? null,
+      p_topic: m.topicId ?? null,
     }),
   );
 }
@@ -935,4 +950,38 @@ export async function fetchRingingCalls(me: string): Promise<CallRow[]> {
       .gt('created_at', since),
   ) as Row[];
   return rows.map(toCall);
+}
+
+// ---------- темы в группах ----------
+export async function fetchTopics(chatId: string): Promise<Topic[]> {
+  const rows = check(await supabase.rpc('get_topics', { p_chat: chatId })) as Row[];
+  return rows.map((r) => ({
+    id: (r.id as string | null) ?? null,
+    title: (r.title as string | null) ?? null,
+    emoji: (r.emoji as string | null) ?? null,
+    closed: r.closed === true,
+    createdAt: ms(r.created_at),
+    lastMessage: toLast(r.last_message),
+    unread: Number(r.unread ?? 0),
+  }));
+}
+
+export async function setForum(chatId: string, on: boolean): Promise<void> {
+  check(await supabase.rpc('set_forum', { p_chat: chatId, p_on: on }));
+}
+
+export async function createTopic(chatId: string, title: string, emoji: string | null): Promise<string> {
+  return check(await supabase.rpc('create_topic', { p_chat: chatId, p_title: title, p_emoji: emoji })) as string;
+}
+
+export async function editTopic(id: string, title: string, emoji: string | null, closed: boolean): Promise<void> {
+  check(await supabase.rpc('edit_topic', { p_topic: id, p_title: title, p_emoji: emoji, p_closed: closed }));
+}
+
+export async function deleteTopic(id: string): Promise<void> {
+  check(await supabase.rpc('delete_topic', { p_topic: id }));
+}
+
+export async function markTopicRead(chatId: string, topic: string | null): Promise<void> {
+  check(await supabase.rpc('mark_topic_read', { p_chat: chatId, p_topic: topic }));
 }

@@ -55,6 +55,7 @@ function Messenger() {
           <Route index element={<EmptyMain />} />
           <Route path="c/:chatId" element={<ChatScreen />} />
           <Route path="c/:chatId/info" element={<ChatInfoRoute />} />
+          <Route path="c/:chatId/t/:topicId" element={<ChatScreen />} />
           <Route path="u/:username" element={<UsernameRoute />} />
           <Route path="profile/:uid" element={<ProfileRoute />} />
           <Route path="settings" element={<SettingsScreen />} />
