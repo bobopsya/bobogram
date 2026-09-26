@@ -96,6 +96,21 @@ async function sendTo(userIds: string[], payload: Payload): Promise<SendResult> 
   return result;
 }
 
+/** Текст без разметки (**жирный**, ||спойлер|| и т. д.) — копия src/lib/markup.ts#stripMarkup. */
+function stripMarkup(text: string): string {
+  return text
+    .replace(/```(?:[a-z]*\n)?([\s\S]*?)```/g, '$1')
+    .replace(/\|\|(.+?)\|\|/g, (_, s: string) => '•'.repeat(Math.min(s.length, 8)))
+    .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1')
+    .replace(/\{[a-z]+\|([^{}\n]+)\}/g, '$1')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/~~(.+?)~~/g, '$1')
+    .replace(/--(?=\S)(.+?)(?<=\S)--/g, '$1')
+    .replace(/`([^`\n]+)`/g, '$1')
+    .replace(/^> ?/gm, '');
+}
+
 async function pushMessage(id: string) {
   const { data: msg } = await admin
     .from('messages')
@@ -113,7 +128,7 @@ async function pushMessage(id: string) {
   const recipients = (members ?? []).filter((m) => m.user_id !== msg.sender_id && !m.muted).map((m) => m.user_id);
   const name = sender.display_name || '@' + sender.username;
   const media = msg.media?.kind === 'voice' ? '🎤 Голосовое · Voice' : msg.media?.kind === 'photo' ? '📷 Фото · Photo' : '';
-  const caption = truncate(msg.text ?? '', 300);
+  const caption = truncate(stripMarkup(msg.text ?? ''), 300);
   const text = msg.call ? '📞' : media ? (caption ? `${media}: ${caption}` : media) : caption;
   const group = chat.type === 'group';
   return sendTo(recipients, {

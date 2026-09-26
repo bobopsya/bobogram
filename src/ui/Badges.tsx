@@ -1,5 +1,17 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
+
+/** Подсказка под значком, не выходя за края экрана. */
+function popoverPos(anchor: HTMLElement | null): CSSProperties {
+  const r = anchor?.getBoundingClientRect();
+  if (!r) return {};
+  const width = 220;
+  const left = Math.max(8, Math.min(r.left + r.width / 2 - width / 2, window.innerWidth - width - 8));
+  const below = r.bottom + 6;
+  const vh = window.visualViewport?.height ?? window.innerHeight;
+  return below + 70 > vh ? { left, bottom: vh - r.top + 6, width } : { left, top: below, width };
+}
 
 export interface BadgeFlags {
   verified?: boolean;
@@ -55,12 +67,15 @@ function PopoverBadge({
       onKeyDown={(e) => e.key === 'Enter' && setOpen((v) => !v)}
     >
       {children}
-      {open && (
-        <span className="dev-popover" role="tooltip">
-          <strong>{label}</strong>
-          <span>{hint}</span>
-        </span>
-      )}
+      {open &&
+        // Поверх экрана: строка списка чатов обрезает всё, что вылезает за неё.
+        createPortal(
+          <span className="dev-popover" role="tooltip" style={popoverPos(ref.current)}>
+            <strong>{label}</strong>
+            <span>{hint}</span>
+          </span>,
+          document.body,
+        )}
     </span>
   );
 }

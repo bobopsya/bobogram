@@ -1,4 +1,5 @@
 import { memo, useState, type MouseEvent } from 'react';
+import { stripMarkup } from '../../lib/markup';
 import { useTranslation } from 'react-i18next';
 import type { Chat } from '../../supabase/types';
 import { useApp, useMe } from '../../app/store';
@@ -37,8 +38,9 @@ export const ChatListItem = memo(function ChatListItem({ chat, active, onClick }
     if (last.deleted) preview = t('chats.deletedMessage');
     else if (last.system) preview = systemText(last.system, last.senderId, t, me);
     else if (last.call) preview = callText({ call: last.call, senderId: last.senderId }, t, me);
-    else if (last.media) preview = last.text ? `${mediaLabel(last, t)}, ${last.text}` : mediaLabel(last, t);
-    else preview = last.text;
+    else if (last.media)
+      preview = last.text ? `${mediaLabel(last, t)}, ${stripMarkup(last.text)}` : mediaLabel(last, t);
+    else preview = stripMarkup(last.text);
   }
   let prefix = '';
   if (last && !last.system && chat.type !== 'saved' && chat.type !== 'channel') {

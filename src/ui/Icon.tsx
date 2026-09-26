@@ -67,6 +67,12 @@ const ICONS = {
   ),
   plus: <path d="M12 5v14M5 12h14" />,
   hash: <path d="M4 9h16M4 15h16M10 3L8 21M16 3l-2 18" />,
+  info: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v6M12 7.5v.5" />
+    </>
+  ),
   users: (
     <>
       <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />

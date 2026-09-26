@@ -37,6 +37,7 @@ import { NftDialog } from './NftDialog';
 import { ReportsTab, StatsTab } from './AdminExtras';
 import { ChannelBoostDialog } from './ChannelBoostDialog';
 import { nameColorStyle } from '../../app/themes';
+import { UserInfoDialog } from './UserInfoDialog';
 import { AdminEditProfileDialog } from './AdminEditProfileDialog';
 
 type AdminChat = Awaited<ReturnType<typeof adminListChats>>[number];
@@ -113,6 +114,7 @@ function UsersTab({ q }: { q: string }) {
   const [resetFor, setResetFor] = useState<UserProfile | null>(null);
   const [nftFor, setNftFor] = useState<UserProfile | null>(null);
   const [editFor, setEditFor] = useState<UserProfile | null>(null);
+  const [infoFor, setInfoFor] = useState<UserProfile | null>(null);
   const [subMenu, setSubMenu] = useState<{ items: MenuItem[]; x: number; y: number } | null>(null);
   const lastMenuPos = useRef<{ x: number; y: number } | null>(null);
   const [ownerId, setOwnerId] = useState<string | null>(null);
@@ -177,6 +179,7 @@ function UsersTab({ q }: { q: string }) {
       });
     }
     const list: MenuItem[] = [
+      { icon: 'info', label: t('admin.info'), onClick: () => setInfoFor(u) },
       ...ownerItems,
       { icon: 'edit', label: t('admin.editProfile'), onClick: () => setEditFor(u) },
       {
@@ -369,6 +372,13 @@ function UsersTab({ q }: { q: string }) {
         ))}
       {menu && <Menu x={menu.x} y={menu.y} items={items(menu.user)} onClose={() => setMenu(null)} />}
       {subMenu && <Menu x={subMenu.x} y={subMenu.y} items={subMenu.items} onClose={() => setSubMenu(null)} />}
+      {infoFor && (
+        <UserInfoDialog
+          user={infoFor}
+          onClose={() => setInfoFor(null)}
+          onChanged={() => patch(infoFor.uid, { banned: true })}
+        />
+      )}
       {editFor && (
         <AdminEditProfileDialog
           user={editFor}

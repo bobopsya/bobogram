@@ -245,6 +245,7 @@ export function errorKey(err: unknown): string {
   if (msg.includes('spamblock')) return 'errors.spamblock';
   if (msg.includes('profile locked')) return 'errors.profileLocked';
   if (msg.includes('verified only')) return 'errors.verifiedOnly';
+  if (msg.includes('banned ip')) return 'errors.bannedIp';
   if (msg.includes('topic closed')) return 'topics.closedError';
   if (msg.includes('too many topics')) return 'topics.tooMany';
   if (msg.includes('too many reports')) return 'report.tooMany';
@@ -972,10 +973,17 @@ export async function setForum(chatId: string, on: boolean): Promise<void> {
 }
 
 export async function createTopic(chatId: string, title: string, emoji: string | null): Promise<string> {
-  return check(await supabase.rpc('create_topic', { p_chat: chatId, p_title: title, p_emoji: emoji })) as string;
+  return check(
+    await supabase.rpc('create_topic', { p_chat: chatId, p_title: title, p_emoji: emoji }),
+  ) as string;
 }
 
-export async function editTopic(id: string, title: string, emoji: string | null, closed: boolean): Promise<void> {
+export async function editTopic(
+  id: string,
+  title: string,
+  emoji: string | null,
+  closed: boolean,
+): Promise<void> {
   check(await supabase.rpc('edit_topic', { p_topic: id, p_title: title, p_emoji: emoji, p_closed: closed }));
 }
 
@@ -985,4 +993,36 @@ export async function deleteTopic(id: string): Promise<void> {
 
 export async function markTopicRead(chatId: string, topic: string | null): Promise<void> {
   check(await supabase.rpc('mark_topic_read', { p_chat: chatId, p_topic: topic }));
+}
+
+// ---------- устройства (отладка в админке) ----------
+export interface UserDevice {
+  deviceId: string;
+  ip: string | null;
+  country: string | null;
+  userAgent: string;
+  info: Record<string, unknown>;
+  firstSeen: number;
+  lastSeen: number;
+  deviceBanned: boolean;
+  ipBanned: boolean;
+}
+
+export async function adminBanDevice(uid: string, deviceId: string, kind: 'ip' | 'device', on: boolean) {
+  check(await supabase.rpc('admin_ban_device', { p_user: uid, p_device: deviceId, p_kind: kind, p_on: on }));
+}
+
+export async function adminUserDevices(uid: string): Promise<UserDevice[]> {
+  const rows = check(await supabase.rpc('admin_user_devices', { p_user: uid })) as Row[];
+  return rows.map((r) => ({
+    deviceId: String(r.device_id),
+    ip: (r.ip as string | null) ?? null,
+    country: (r.country as string | null) ?? null,
+    userAgent: String(r.user_agent ?? ''),
+    info: (r.info as Record<string, unknown> | null) ?? {},
+    firstSeen: ms(r.first_seen),
+    lastSeen: ms(r.last_seen),
+    deviceBanned: r.device_banned === true,
+    ipBanned: r.ip_banned === true,
+  }));
 }

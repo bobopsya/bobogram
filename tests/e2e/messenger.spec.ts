@@ -544,6 +544,130 @@ test('iPhone: окно фото с подписью остаётся над кл
   await alice.screenshot({ path: 'test-results/iphone-keyboard.png' });
 });
 
+test('форматирование: панель при выделении, спойлер, премиум-стиль', async ({ browser }) => {
+  const alice = await signUp(browser, 'Алиса', `fmt${run}`);
+  const { data: a } = await service.from('profiles').select('id').eq('username', `fmt${run}`).single();
+  const { data: chat } = await service
+    .from('chats')
+    .insert({ type: 'saved', private_key: `saved_${a!.id}` })
+    .select('id')
+    .single();
+  await service.from('chat_members').insert({ chat_id: chat!.id, user_id: a!.id });
+  await alice.goto(`./#/c/${chat!.id}`);
+
+  const input = alice.getByPlaceholder('Сообщение');
+  await input.fill('привет мир');
+  await input.press('End');
+  for (let i = 0; i < 3; i++) await input.press('Shift+ArrowLeft');
+  await alice.getByRole('button', { name: 'Жирный' }).click();
+  await expect(input).toHaveValue('привет **мир**');
+  await input.press('Enter');
+  await expect(alice.locator('.bubble strong', { hasText: 'мир' })).toBeVisible();
+
+  await input.fill('ответ: ||секрет|| и `код`\n> цитата');
+  await input.press('Enter');
+  const spoiler = alice.locator('.bubble .md-spoiler', { hasText: 'секрет' });
+  await expect(spoiler).not.toHaveClass(/open/);
+  await spoiler.click();
+  await expect(spoiler).toHaveClass(/open/);
+  await expect(alice.locator('.bubble .md-code', { hasText: 'код' })).toBeVisible();
+  await expect(alice.locator('.bubble .md-quote', { hasText: 'цитата' })).toBeVisible();
+
+  // Без премиума цветной текст уходит обычным.
+  await input.fill('{red|красный}');
+  await input.press('Enter');
+  await expect(alice.locator('.bubble', { hasText: /^красный/ }).locator('.md-color')).toHaveCount(0);
+  // С премиумом — цветной.
+  await service.from('profiles').update({ premium_until: '9999-12-31' }).eq('id', a!.id);
+  await alice.reload();
+  await input.fill('{fire|огонь}');
+  await input.press('Enter');
+  await expect(alice.locator('.bubble .md-color', { hasText: 'огонь' })).toBeVisible();
+  await alice.screenshot({ path: 'test-results/markup.png' });
+});
+
+test('админка: «⋮» открывает меню даже при нажатии у края кнопки', async ({ browser }) => {
+  const boss = await signUp(browser, 'Админ', `edge${run}`);
+  await signUp(browser, 'Кто-то', `edgeu${run}`);
+  const { data } = await service.from('profiles').select('id').eq('username', `edge${run}`).single();
+  await service.from('profiles').update({ role: 'admin' }).eq('id', data!.id);
+  await boss.goto('./#/admin');
+  await boss.reload();
+  await boss.getByRole('main').getByPlaceholder('Поиск', { exact: true }).fill(`edgeu${run}`);
+  const more = boss.locator('.list-item', { hasText: `@edgeu${run}` }).getByRole('button', { name: 'more' });
+  await more.scrollIntoViewIfNeeded();
+  // Как человек: нажали у самого правого края и отпустили там же.
+  const box = (await more.boundingBox())!;
+  await boss.mouse.move(box.x + box.width - 1, box.y + box.height / 2);
+  await boss.mouse.down();
+  await boss.waitForTimeout(150);
+  await boss.mouse.up();
+  await expect(boss.getByRole('menuitem').first()).toBeVisible();
+});
+
+test('подсказка значка в списке чатов видна целиком', async ({ browser }) => {
+  const alice = await signUp(browser, 'Алиса', `tip${run}`);
+  const { data: a } = await service.from('profiles').select('id').eq('username', `tip${run}`).single();
+  const { data: b } = await service.auth.admin.createUser({
+    email: `${crypto.randomUUID()}@users.bobogram.app`,
+    password: 'secret123',
+    email_confirm: true,
+    user_metadata: { username: `tipd${run}`, display_name: 'Разраб' },
+  });
+  await service.from('profiles').update({ developer: true }).eq('id', b.user!.id);
+  const { data: chat } = await service
+    .from('chats')
+    .insert({ type: 'private', private_key: [a!.id, b.user!.id].sort().join('_') })
+    .select('id')
+    .single();
+  await service.from('chat_members').insert([
+    { chat_id: chat!.id, user_id: a!.id },
+    { chat_id: chat!.id, user_id: b.user!.id },
+  ]);
+  await service.from('messages').insert({ chat_id: chat!.id, sender_id: b.user!.id, text: 'привет' });
+  await alice.reload();
+  await alice.locator('.chat-item', { hasText: 'Разраб' }).locator('.dev-badge').click();
+  const tip = alice.getByRole('tooltip');
+  await expect(tip).toContainText('Разработчик Bobogram');
+  // Нижняя часть подсказки не обрезана строкой: в этой точке — сама подсказка.
+  const box = (await tip.boundingBox())!;
+  const hit = await alice.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest('.dev-popover'), {
+    x: box.x + box.width / 2,
+    y: box.y + box.height - 4,
+  });
+  expect(hit).toBe(true);
+  // Нажатие по значку не открывает чат.
+  await expect(alice.getByPlaceholder('Сообщение')).toHaveCount(0);
+});
+
+test('админка: «Инфо» об устройстве и блокировка устройства', async ({ browser }) => {
+  const boss = await signUp(browser, 'Админ', `inf${run}`);
+  const target = await signUp(browser, 'Нарушитель', `infu${run}`, true);
+  await expect(target.getByPlaceholder('Поиск по @имени или чатам')).toBeVisible();
+  const { data } = await service.from('profiles').select('id').eq('username', `inf${run}`).single();
+  await service.from('profiles').update({ role: 'admin' }).eq('id', data!.id);
+  await boss.goto('./#/admin');
+  await boss.reload();
+  await boss.getByRole('main').getByPlaceholder('Поиск', { exact: true }).fill(`infu${run}`);
+  await boss
+    .locator('.list-item', { hasText: `@infu${run}` })
+    .getByRole('button', { name: 'more' })
+    .click();
+  await boss.getByRole('menuitem', { name: 'Инфо' }).click();
+  const dialog = boss.getByRole('dialog');
+  // Мобильный браузер Chromium: «Android · Chrome …» или «Компьютер …» — главное, что устройство есть и есть IP.
+  await expect(dialog.locator('.info-card-title')).toHaveCount(1);
+  await expect(dialog.getByText('IP', { exact: true })).toBeVisible();
+  await boss.screenshot({ path: 'test-results/admin-info.png' });
+  await dialog.getByRole('button', { name: 'Заблокировать устройство' }).click();
+  await expect(dialog.getByRole('button', { name: 'Разблокировать устройство' })).toBeVisible();
+  await target.reload();
+  await expect(target.getByText('Аккаунт заблокирован')).toBeVisible();
+  // Снимаем, чтобы не мешать другим тестам.
+  await dialog.getByRole('button', { name: 'Разблокировать устройство' }).click();
+  await expect(dialog.getByRole('button', { name: 'Заблокировать устройство' })).toBeVisible();
+});
+
 test('без сети сообщение ждёт с «часиками» и уходит, когда сеть появилась', async ({ browser }) => {
   const alice = await signUp(browser, 'Алиса', `aliceo${run}`);
   const bob = await signUp(browser, 'Боб', `bobo${run}`);

@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { stripMarkup } from '../../lib/markup';
 import { useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useApp, useMe } from '../../app/store';
@@ -232,7 +233,7 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
       ? {
           id: replyTo.id,
           senderId: replyTo.senderId,
-          snippet: snippetOf(replyTo.text || mediaLabel(replyTo, t), 80),
+          snippet: snippetOf(stripMarkup(replyTo.text) || mediaLabel(replyTo, t), 80),
         }
       : null;
 

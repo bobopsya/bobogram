@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { stripMarkup } from '../../lib/markup';
 import { useTranslation } from 'react-i18next';
 import { mediaLabel } from '../chats/chatMeta';
 import type { Chat, Message } from '../../supabase/types';
@@ -49,7 +50,7 @@ export function PinnedBar({
   }, [id]);
 
   if (!id) return null;
-  const text = msg?.deleted ? t('chats.deletedMessage') : msg ? msg.text || mediaLabel(msg, t) : '…';
+  const text = msg?.deleted ? t('chats.deletedMessage') : msg ? stripMarkup(msg.text) || mediaLabel(msg, t) : '…';
 
   return (
     <div className="pinned-bar">
