@@ -8,6 +8,8 @@ import type {
   Member,
   Message,
   ReplyRef,
+  Story,
+  StorySummary,
   UserProfile,
 } from './types';
 import { normalizeUsername } from '../lib/username';
@@ -157,6 +159,22 @@ export function toMessage(r: Row): Message {
   };
 }
 
+export function toStory(r: Row, viewedIds = new Set<string>()): Story {
+  const id = String(r.id);
+  return {
+    id,
+    authorId: String(r.author_id),
+    mediaPath: String(r.media_path),
+    mime: String(r.mime ?? 'image/jpeg'),
+    size: Number(r.size ?? 0),
+    width: Number(r.width ?? 1),
+    height: Number(r.height ?? 1),
+    createdAt: ms(r.created_at),
+    expiresAt: ms(r.expires_at),
+    viewed: viewedIds.has(id),
+  };
+}
+
 export function toCall(r: Row): CallRow {
   return {
     id: String(r.id),
@@ -292,6 +310,58 @@ export async function listUsers(): Promise<UserProfile[]> {
     await supabase.from('profiles').select(PROFILE_SELECT).order('created_at').limit(500),
   ) as Row[];
   return rows.map(toProfile);
+}
+
+// ---------- сторис ----------
+export async function createStory(input: {
+  mediaPath: string;
+  mime: string;
+  size: number;
+  width: number;
+  height: number;
+}): Promise<string> {
+  const rows = check(
+    await supabase
+      .from('stories')
+      .insert({
+        media_path: input.mediaPath,
+        mime: input.mime,
+        size: input.size,
+        width: input.width,
+        height: input.height,
+      })
+      .select('id'),
+  ) as Row[];
+  return String(rows[0].id);
+}
+
+export async function fetchStories(authorId: string): Promise<Story[]> {
+  const rows = check(
+    await supabase
+      .from('stories')
+      .select('*')
+      .eq('author_id', authorId)
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at'),
+  ) as Row[];
+  if (rows.length === 0) return [];
+  const ids = rows.map((r) => String(r.id));
+  const views = check(await supabase.from('story_views').select('story_id').in('story_id', ids)) as Row[];
+  const viewed = new Set(views.map((r) => String(r.story_id)));
+  return rows.map((r) => toStory(r, viewed));
+}
+
+export async function fetchStorySummary(authorId: string): Promise<StorySummary> {
+  const stories = await fetchStories(authorId);
+  return {
+    count: stories.length,
+    hasUnviewed: stories.some((s) => !s.viewed),
+    firstStoryId: stories[0]?.id ?? null,
+  };
+}
+
+export async function markStoryViewed(storyId: string): Promise<void> {
+  check(await supabase.from('story_views').upsert({ story_id: storyId }, { ignoreDuplicates: true }));
 }
 
 // ---------- чёрный список ----------

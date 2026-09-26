@@ -5,6 +5,7 @@ import { isPremium, type Chat, type Message, type SystemEvent } from '../../supa
 import type { BadgeFlags } from '../../ui/Badges';
 import { displayNameOf, peekProfile, useProfile } from '../../app/profiles';
 import { Avatar } from '../../ui/Avatar';
+import { StoryAvatar } from '../stories/Stories';
 import type { IconName } from '../../ui/Icon';
 import type { TFunction } from 'i18next';
 
@@ -63,6 +64,18 @@ export function useChatMeta(
 }
 
 export function ChatAvatar({ meta, size, online }: { meta: ChatMeta; size?: number; online?: boolean }) {
+  if (meta.otherUid) {
+    return (
+      <StoryAvatar
+        userId={meta.otherUid}
+        name={meta.title}
+        seed={meta.seed}
+        src={meta.avatar}
+        size={size}
+        online={online}
+      />
+    );
+  }
   return (
     <Avatar
       name={meta.title}

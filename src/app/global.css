@@ -816,6 +816,29 @@ select {
   background: var(--online);
   border: 2px solid var(--bg);
 }
+.story-avatar {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.story-avatar.unviewed,
+.story-avatar.viewed {
+  padding: 3px;
+}
+.story-avatar.unviewed {
+  background: conic-gradient(from 20deg, #2ea6ff, #8b5cf6, #f472b6, #2ea6ff);
+  cursor: pointer;
+}
+.story-avatar.viewed {
+  background: var(--border);
+  cursor: pointer;
+}
+.story-avatar.unviewed .avatar,
+.story-avatar.viewed .avatar {
+  outline: 2px solid var(--bg);
+}
 .avatar-edit {
   position: relative;
   border-radius: 50%;
@@ -832,6 +855,74 @@ select {
   display: grid;
   place-items: center;
   border: 3px solid var(--bg);
+}
+
+/* ============ Сторис ============ */
+.story-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: #050505;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.story-progress {
+  position: absolute;
+  top: calc(10px + var(--safe-top));
+  left: 10px;
+  right: 10px;
+  z-index: 3;
+  display: flex;
+  gap: 4px;
+}
+.story-progress span {
+  height: 3px;
+  flex: 1;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.32);
+}
+.story-progress span.active {
+  background: rgba(255, 255, 255, 0.9);
+}
+.story-top {
+  position: absolute;
+  top: calc(22px + var(--safe-top));
+  left: 12px;
+  right: 8px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+.story-top .icon-btn {
+  margin-left: auto;
+  color: #fff;
+}
+.story-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.story-loading {
+  color: rgba(255, 255, 255, 0.72);
+}
+.story-zone {
+  position: absolute;
+  top: 72px;
+  bottom: 0;
+  z-index: 2;
+  width: 34%;
+  border: 0;
+  background: transparent;
+}
+.story-zone.left {
+  left: 0;
+}
+.story-zone.right {
+  right: 0;
 }
 
 /* ============ Экран чата ============ */

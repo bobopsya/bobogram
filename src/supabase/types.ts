@@ -137,6 +137,25 @@ export interface MediaInfo {
   waveform?: number[];
 }
 
+export interface Story {
+  id: string;
+  authorId: string;
+  mediaPath: string;
+  mime: string;
+  size: number;
+  width: number;
+  height: number;
+  createdAt: number;
+  expiresAt: number;
+  viewed: boolean;
+}
+
+export interface StorySummary {
+  count: number;
+  hasUnviewed: boolean;
+  firstStoryId: string | null;
+}
+
 export interface Message {
   id: string;
   chatId: string;

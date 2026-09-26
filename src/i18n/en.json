@@ -423,6 +423,11 @@
     "micDenied": "No access to the microphone",
     "badPhoto": "Could not open the photo"
   },
+  "stories": {
+    "title": "Stories",
+    "add": "Story",
+    "published": "Story published"
+  },
   "nft": {
     "collectible": "Collectible usernames",
     "menu": "NFT usernames",

@@ -6,7 +6,6 @@ import { errorKey, findUserByUsername, openPrivateChat, profileLink, setBlocked 
 import { usePresence, useProfile } from '../../app/profiles';
 import { refreshBlocked } from '../../app/session';
 import { useOpenChatWith } from '../chats/ChatList';
-import { Avatar } from '../../ui/Avatar';
 import { Icon } from '../../ui/Icon';
 import { Confirm } from '../../ui/Modal';
 import { FullScreenSpinner, PageHeader } from '../../ui/misc';
@@ -17,6 +16,7 @@ import { ReportDialog } from '../chat/ReportDialog';
 import { Badges, ScamWarning } from '../../ui/Badges';
 import { isPremium } from '../../supabase/types';
 import { nameColorStyle, profileBgCss } from '../../app/themes';
+import { AddStoryButton, StoryAvatar } from '../stories/Stories';
 
 /** Открытие профиля по ссылке …/#/u/username */
 export function UsernameRoute() {
@@ -115,7 +115,7 @@ function ProfileScreen({ uid }: { uid: string }) {
           className={profile.profileBg ? 'profile-hero styled' : 'profile-hero'}
           style={profile.profileBg ? { background: profileBgCss(profile.profileBg) } : undefined}
         >
-          <Avatar name={profile.displayName} seed={uid} src={profile.avatar} size={112} />
+          <StoryAvatar userId={uid} name={profile.displayName} seed={uid} src={profile.avatar} size={112} />
           <h2 className="name-with-badges">
             <span style={profile.profileBg ? undefined : nameColorStyle(profile.nameColor)}>
               {profile.displayName}
@@ -155,6 +155,7 @@ function ProfileScreen({ uid }: { uid: string }) {
             <Icon name="qr" />
             <span>{t('profile.qr')}</span>
           </button>
+          {isMe && <AddStoryButton />}
         </div>
 
         <div className="info-list">

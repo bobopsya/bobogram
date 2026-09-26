@@ -7,11 +7,11 @@ import { isPremium, matchedUsername, type Chat, type UserProfile } from '../../s
 import { Badges } from '../../ui/Badges';
 import { Icon } from '../../ui/Icon';
 import { Menu, type MenuItem } from '../../ui/Menu';
-import { Avatar } from '../../ui/Avatar';
 import { Spinner } from '../../ui/misc';
 import { ChatListItem } from './ChatListItem';
 import { displayNameOf, peekProfile } from '../../app/profiles';
 import { refreshChats } from '../../app/session';
+import { StoryAvatar } from '../stories/Stories';
 
 /** Открыть личку с человеком (или «Избранное», если это я). */
 export function useOpenChatWith() {
@@ -173,7 +173,7 @@ export function ChatList() {
                     void openChatWith(p.uid);
                   }}
                 >
-                  <Avatar name={p.displayName} seed={p.uid} src={p.avatar} size={46} />
+                  <StoryAvatar userId={p.uid} name={p.displayName} seed={p.uid} src={p.avatar} size={46} />
                   <div className="list-item-body">
                     <div className="list-item-title">
                       <span className="ellipsis">{p.displayName}</span>
