@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useApp, useMe } from '../../app/store';
@@ -30,7 +31,9 @@ function useStorySummary(authorId: string | null | undefined): StorySummary {
     const onChange = (event: Event) => {
       const changed = (event as CustomEvent<{ authorId?: string }>).detail?.authorId;
       if (!changed || changed === authorId) {
-        void fetchStorySummary(authorId).then((s) => setSummary(s)).catch(() => setSummary(emptySummary));
+        void fetchStorySummary(authorId)
+          .then((s) => setSummary(s))
+          .catch(() => setSummary(emptySummary));
       }
     };
     window.addEventListener(STORY_EVENT, onChange);
@@ -66,7 +69,9 @@ export function StoryAvatar({
   return (
     <>
       <span
-        className={hasStories ? `story-avatar ${summary.hasUnviewed ? 'unviewed' : 'viewed'}` : 'story-avatar'}
+        className={
+          hasStories ? `story-avatar ${summary.hasUnviewed ? 'unviewed' : 'viewed'}` : 'story-avatar'
+        }
         role={hasStories ? 'button' : undefined}
         tabIndex={hasStories ? 0 : undefined}
         onClick={(e) => {
@@ -81,7 +86,22 @@ export function StoryAvatar({
         <Avatar name={name} seed={seed} src={src} size={size} online={online} />
         {children}
       </span>
-      {open && userId && <StoryViewer authorId={userId} onClose={() => setOpen(false)} />}
+      {open &&
+        userId &&
+        // Поверх всего экрана, а не внутри строки списка чатов: иначе строка обрезает просмотр
+        // и нажатия в нём открывают сам чат.
+        createPortal(
+          <div
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onContextMenu={(e) => e.stopPropagation()}
+          >
+            <StoryViewer authorId={userId} onClose={() => setOpen(false)} />
+          </div>,
+          document.body,
+        )}
     </>
   );
 }
@@ -209,7 +229,11 @@ function StoryViewer({ authorId, onClose }: { authorId: string; onClose: () => v
       </div>
       <button className="story-zone left" onClick={prev} aria-label={t('common.back')} />
       <button className="story-zone right" onClick={next} aria-label={t('common.next')} />
-      {url ? <img className="story-photo" src={url} alt="" /> : <div className="story-loading">{t('common.loading')}</div>}
+      {url ? (
+        <img className="story-photo" src={url} alt="" />
+      ) : (
+        <div className="story-loading">{t('common.loading')}</div>
+      )}
     </div>
   );
 }
