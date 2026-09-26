@@ -640,6 +640,34 @@ test('подсказка значка в списке чатов видна це
   await expect(alice.getByPlaceholder('Сообщение')).toHaveCount(0);
 });
 
+test('админка: «Инфо» об устройстве и блокировка устройства', async ({ browser }) => {
+  const boss = await signUp(browser, 'Админ', `inf${run}`);
+  const target = await signUp(browser, 'Нарушитель', `infu${run}`, true);
+  await expect(target.getByPlaceholder('Поиск по @имени или чатам')).toBeVisible();
+  const { data } = await service.from('profiles').select('id').eq('username', `inf${run}`).single();
+  await service.from('profiles').update({ role: 'admin' }).eq('id', data!.id);
+  await boss.goto('./#/admin');
+  await boss.reload();
+  await boss.getByRole('main').getByPlaceholder('Поиск', { exact: true }).fill(`infu${run}`);
+  await boss
+    .locator('.list-item', { hasText: `@infu${run}` })
+    .getByRole('button', { name: 'more' })
+    .click();
+  await boss.getByRole('menuitem', { name: 'Инфо' }).click();
+  const dialog = boss.getByRole('dialog');
+  // Мобильный браузер Chromium: «Android · Chrome …» или «Компьютер …» — главное, что устройство есть и есть IP.
+  await expect(dialog.locator('.info-card-title')).toHaveCount(1);
+  await expect(dialog.getByText('IP', { exact: true })).toBeVisible();
+  await boss.screenshot({ path: 'test-results/admin-info.png' });
+  await dialog.getByRole('button', { name: 'Заблокировать устройство' }).click();
+  await expect(dialog.getByRole('button', { name: 'Разблокировать устройство' })).toBeVisible();
+  await target.reload();
+  await expect(target.getByText('Аккаунт заблокирован')).toBeVisible();
+  // Снимаем, чтобы не мешать другим тестам.
+  await dialog.getByRole('button', { name: 'Разблокировать устройство' }).click();
+  await expect(dialog.getByRole('button', { name: 'Заблокировать устройство' })).toBeVisible();
+});
+
 test('без сети сообщение ждёт с «часиками» и уходит, когда сеть появилась', async ({ browser }) => {
   const alice = await signUp(browser, 'Алиса', `aliceo${run}`);
   const bob = await signUp(browser, 'Боб', `bobo${run}`);

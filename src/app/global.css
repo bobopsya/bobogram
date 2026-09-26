@@ -1933,6 +1933,35 @@ button.setting-row:hover {
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
 }
 
+.info-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--bg-secondary);
+}
+.info-card-title {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.9em;
+}
+.info-value {
+  text-align: right;
+  word-break: break-all;
+}
+.info-ua code {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.75em;
+  word-break: break-all;
+}
+
 /* ============ Плавность ============ */
 :root {
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);

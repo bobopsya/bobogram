@@ -14,6 +14,7 @@ import { FullScreenSpinner, OfflineBanner, Toast } from '../ui/misc';
 import { CallLayer } from '../features/calls/CallLayer';
 import { useIncomingSounds } from './sounds';
 import { usePushRegistration } from '../supabase/push';
+import { useDeviceReport } from '../lib/device';
 
 const AdminPanel = lazy(() => import('../features/admin/AdminPanel'));
 // Редкие экраны грузятся отдельными файлами при первом открытии — стартовый бандл меньше.
@@ -48,6 +49,7 @@ function Gate() {
 function Messenger() {
   useIncomingSounds();
   usePushRegistration();
+  useDeviceReport();
   return (
     <>
       <Routes>

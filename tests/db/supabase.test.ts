@@ -1136,3 +1136,87 @@ describe('форматирование', () => {
     expect(await text(a)).toBe('снова огонь');
   });
 });
+
+describe('устройства пользователей', () => {
+  it('приложение сообщает об устройстве; видят только админы; последние 10', async () => {
+    const u = await user('dvu');
+    const boss = await user('dvboss');
+    await admin.from('profiles').update({ role: 'admin' }).eq('id', boss.id);
+    await rpc(u, 'report_device', { p_device: 'device-aaaa-1', p_info: { app: '1.0', pwa: true } });
+    await rpc(u, 'report_device', { p_device: 'device-aaaa-1', p_info: { app: '1.1', pwa: true } });
+    type D = { device_id: string; ip: string | null; info: { app: string } };
+    const list = await rpc<D[]>(boss, 'admin_user_devices', { p_user: u.id });
+    expect(list).toHaveLength(1);
+    expect(list[0].info.app).toBe('1.1');
+    expect(list[0].ip).toBeTruthy();
+    await fails(rpc(u, 'admin_user_devices', { p_user: boss.id }));
+    const { data: direct } = await u.db.from('user_devices').select('*');
+    expect(direct ?? []).toHaveLength(0);
+    await fails(rpc(u, 'report_device', { p_device: 'x', p_info: {} }));
+    for (let i = 0; i < 11; i++) await rpc(u, 'report_device', { p_device: `device-bbbb-${i}`, p_info: {} });
+    expect(await rpc<D[]>(boss, 'admin_user_devices', { p_user: u.id })).toHaveLength(10);
+  });
+});
+
+describe('блокировки по IP и устройству', () => {
+  it('бан устройства банит и новый аккаунт с него; IP — действия не проходят; без метрики — не пишем', async () => {
+    const bad = await user('bnbad');
+    const boss = await user('bnboss');
+    const quiet = await user('bnquiet');
+    await admin.from('profiles').update({ role: 'admin' }).eq('id', boss.id);
+    await admin.from('profiles').update({ no_metrics: true }).eq('id', quiet.id);
+    await rpc(quiet, 'report_device', { p_device: 'device-quiet-1', p_info: {} });
+    expect(await rpc<unknown[]>(boss, 'admin_user_devices', { p_user: quiet.id })).toHaveLength(0);
+
+    await rpc(bad, 'report_device', { p_device: 'device-bad-0001', p_info: {} });
+    await fails(
+      rpc(bad, 'admin_ban_device', { p_user: boss.id, p_device: 'x', p_kind: 'device', p_on: true }),
+    );
+    await rpc(boss, 'admin_ban_device', {
+      p_user: bad.id,
+      p_device: 'device-bad-0001',
+      p_kind: 'device',
+      p_on: true,
+    });
+    const banned = async (id: string) =>
+      (await admin.from('profiles').select('banned').eq('id', id).single()).data!.banned as boolean;
+    expect(await banned(bad.id)).toBe(true);
+    // Новый аккаунт с того же устройства — бан сразу при входе.
+    const again = await user('bnagain');
+    await rpc(again, 'report_device', { p_device: 'device-bad-0001', p_info: {} });
+    expect(await banned(again.id)).toBe(true);
+    type D = { device_banned: boolean; ip_banned: boolean };
+    expect((await rpc<D[]>(boss, 'admin_user_devices', { p_user: bad.id }))[0].device_banned).toBe(true);
+    await rpc(boss, 'admin_ban_device', {
+      p_user: bad.id,
+      p_device: 'device-bad-0001',
+      p_kind: 'device',
+      p_on: false,
+    });
+
+    // Бан IP: у всех тестов один IP — проверяем и сразу снимаем.
+    const ipUser = await user('bnip');
+    await rpc(ipUser, 'report_device', { p_device: 'device-ip-00001', p_info: {} });
+    await rpc(boss, 'admin_ban_device', {
+      p_user: ipUser.id,
+      p_device: 'device-ip-00001',
+      p_kind: 'ip',
+      p_on: true,
+    });
+    try {
+      const other = await user('bnother');
+      await expect(rpc(other, 'get_or_create_private_chat', { p_other: boss.id })).rejects.toThrow(
+        /banned ip/,
+      );
+      // Админа бан по IP не трогает.
+      await rpc(boss, 'get_or_create_private_chat', { p_other: other.id });
+    } finally {
+      await rpc(boss, 'admin_ban_device', {
+        p_user: ipUser.id,
+        p_device: 'device-ip-00001',
+        p_kind: 'ip',
+        p_on: false,
+      });
+    }
+  });
+});

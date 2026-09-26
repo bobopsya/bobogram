@@ -3,6 +3,7 @@ import { normalizeUsername, validateUsername } from '../../src/lib/username';
 import { randomCode } from '../../src/lib/ids';
 import { dayLabel, formatDuration, isReadByOthers } from '../../src/lib/time';
 import { splitText } from '../../src/features/chat/Composer';
+import { describeUserAgent } from '../../src/lib/device';
 import { isEmojiOnly } from '../../src/features/chat/MessageText';
 
 describe('юзернейм', () => {
@@ -69,5 +70,25 @@ describe('кэш сообщений старой версии', () => {
     expect(m.boostReactions).toEqual({});
     expect(m.views + m.boostViews).toBe(0);
     expect(m.reactions).toEqual({ '👍': ['u'] });
+  });
+});
+
+describe('describeUserAgent', () => {
+  it('iPhone, Android, Windows', () => {
+    expect(
+      describeUserAgent(
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Mobile/15E148 Safari/604.1',
+      ),
+    ).toEqual({ os: 'iOS 18.2', browser: 'Safari 18.2', device: 'iPhone' });
+    expect(
+      describeUserAgent(
+        'Mozilla/5.0 (Linux; Android 14; SM-S918B Build/UP1A) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36',
+      ),
+    ).toEqual({ os: 'Android 14', browser: 'Chrome 141', device: 'SM-S918B' });
+    expect(
+      describeUserAgent(
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 YaBrowser/25.8.0.0 Safari/537.36',
+      ),
+    ).toEqual({ os: 'Windows', browser: 'Яндекс 25', device: 'Компьютер' });
   });
 });

@@ -18,7 +18,9 @@
     "edit": "Edit",
     "share": "Share",
     "you": "You",
-    "offline": "Offline — waiting for network…"
+    "offline": "Offline — waiting for network…",
+    "yes": "yes",
+    "no": "no"
   },
   "setup": {
     "title": "Setup required",
@@ -70,7 +72,8 @@
     "spamblock": "You are spam-blocked and can’t message first",
     "profileLocked": "An admin has locked your profile",
     "protectedUser": "Only the owner can change this user",
-    "verifiedOnly": "Only verified users can message this person"
+    "verifiedOnly": "Only verified users can message this person",
+    "bannedIp": "Access from this IP address is blocked"
   },
   "chats": {
     "title": "Chats",
@@ -352,7 +355,33 @@
     "protected": "Only the owner can manage",
     "dmVerifiedOnlyOn": "Only verified can message",
     "dmVerifiedOnlyOff": "Everyone can message",
-    "founder": "founder"
+    "founder": "founder",
+    "info": "Info",
+    "infoTitle": "Info: {{name}}",
+    "infoCreated": "Signed up",
+    "infoLastSeen": "Last seen",
+    "infoRole": "Role",
+    "adminRole": "admin",
+    "userRole": "user",
+    "infoDevices_one": "{{count}} device",
+    "infoDevices_other": "{{count}} devices",
+    "infoNoDevices": "Has not opened the new app version yet",
+    "infoPwa": "home screen app",
+    "infoApp": "Version",
+    "infoPush": "Notifications",
+    "infoScreen": "Screen",
+    "infoLang": "Language & zone",
+    "infoHardware": "Hardware",
+    "infoCores": "cores",
+    "infoTouch": "touch",
+    "infoFirst": "First seen",
+    "infoLast": "Last seen",
+    "banDevice": "Block device",
+    "unbanDevice": "Unblock device",
+    "banIp": "Block IP",
+    "unbanIp": "Unblock IP",
+    "banDone": "Blocked, account banned",
+    "unbanDone": "Unblocked"
   },
   "notify": {
     "newMessage": "New message",
