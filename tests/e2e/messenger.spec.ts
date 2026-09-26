@@ -172,7 +172,7 @@ test('фото с подписью и голосовое доходят до с�
   });
   await alice
     .getByRole('main')
-    .locator('input[type="file"]')
+    .locator('input[type="file"][accept^="image"]')
     .setInputFiles({
       name: 'pic.png',
       mimeType: 'image/png',
@@ -525,7 +525,7 @@ test('iPhone: окно фото с подписью остаётся над кл
   });
   await alice
     .getByRole('main')
-    .locator('input[type="file"]')
+    .locator('input[type="file"][accept^="image"]')
     .setInputFiles({
       name: 'tall.png',
       mimeType: 'image/png',
