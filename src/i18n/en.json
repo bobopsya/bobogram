@@ -461,8 +461,9 @@
   },
   "stories": {
     "title": "Stories",
-    "add": "Story",
-    "published": "Story published"
+    "add": "Add story",
+    "published": "Story published",
+    "mine": "My story"
   },
   "nft": {
     "collectible": "Collectible usernames",

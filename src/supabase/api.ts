@@ -361,6 +361,29 @@ export async function fetchStories(authorId: string): Promise<Story[]> {
   return rows.map((r) => toStory(r, viewed));
 }
 
+/** Все активные сторис (за 24 часа) с отметкой «я смотрел» — одним запросом для ленты и колец. */
+export async function fetchActiveStories(): Promise<Story[]> {
+  const rows = check(
+    await supabase.from('stories').select('*').gt('expires_at', new Date().toISOString()).order('created_at'),
+  ) as Row[];
+  if (rows.length === 0) return [];
+  const views = check(
+    await supabase
+      .from('story_views')
+      .select('story_id')
+      .in(
+        'story_id',
+        rows.map((r) => String(r.id)),
+      ),
+  ) as Row[];
+  const viewed = new Set(views.map((r) => String(r.story_id)));
+  return rows.map((r) => toStory(r, viewed));
+}
+
+export async function deleteStory(id: string): Promise<void> {
+  check(await supabase.from('stories').delete().eq('id', id));
+}
+
 export async function fetchStorySummary(authorId: string): Promise<StorySummary> {
   const stories = await fetchStories(authorId);
   return {

@@ -487,6 +487,11 @@ test('сторис из списка чатов открывается на ве
   await service.from('messages').insert({ chat_id: chat!.id, sender_id: bid, text: 'смотри сторис' });
 
   await alice.reload();
+  // Лента сторис над чатами: кружок автора с цветным кольцом.
+  await expect(
+    alice.locator('.stories-bar .story-bubble', { hasText: 'Сторисный' }).locator('.unviewed'),
+  ).toBeVisible();
+  await alice.screenshot({ path: 'test-results/stories-bar.png' });
   const row = alice.locator('.chat-item', { hasText: 'Сторисный' });
   await row.locator('.story-avatar.unviewed').click();
   const viewer = alice.locator('.story-viewer');
