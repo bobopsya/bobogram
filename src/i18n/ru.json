@@ -355,7 +355,8 @@
     "removeDeveloper": "Снять значок разработчика",
     "protected": "Управлять может только владелец",
     "dmVerifiedOnlyOn": "Писать могут только с галочкой",
-    "dmVerifiedOnlyOff": "Писать могут все"
+    "dmVerifiedOnlyOff": "Писать могут все",
+    "founder": "основатель"
   },
   "notify": {
     "newMessage": "Новое сообщение",

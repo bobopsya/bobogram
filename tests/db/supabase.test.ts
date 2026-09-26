@@ -830,6 +830,40 @@ describe('владелец, со-владелец, значок разработ
   });
 });
 
+describe('основатель', () => {
+  it('права владельца; владелец и основатель друг друга не трогают', async () => {
+    // Владелец — alice (назначен в блоке «владелец, со-владелец»).
+    const founder = await user('fnd');
+    const adm = await user('fndadm');
+    const x = await user('fndx');
+    await admin.from('profiles').update({ role: 'admin' }).eq('id', adm.id);
+    await admin.from('profiles').update({ role: 'admin', founder: true }).eq('id', founder.id);
+
+    expect(await rpc<boolean>(adm, 'is_owner', { p_user: founder.id })).toBe(true);
+    expect(await rpc<boolean>(adm, 'is_owner', { p_user: adm.id })).toBe(false);
+    await rpc(founder, 'owner_set_co_owner', { p_user: x.id, p_on: true });
+    await rpc(founder, 'owner_set_developer', { p_user: x.id, p_on: true });
+    await rpc(founder, 'admin_update_profile', { p_user: x.id, p_display_name: 'Можно' });
+    await fails(rpc(adm, 'admin_update_profile', { p_user: x.id, p_display_name: 'Нельзя' }));
+
+    // Основателя не трогает ни админ, ни владелец; владельца — основатель.
+    for (const [who, target] of [
+      [adm, founder],
+      [alice, founder],
+      [founder, alice],
+    ] as const) {
+      await expect(
+        rpc(who, 'admin_update_profile', { p_user: target.id, p_display_name: 'Взлом' }),
+      ).rejects.toThrow(/protected user|not allowed/);
+      await fails(rpc(who, 'set_banned', { p_user: target.id, p_banned: true }));
+    }
+    await fails(rpc(alice, 'owner_set_co_owner', { p_user: founder.id, p_on: true }));
+    // Свой профиль — можно.
+    const { error } = await founder.db.from('profiles').update({ bio: 'основатель' }).eq('id', founder.id);
+    expect(error).toBeNull();
+  });
+});
+
 describe('накрутка каналов', () => {
   let boss: User, fan: User, channel: string, logs: string;
 
