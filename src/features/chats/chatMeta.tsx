@@ -49,6 +49,7 @@ export function useChatMeta(
           premium: isPremium(other),
           emoji: other?.emojiStatus,
           developer: other?.developer,
+          founder: other?.founder,
         },
         nameStyle: nameColorStyle(other?.nameColor),
       };

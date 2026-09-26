@@ -184,6 +184,7 @@ export function ChatList() {
                         premium={isPremium(p)}
                         emoji={p.emojiStatus}
                         developer={p.developer}
+                        founder={p.founder}
                         size={15}
                       />
                     </div>

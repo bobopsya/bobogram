@@ -314,6 +314,7 @@ function UsersTab({ q }: { q: string }) {
                     premium={isPremium(u)}
                     emoji={u.emojiStatus}
                     developer={u.developer}
+                    founder={u.founder}
                     size={15}
                   />
                   {u.role === 'admin' && '🛡️'}

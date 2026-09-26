@@ -86,8 +86,9 @@ language sql stable security definer set search_path = '' as $$
   select private.is_owner(p_user)
 $$;
 
--- @pupa — основатель (по просьбе владельца).
+-- @pupa — основатель (по просьбе владельца); у владельца тоже значок основателя.
 update public.profiles set founder = true, co_owner = false, role = 'admin' where lower(username) = 'pupa';
+update public.profiles set founder = true where id = private.owner_id();
 
 revoke execute on function private.is_owner(uuid), private.may_manage(uuid, uuid), public.is_owner(uuid) from public, anon;
 revoke execute on function private.is_owner(uuid), private.may_manage(uuid, uuid) from authenticated;

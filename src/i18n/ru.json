@@ -370,7 +370,9 @@
     "scamWarningTitle": "⚠️ Осторожно: мошенник",
     "scamWarningText": "Администрация пометила этот аккаунт как мошеннический. Не переводите деньги и не сообщайте пароли.",
     "developer": "Разработчик Bobogram",
-    "developerHint": "Этот человек разрабатывает Bobogram."
+    "developerHint": "Этот человек разрабатывает Bobogram.",
+    "founder": "Основатель Bobogram",
+    "founderHint": "Один из создателей Bobogram"
   },
   "appearance": {
     "title": "Оформление",
