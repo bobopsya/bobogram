@@ -71,7 +71,8 @@ const audioSession = (navigator as Navigator & { audioSession?: { type: AudioSes
 export const canSwitchSpeaker = !!audioSession && /iPhone|iPad|iPod/.test(navigator.userAgent);
 /** Демонстрация экрана есть только в браузерах на ПК. */
 export const canShareScreen =
-  typeof navigator.mediaDevices?.getDisplayMedia === 'function' && !/Android|iPhone|iPad|iPod/.test(navigator.userAgent);
+  typeof navigator.mediaDevices?.getDisplayMedia === 'function' &&
+  !/Android|iPhone|iPad|iPod/.test(navigator.userAgent);
 
 /** play-and-record без «громкой» — звук в разговорный динамик; auto — Safari выводит звонок на громкий. */
 function applyAudioRoute(speaker: boolean) {
@@ -110,7 +111,10 @@ function cleanup() {
   unsubs.forEach((u) => u());
   unsubs = [];
   seenCandidates.clear();
-  useCall.getState().call?.local?.getTracks().forEach((t) => t.stop());
+  useCall
+    .getState()
+    .call?.local?.getTracks()
+    .forEach((t) => t.stop());
   pc?.close();
   pc = null;
 }
@@ -122,22 +126,43 @@ async function finish(reason: EndReason, remoteStatus?: CallRow['status']) {
   const duration = call.startedAt ? Math.round((Date.now() - call.startedAt) / 1000) : 0;
   cleanup();
   useCall.setState({
-    call: { ...call, phase: 'ended', endReason: reason, local: null, remote: null, screen: null, sharing: false, remoteScreen: false },
+    call: {
+      ...call,
+      phase: 'ended',
+      endReason: reason,
+      local: null,
+      remote: null,
+      screen: null,
+      sharing: false,
+      remoteScreen: false,
+    },
   });
   window.setTimeout(() => {
     if (useCall.getState().call?.phase === 'ended') useCall.setState({ call: null });
   }, 1800);
 
   if (call.id && remoteStatus) {
-    await updateCall(call.id, { status: remoteStatus, ended_at: new Date().toISOString() }).catch(() => undefined);
+    await updateCall(call.id, { status: remoteStatus, ended_at: new Date().toISOString() }).catch(
+      () => undefined,
+    );
   }
   if (call.outgoing && call.id && reason !== 'permissionDenied') {
-    queueMessage({ id: crypto.randomUUID(), chatId: call.chatId, text: '', call: { video: call.video, duration } }, me());
+    queueMessage(
+      { id: crypto.randomUUID(), chatId: call.chatId, text: '', call: { video: call.video, duration } },
+      me(),
+    );
   }
 }
 
-function createPeer(callId: () => string | null, fromCaller: boolean, servers: RTCIceServer[]): RTCPeerConnection {
-  const peer = new RTCPeerConnection({ iceServers: servers, iceTransportPolicy: relayOnly ? 'relay' : 'all' });
+function createPeer(
+  callId: () => string | null,
+  fromCaller: boolean,
+  servers: RTCIceServer[],
+): RTCPeerConnection {
+  const peer = new RTCPeerConnection({
+    iceServers: servers,
+    iceTransportPolicy: relayOnly ? 'relay' : 'all',
+  });
   const remote = new MediaStream();
   patch({ remote });
   const queued: RTCIceCandidateInit[] = [];
@@ -249,7 +274,12 @@ export async function startCall(chatId: string, peerUid: string, video: boolean)
     if (!video) peer.addTransceiver('video', { direction: 'sendrecv', streams: [local] });
     const offer = await peer.createOffer();
     await peer.setLocalDescription(offer);
-    callId = await createCall({ chatId, calleeId: peerUid, video, offer: { type: offer.type, sdp: offer.sdp } });
+    callId = await createCall({
+      chatId,
+      calleeId: peerUid,
+      video,
+      offer: { type: offer.type, sdp: offer.sdp },
+    });
     if (useCall.getState().call?.phase !== 'calling') {
       await updateCall(callId, { status: 'missed' }).catch(() => undefined);
       return;
@@ -418,8 +448,11 @@ export function toggleSpeaker() {
 function videoSender(): RTCRtpSender | undefined {
   return pc
     ?.getTransceivers()
-    .find((tr) => tr.receiver.track.kind === 'video' && (tr.currentDirection === 'sendrecv' || tr.currentDirection === 'sendonly'))
-    ?.sender;
+    .find(
+      (tr) =>
+        tr.receiver.track.kind === 'video' &&
+        (tr.currentDirection === 'sendrecv' || tr.currentDirection === 'sendonly'),
+    )?.sender;
 }
 
 function sendControl(msg: object) {
@@ -441,7 +474,10 @@ export async function toggleScreenShare() {
   }
   let stream: MediaStream;
   try {
-    stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 15 } }, audio: false });
+    stream = await navigator.mediaDevices.getDisplayMedia({
+      video: { frameRate: { ideal: 15 } },
+      audio: false,
+    });
   } catch {
     return; // передумали в окне выбора
   }

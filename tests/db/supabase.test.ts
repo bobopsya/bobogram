@@ -1348,3 +1348,48 @@ describe('поиск, папки, отложенные, исчезающие', (
     await fails(rpc(b, 'set_chat_ttl', { p_chat: g, p_seconds: 86400 }));
   });
 });
+
+describe('комментарии и голосовые чаты', () => {
+  it('комментарии включает владелец канала; пишут подписчики; счётчик у поста', async () => {
+    const own = await user('cmown');
+    const sub = await user('cmsub');
+    const ch = await rpc<string>(own, 'create_chat', {
+      p_type: 'channel',
+      p_title: 'Комменты',
+      p_members: [sub.id],
+    });
+    const post = await send(own, ch, 'пост');
+    await fails(rpc(sub, 'add_comment', { p_post: post, p_text: 'рано' }));
+    await fails(rpc(sub, 'set_channel_comments', { p_chat: ch, p_on: true }));
+    await rpc(own, 'set_channel_comments', { p_chat: ch, p_on: true });
+    const c = await rpc<string>(sub, 'add_comment', { p_post: post, p_text: 'класс!' });
+    const count = async () =>
+      (await admin.from('messages').select('comments').eq('id', post).single()).data!.comments;
+    expect(await count()).toBe(1);
+    const { data: list } = await sub.db.from('post_comments').select('text').eq('post_id', post);
+    expect(list).toEqual([{ text: 'класс!' }]);
+    await rpc(own, 'delete_comment', { p_id: c });
+    expect(await count()).toBe(0);
+    // В ленту канала комментарии не попадают.
+    const feed = await rpc<{ text: string }[]>(own, 'get_messages', { p_chat: ch });
+    expect(feed.map((m) => m.text)).not.toContain('класс!');
+  });
+
+  it('голосовой чат: вход, выход, конец, лимит только для участников группы', async () => {
+    const a = await user('gca');
+    const b = await user('gcb');
+    const x = await user('gcx');
+    const g = await rpc<string>(a, 'create_chat', { p_type: 'group', p_title: 'Голос', p_members: [b.id] });
+    const call = await rpc<string>(a, 'join_group_call', { p_chat: g });
+    expect(await rpc<string>(b, 'join_group_call', { p_chat: g })).toBe(call);
+    await fails(rpc(x, 'join_group_call', { p_chat: g }));
+    const { data: members } = await b.db.from('group_call_members').select('user_id').eq('call_id', call);
+    expect(members).toHaveLength(2);
+    await rpc(a, 'leave_group_call', { p_call: call });
+    await rpc(b, 'leave_group_call', { p_call: call });
+    const { data: row } = await admin.from('group_calls').select('ended_at').eq('id', call).single();
+    expect(row!.ended_at).not.toBeNull();
+    // Новый звонок после конца — новый id.
+    expect(await rpc<string>(a, 'join_group_call', { p_chat: g })).not.toBe(call);
+  });
+});

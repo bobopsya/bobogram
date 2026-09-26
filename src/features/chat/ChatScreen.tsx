@@ -11,6 +11,7 @@ import {
   errorKey,
   markRead,
   markTopicRead,
+  fetchChatFlags,
   searchMessages,
   setChatTtl,
   setBlocked,
@@ -38,6 +39,9 @@ import { FullScreenSpinner, PageHeader, Spinner } from '../../ui/misc';
 import { useChat, useMessages } from './useChatData';
 import { TopicList, useTopic } from './TopicList';
 import { PollDialog } from './Poll';
+import { CommentsSheet } from './Comments';
+import { GroupCallBar, useActiveGroupCall, useStartGroupCall } from '../calls/GroupCallBar';
+import { onDbEvent } from '../../supabase/realtime';
 import { ScheduleDialog, ScheduledList } from './Scheduled';
 import { ChatHeader } from './ChatHeader';
 import { MessageBubble } from './MessageBubble';
@@ -117,6 +121,20 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
   const [reporting, setReporting] = useState<Message | null>(null);
   const [channelBoostOpen, setChannelBoostOpen] = useState(false);
   const [pollOpen, setPollOpen] = useState(false);
+  const [commentsFor, setCommentsFor] = useState<Message | null>(null);
+  const groupCall = useActiveGroupCall(chat.id, chat.type === 'group' && isMember);
+  const startGroupCall = useStartGroupCall(chat.id);
+  const [commentsOn, setCommentsOn] = useState(false);
+  const openComments = useCallback((m: Message) => setCommentsFor(m), []);
+  useEffect(() => {
+    if (chat.type !== 'channel') return;
+    const load = () =>
+      void fetchChatFlags(chat.id)
+        .then((f) => setCommentsOn(f.comments))
+        .catch(() => undefined);
+    load();
+    return onDbEvent((e) => e.table === 'chats' && e.row.id === chat.id && load());
+  }, [chat.id, chat.type]);
   const [ttlMenu, setTtlMenu] = useState<MenuItem[] | null>(null);
   const [scheduleText, setScheduleText] = useState<string | null>(null);
   const [scheduledOpen, setScheduledOpen] = useState(false);
@@ -495,6 +513,13 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
     headerItems.push({ icon: 'star', label: t('boost.menu'), onClick: () => setChannelBoostOpen(true) });
   }
   headerItems.push({ icon: 'search', label: t('chat.searchInChat'), onClick: () => setSearchOpen(true) });
+  if (chat.type === 'group' && isMember) {
+    headerItems.unshift({
+      icon: 'headphones',
+      label: groupCall?.members.length ? t('groupCall.join') : t('groupCall.start'),
+      onClick: startGroupCall,
+    });
+  }
   if (isMember && chat.type !== 'saved' && (chat.type === 'private' || isChatAdmin)) {
     headerItems.push({
       icon: 'timer',
@@ -724,6 +749,7 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
       )}
 
       {scam && <ScamWarning />}
+      {chat.type === 'group' && isMember && <GroupCallBar chatId={chat.id} active={groupCall} />}
 
       {chat.pinnedMessageIds.length > 0 && <PinnedBar chat={chat} canUnpin={canPin} onJump={jumpTo} />}
 
@@ -750,6 +776,7 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
                   onReact={onReact}
                   onJump={jumpTo}
                   onOpenProfile={openProfile}
+                  onComments={commentsOn ? openComments : undefined}
                 />
               </Fragment>
             ),
@@ -891,6 +918,13 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
         />
       )}
       {scheduledOpen && <ScheduledList chatId={chat.id} onClose={() => setScheduledOpen(false)} />}
+      {commentsFor && (
+        <CommentsSheet
+          post={messages.find((m) => m.id === commentsFor.id) ?? commentsFor}
+          isAdmin={isChatAdmin || isGlobalAdmin}
+          onClose={() => setCommentsFor(null)}
+        />
+      )}
       {pollOpen && <PollDialog chatId={chat.id} topicId={topicId} onClose={() => setPollOpen(false)} />}
       {channelBoostOpen && (
         <ChannelBoostDialog

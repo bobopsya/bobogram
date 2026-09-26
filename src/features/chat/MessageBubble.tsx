@@ -36,6 +36,8 @@ interface Props {
   onReact: (msg: Message, emoji: string) => void;
   onJump: (id: string) => void;
   onOpenProfile: (uid: string) => void;
+  /** Канал с комментариями: кнопка «N комментариев» под постом. */
+  onComments?: (msg: Message) => void;
 }
 
 export const MessageBubble = memo(function MessageBubble(props: Props) {
@@ -52,6 +54,7 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
     onReact,
     onJump,
     onOpenProfile,
+    onComments,
   } = props;
   const { t, i18n } = useTranslation();
   const own = msg.senderId === me && chatType !== 'channel';
@@ -234,6 +237,21 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
               </button>
             ))}
           </div>
+        )}
+        {onComments && !msg.pending && !msg.system && (
+          <button
+            className="comments-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              onComments(msg);
+            }}
+          >
+            <Icon name="comment" size={16} />
+            <span className="grow">
+              {msg.comments ? t('comments.count', { count: msg.comments }) : t('comments.leave')}
+            </span>
+            <Icon name="back" size={14} className="comments-arrow" />
+          </button>
         )}
       </div>
     </div>

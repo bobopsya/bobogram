@@ -816,6 +816,52 @@ test('поиск по сообщениям, папки, отложенное, а
   ).toBeVisible();
 });
 
+test('комментарии к постам и голосовой чат в группе', async ({ browser }) => {
+  const own = await signUp(browser, 'Автор', `cmt${run}`);
+  const sub = await signUp(browser, 'Читатель', `cmts${run}`, true);
+  const { data: s } = await service.from('profiles').select('id').eq('username', `cmts${run}`).single();
+
+  // Канал: владелец включает комментарии, подписчик комментирует.
+  await own.goto('./#/new/channel');
+  await own.getByLabel('Название канала').fill(`Блог ${run}`);
+  await own.getByRole('button', { name: 'Создать канал' }).click();
+  await own.getByPlaceholder('Сообщение').fill('новый пост');
+  await own.keyboard.press('Enter');
+  const channelId = own.url().split('/c/')[1];
+  await service.from('chat_members').insert({ chat_id: channelId, user_id: s!.id });
+  await own.goto(`./#/c/${channelId}/info`);
+  await own.locator('.info-item', { hasText: 'Комментарии' }).getByRole('switch').click();
+  await sub.goto(`./#/c/${channelId}`);
+  await sub.locator('.comments-btn').first().click();
+  await sub.getByPlaceholder('Комментарий…').fill('отличный пост');
+  await sub.getByPlaceholder('Комментарий…').press('Enter');
+  await expect(sub.locator('.comment', { hasText: 'отличный пост' })).toBeVisible();
+  await own.goto(`./#/c/${channelId}`);
+  await expect(own.locator('.comments-btn', { hasText: '1 комментарий' })).toBeVisible();
+
+  // Группа: голосовой чат на двоих.
+  await own.goto('./#/new/group');
+  await own.getByRole('button', { name: 'Далее' }).click();
+  await own.getByLabel('Название группы').fill(`Созвон ${run}`);
+  await own.getByRole('button', { name: 'Создать группу' }).click();
+  await expect(own.getByPlaceholder('Сообщение')).toBeVisible();
+  const groupId = own.url().split('/c/')[1];
+  await service.from('chat_members').insert({ chat_id: groupId, user_id: s!.id });
+  await own.locator('.chat-header').getByRole('button', { name: 'more' }).click();
+  await own.getByRole('menuitem', { name: 'Начать голосовой чат' }).click();
+  await expect(own.locator('.gc-panel')).toBeVisible();
+  await sub.goto(`./#/c/${groupId}`);
+  await sub.locator('.gc-bar').getByRole('button', { name: 'Присоединиться' }).click();
+  await expect(sub.locator('.gc-panel')).toHaveAttribute('data-connected', '1', { timeout: 20_000 });
+  await expect(own.locator('.gc-panel')).toHaveAttribute('data-connected', '1', { timeout: 20_000 });
+  await expect(own.locator('.gc-member')).toHaveCount(2);
+  await sub.screenshot({ path: 'test-results/group-call.png' });
+  await sub.getByRole('button', { name: 'Выйти' }).click();
+  await expect(own.locator('.gc-member')).toHaveCount(1);
+  await own.getByRole('button', { name: 'Выйти' }).click();
+  await expect(own.locator('.gc-panel')).toHaveCount(0);
+});
+
 test('без сети сообщение ждёт с «часиками» и уходит, когда сеть появилась', async ({ browser }) => {
   const alice = await signUp(browser, 'Алиса', `aliceo${run}`);
   const bob = await signUp(browser, 'Боб', `bobo${run}`);

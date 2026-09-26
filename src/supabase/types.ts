@@ -61,7 +61,8 @@ export type SystemEvent =
   | { kind: 'added'; uids: string[] }
   | { kind: 'removed'; uid: string }
   | { kind: 'renamed'; title: string }
-  | { kind: 'ttl'; seconds: number | null };
+  | { kind: 'ttl'; seconds: number | null }
+  | { kind: 'voiceStarted' };
 
 export interface CallInfo {
   video: boolean;
@@ -198,6 +199,8 @@ export interface Message {
   /** Накрутка реакций: эмодзи → сколько прибавить. */
   boostReactions: Record<string, number>;
   media: MediaInfo | null;
+  /** Число комментариев к посту канала. */
+  comments?: number;
   /** Опрос: вопрос, варианты и итоги. */
   poll?: PollInfo | null;
   /** Тема группы (null — «Общее» или обычный чат). */

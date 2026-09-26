@@ -162,6 +162,7 @@ export function toMessage(r: Row): Message {
     media: (r.media as MediaInfo | null) ?? null,
     topicId: (r.topic_id as string | null) ?? null,
     poll: (r.poll as Message['poll']) ?? null,
+    comments: Number(r.comments ?? 0),
     pending: false,
   };
 }
@@ -247,6 +248,7 @@ export function errorKey(err: unknown): string {
   if (msg.includes('profile locked')) return 'errors.profileLocked';
   if (msg.includes('verified only')) return 'errors.verifiedOnly';
   if (msg.includes('banned ip')) return 'errors.bannedIp';
+  if (msg.includes('call full')) return 'groupCall.full';
   if (msg.includes('topic closed')) return 'topics.closedError';
   if (msg.includes('too many topics')) return 'topics.tooMany';
   if (msg.includes('too many reports')) return 'report.tooMany';
@@ -1164,4 +1166,50 @@ export async function deleteScheduled(id: string): Promise<void> {
 // ---------- автоудаление ----------
 export async function setChatTtl(chatId: string, seconds: number | null): Promise<void> {
   check(await supabase.rpc('set_chat_ttl', { p_chat: chatId, p_seconds: seconds }));
+}
+
+// ---------- комментарии к постам ----------
+export interface PostComment {
+  id: string;
+  postId: string;
+  senderId: string;
+  text: string;
+  deleted: boolean;
+  createdAt: number;
+}
+
+export function toComment(r: Row): PostComment {
+  return {
+    id: String(r.id),
+    postId: String(r.post_id),
+    senderId: String(r.sender_id),
+    text: String(r.text ?? ''),
+    deleted: r.deleted === true,
+    createdAt: ms(r.created_at),
+  };
+}
+
+export async function fetchComments(postId: string): Promise<PostComment[]> {
+  const rows = check(
+    await supabase.from('post_comments').select('*').eq('post_id', postId).order('created_at').limit(500),
+  ) as Row[];
+  return rows.map(toComment);
+}
+
+export async function addComment(postId: string, text: string): Promise<void> {
+  check(await supabase.rpc('add_comment', { p_post: postId, p_text: text }));
+}
+
+export async function deleteComment(id: string): Promise<void> {
+  check(await supabase.rpc('delete_comment', { p_id: id }));
+}
+
+export async function setChannelComments(chatId: string, on: boolean): Promise<void> {
+  check(await supabase.rpc('set_channel_comments', { p_chat: chatId, p_on: on }));
+}
+
+/** Настройки чата, которых нет в списке чатов (комментарии, автоудаление). */
+export async function fetchChatFlags(chatId: string): Promise<{ comments: boolean; ttl: number | null }> {
+  const rows = check(await supabase.from('chats').select('comments_enabled, ttl_seconds').eq('id', chatId)) as Row[];
+  return { comments: rows[0]?.comments_enabled === true, ttl: (rows[0]?.ttl_seconds as number | null) ?? null };
 }

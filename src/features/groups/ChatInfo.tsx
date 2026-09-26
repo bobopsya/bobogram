@@ -3,7 +3,12 @@ import { Navigate, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useApp, useMe } from '../../app/store';
 import type { Chat, Member } from '../../supabase/types';
-import { CHANNEL_MAX_MEMBERS, GROUP_MAX_MEMBERS, GROUP_MAX_MEMBERS_PREMIUM, isPremium } from '../../supabase/types';
+import {
+  CHANNEL_MAX_MEMBERS,
+  GROUP_MAX_MEMBERS,
+  GROUP_MAX_MEMBERS_PREMIUM,
+  isPremium,
+} from '../../supabase/types';
 import {
   addMembers,
   deleteChat,
@@ -16,6 +21,8 @@ import {
   setAdmin,
   setChatPrefs,
   setForum,
+  setChannelComments,
+  fetchChatFlags,
   updateChatInfo,
 } from '../../supabase/api';
 import { onDbEvent } from '../../supabase/realtime';
@@ -38,13 +45,20 @@ export function ChatInfoRoute() {
   const me = useMe();
   const { chat, status } = useChat(chatId);
   if (status === 'loading') return <FullScreenSpinner />;
-  if (!chat || (chat.type !== 'group' && chat.type !== 'channel')) return <Navigate to={`/c/${chatId}`} replace />;
+  if (!chat || (chat.type !== 'group' && chat.type !== 'channel'))
+    return <Navigate to={`/c/${chatId}`} replace />;
   return <ChatInfo chat={chat} me={me} />;
 }
 
 function useMembers(chatId: string) {
   const [members, setMembers] = useState<Member[]>([]);
-  const load = useCallback(() => void fetchMembers(chatId).then(setMembers).catch(() => undefined), [chatId]);
+  const load = useCallback(
+    () =>
+      void fetchMembers(chatId)
+        .then(setMembers)
+        .catch(() => undefined),
+    [chatId],
+  );
   useEffect(() => {
     load();
     return onDbEvent((e) => {
@@ -54,7 +68,17 @@ function useMembers(chatId: string) {
   return { members, reload: load };
 }
 
-function MemberRow({ chat, member, me, onChanged }: { chat: Chat; member: Member; me: string; onChanged: () => void }) {
+function MemberRow({
+  chat,
+  member,
+  me,
+  onChanged,
+}: {
+  chat: Chat;
+  member: Member;
+  me: string;
+  onChanged: () => void;
+}) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const uid = member.userId;
@@ -99,16 +123,26 @@ function MemberRow({ chat, member, me, onChanged }: { chat: Chat; member: Member
     <>
       <div className="list-item">
         <button className="plain row gap grow min0" onClick={() => navigate(`/profile/${uid}`)}>
-          <Avatar name={displayNameOf(p, '?')} seed={uid} src={p?.avatar} size={42} online={presence?.online} />
+          <Avatar
+            name={displayNameOf(p, '?')}
+            seed={uid}
+            src={p?.avatar}
+            size={42}
+            online={presence?.online}
+          />
           <div className="list-item-body">
-            <div className="list-item-title ellipsis">{uid === me ? t('common.you') : displayNameOf(p, '…')}</div>
+            <div className="list-item-title ellipsis">
+              {uid === me ? t('common.you') : displayNameOf(p, '…')}
+            </div>
             <div className={presence?.online ? 'list-item-sub accent-text' : 'list-item-sub'}>
               {lastSeenText(presence, hideMine, t, i18n.language)}
             </div>
           </div>
         </button>
         {member.role !== 'member' && (
-          <span className="muted small">{member.role === 'owner' ? t('groups.owner') : t('groups.admin')}</span>
+          <span className="muted small">
+            {member.role === 'owner' ? t('groups.owner') : t('groups.admin')}
+          </span>
         )}
         {items.length > 0 && (
           <button className="icon-btn small" onClick={(e) => setMenu({ x: e.clientX - 200, y: e.clientY })}>
@@ -131,13 +165,24 @@ function ChatInfo({ chat, me }: { chat: Chat; me: string }) {
   const isMember = chat.myRole !== null;
   const isChannel = chat.type === 'channel';
   const owner = useProfile(chat.ownerId);
-  const max = isChannel ? CHANNEL_MAX_MEMBERS : isPremium(owner) ? GROUP_MAX_MEMBERS_PREMIUM : GROUP_MAX_MEMBERS;
+  const max = isChannel
+    ? CHANNEL_MAX_MEMBERS
+    : isPremium(owner)
+      ? GROUP_MAX_MEMBERS_PREMIUM
+      : GROUP_MAX_MEMBERS;
   const { members, reload } = useMembers(chat.id);
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
   const [toAdd, setToAdd] = useState<string[]>([]);
   const [confirm, setConfirm] = useState<'leave' | 'delete' | null>(null);
   const [share, setShare] = useState(false);
+  const [commentsOn, setCommentsOn] = useState(false);
+  useEffect(() => {
+    if (chat.type === 'channel')
+      void fetchChatFlags(chat.id)
+        .then((f) => setCommentsOn(f.comments))
+        .catch(() => undefined);
+  }, [chat.id, chat.type]);
   const fail = (e: unknown) => showToast(t(errorKey(e)));
 
   // Участников канала видят только админы (как в Telegram).
@@ -164,7 +209,9 @@ function ChatInfo({ chat, me }: { chat: Chat; me: string }) {
             <Badges verified={chat.verified} scam={chat.scam} size={22} />
           </h2>
           <p className="muted">
-            {isChannel ? t('chats.subscribers', { count: chat.memberCount }) : t('chats.members', { count: chat.memberCount })}
+            {isChannel
+              ? t('chats.subscribers', { count: chat.memberCount })
+              : t('chats.members', { count: chat.memberCount })}
           </p>
         </div>
 
@@ -211,6 +258,23 @@ function ChatInfo({ chat, me }: { chat: Chat; me: string }) {
               <Switch
                 checked={!chat.muted}
                 onChange={(on) => void setChatPrefs(chat.id, { muted: !on }).then(() => refreshChats(0))}
+              />
+            </div>
+          )}
+          {chat.type === 'channel' && (isOwner || isGlobalAdmin) && (
+            <div className="info-item">
+              <Icon name="comment" />
+              <div className="grow">
+                <div>{t('comments.toggle')}</div>
+                <div className="muted small">{t('comments.toggleHint')}</div>
+              </div>
+              <Switch
+                checked={commentsOn}
+                onChange={(on) =>
+                  void setChannelComments(chat.id, on)
+                    .then(() => setCommentsOn(on))
+                    .catch(fail)
+                }
               />
             </div>
           )}
@@ -335,7 +399,11 @@ function ChatInfo({ chat, me }: { chat: Chat; me: string }) {
         />
       )}
       {share && chat.inviteCode && (
-        <ShareLink link={inviteLink(chat.inviteCode)} title={t('groups.inviteLink')} onClose={() => setShare(false)} />
+        <ShareLink
+          link={inviteLink(chat.inviteCode)}
+          title={t('groups.inviteLink')}
+          onClose={() => setShare(false)}
+        />
       )}
     </div>
   );
@@ -391,12 +459,19 @@ function EditInfo({ chat, onClose }: { chat: Chat; onClose: () => void }) {
           />
         </div>
         <label className="field">
-          <span className="field-label">{chat.type === 'group' ? t('groups.groupName') : t('groups.channelName')}</span>
+          <span className="field-label">
+            {chat.type === 'group' ? t('groups.groupName') : t('groups.channelName')}
+          </span>
           <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={64} />
         </label>
         <label className="field">
           <span className="field-label">{t('groups.description')}</span>
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={255} rows={3} />
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            maxLength={255}
+            rows={3}
+          />
         </label>
       </div>
     </Modal>

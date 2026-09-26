@@ -174,7 +174,8 @@
     "removed": "{{name}} removed {{user}}",
     "renamed": "{{name}} renamed the chat to “{{title}}”",
     "ttlOn": "{{name}} enabled auto-delete: {{period}}",
-    "ttlOff": "{{name}} disabled auto-delete"
+    "ttlOff": "{{name}} disabled auto-delete",
+    "voiceStarted": "{{name}} started a voice chat"
   },
   "profile": {
     "title": "Profile",
@@ -622,5 +623,26 @@
     "s86400": "1 day",
     "s604800": "1 week",
     "s2592000": "1 month"
+  },
+  "groupCall": {
+    "title": "Voice chat",
+    "start": "Start voice chat",
+    "join": "Join",
+    "leave": "Leave",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "full": "Voice chat already has 6 people",
+    "members_one": "{{count}} participant",
+    "members_other": "{{count}} participants"
+  },
+  "comments": {
+    "title": "Comments · {{count}}",
+    "empty": "No comments yet — be the first",
+    "placeholder": "Comment…",
+    "leave": "Leave a comment",
+    "count_one": "{{count}} comment",
+    "count_other": "{{count}} comments",
+    "toggle": "Comments",
+    "toggleHint": "Subscribers can discuss posts"
   }
 }
