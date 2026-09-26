@@ -58,6 +58,7 @@ export function toProfile(r: Row): UserProfile {
     profileLocked: r.profile_locked === true,
     isBot: r.is_bot === true,
     coOwner: r.co_owner === true,
+    founder: r.founder === true,
     developer: r.developer === true,
     dmVerifiedOnly: r.dm_verified_only === true,
     nftUsernames: ((r.nft_usernames as { username: string }[] | null) ?? []).map((n) => n.username).sort(),

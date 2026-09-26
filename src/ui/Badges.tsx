@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 
 export interface BadgeFlags {
@@ -9,11 +9,24 @@ export interface BadgeFlags {
   emoji?: string | null;
   /** Разработчик Bobogram: зелёный «</>». */
   developer?: boolean;
+  /** Основатель Bobogram: золотая корона. */
+  founder?: boolean;
 }
 
-/** Зелёный «</>»; по нажатию — подсказка «Разработчик Bobogram». */
-export function DeveloperBadge({ size = 16 }: { size?: number }) {
-  const { t } = useTranslation();
+/** Значок с подсказкой по нажатию (разработчик, основатель). */
+function PopoverBadge({
+  className,
+  label,
+  hint,
+  style,
+  children,
+}: {
+  className: string;
+  label: string;
+  hint: string;
+  style?: CSSProperties;
+  children: ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -29,11 +42,11 @@ export function DeveloperBadge({ size = 16 }: { size?: number }) {
   return (
     <span
       ref={ref}
-      className="dev-badge"
+      className={className}
       role="button"
       tabIndex={0}
-      aria-label={t('badges.developer')}
-      style={{ fontSize: Math.round(size * 0.62), height: size }}
+      aria-label={label}
+      style={style}
       onClick={(e) => {
         e.stopPropagation();
         e.preventDefault();
@@ -41,14 +54,54 @@ export function DeveloperBadge({ size = 16 }: { size?: number }) {
       }}
       onKeyDown={(e) => e.key === 'Enter' && setOpen((v) => !v)}
     >
-      {'</>'}
+      {children}
       {open && (
         <span className="dev-popover" role="tooltip">
-          <strong>{t('badges.developer')}</strong>
-          <span>{t('badges.developerHint')}</span>
+          <strong>{label}</strong>
+          <span>{hint}</span>
         </span>
       )}
     </span>
+  );
+}
+
+/** Зелёный «</>»; по нажатию — подсказка «Разработчик Bobogram». */
+export function DeveloperBadge({ size = 16 }: { size?: number }) {
+  const { t } = useTranslation();
+  return (
+    <PopoverBadge
+      className="dev-badge"
+      label={t('badges.developer')}
+      hint={t('badges.developerHint')}
+      style={{ fontSize: Math.round(size * 0.62), height: size }}
+    >
+      {'</>'}
+    </PopoverBadge>
+  );
+}
+
+/** Золотая корона; по нажатию — подсказка «Основатель Bobogram». */
+export function FounderBadge({ size = 16 }: { size?: number }) {
+  const { t } = useTranslation();
+  return (
+    <PopoverBadge className="founder-badge" label={t('badges.founder')} hint={t('badges.founderHint')}>
+      <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+        <defs>
+          <linearGradient id="bg-founder" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#ffe27a" />
+            <stop offset="1" stopColor="#f0a500" />
+          </linearGradient>
+        </defs>
+        <path
+          fill="url(#bg-founder)"
+          stroke="#b77900"
+          strokeWidth="0.8"
+          strokeLinejoin="round"
+          d="M3 7.5l4.6 3.8L12 4.5l4.4 6.8L21 7.5l-1.8 10.5H4.8z"
+        />
+        <rect x="4.8" y="18.6" width="14.4" height="2.2" rx="1" fill="#f0a500" />
+      </svg>
+    </PopoverBadge>
   );
 }
 
@@ -125,12 +178,14 @@ export function Badges({
   premium,
   emoji,
   developer,
+  founder,
   size = 16,
 }: BadgeFlags & { size?: number }) {
-  if (!verified && !scam && !premium && !emoji && !developer) return null;
+  if (!verified && !scam && !premium && !emoji && !developer && !founder) return null;
   return (
     <span className="badges">
       {verified && <VerifiedIcon size={size} />}
+      {founder && <FounderBadge size={size} />}
       {developer && <DeveloperBadge size={size} />}
       {emoji ? (
         <span className="emoji-status" style={{ fontSize: size }}>

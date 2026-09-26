@@ -105,6 +105,7 @@ function UsersTab({ q }: { q: string }) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const me = useMe();
+  const myProfile = useApp((s) => s.profile);
   const showToast = useApp((s) => s.showToast);
   const fail = useFail();
   const [users, setUsers] = useState<UserProfile[] | null>(null);
@@ -149,15 +150,16 @@ function UsersTab({ q }: { q: string }) {
     if (at) setSubMenu({ items: subItems, x: at.x, y: at.y });
   };
 
-  const iAmOwner = !!ownerId && me === ownerId;
-  /** Владельца и со-владельцев может менять только владелец (свой профиль — сам человек). */
-  const lockedFor = (u: UserProfile) => !iAmOwner && u.uid !== me && (u.uid === ownerId || u.coOwner);
+  const ownerLike = (u: UserProfile) => u.uid === ownerId || !!u.founder;
+  const iAmOwner = (!!ownerId && me === ownerId) || !!myProfile?.founder;
+  /** Владельца и основателей не меняет никто другой, со-владельцев — только они (свой профиль — сам человек). */
+  const lockedFor = (u: UserProfile) => u.uid !== me && (ownerLike(u) || (u.coOwner && !iAmOwner));
 
   const items = (u: UserProfile): MenuItem[] => {
-    const isOwner = u.uid === ownerId;
+    const isOwner = ownerLike(u);
     const ownerItems: MenuItem[] = [];
     if (iAmOwner && !u.isBot) {
-      if (u.uid !== me) {
+      if (u.uid !== me && !ownerLike(u)) {
         ownerItems.push({
           icon: 'shield',
           label: u.coOwner ? t('admin.removeCoOwner') : t('admin.makeCoOwner'),
@@ -312,6 +314,7 @@ function UsersTab({ q }: { q: string }) {
                     premium={isPremium(u)}
                     emoji={u.emojiStatus}
                     developer={u.developer}
+                    founder={u.founder}
                     size={15}
                   />
                   {u.role === 'admin' && '🛡️'}
@@ -323,6 +326,7 @@ function UsersTab({ q }: { q: string }) {
                   {u.profileLocked && ` · 🔒`}
                   {u.dmVerifiedOnly && ` · ✔️`}
                   {u.uid === ownerId && ` · 👑 ${t('admin.owner')}`}
+                  {u.founder && u.uid !== ownerId && ` · 👑 ${t('admin.founder')}`}
                   {u.coOwner && ` · 🤝 ${t('admin.coOwner')}`}
                   {u.banned && ` · ${t('admin.banned')}`}
                   {isPremium(u) &&

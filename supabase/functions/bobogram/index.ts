@@ -208,14 +208,18 @@ Deno.serve(async (req) => {
       const { data: profile } = await admin.from('profiles').select('role, banned').eq('id', caller.id).single();
       if (profile?.role !== 'admin' || profile.banned) return json({ error: 'forbidden' }, 403);
       if (typeof body.password !== 'string' || body.password.length < 6) return json({ error: 'weak password' }, 400);
-      // Пароль владельца и со-владельцев меняет только владелец; боту — никто.
-      const { data: owner } = await admin.rpc('get_owner_id');
-      const { data: target } = await admin
-        .from('profiles')
-        .select('username, is_bot, co_owner')
-        .eq('id', body.userId)
-        .single();
-      if (!target || target.is_bot || ((body.userId === owner || target.co_owner) && caller.id !== owner)) {
+      // Пароль владельца и основателей не меняет никто другой, со-владельцев — только они; боту — никто.
+      const [{ data: targetIsOwner }, { data: callerIsOwner }, { data: target }] = await Promise.all([
+        admin.rpc('is_owner', { p_user: body.userId }),
+        admin.rpc('is_owner', { p_user: caller.id }),
+        admin.from('profiles').select('username, is_bot, co_owner').eq('id', body.userId).single(),
+      ]);
+      if (
+        !target ||
+        target.is_bot ||
+        (targetIsOwner && body.userId !== caller.id) ||
+        (target.co_owner && !callerIsOwner)
+      ) {
         return json({ error: 'forbidden' }, 403);
       }
       const { error } = await admin.auth.admin.updateUserById(body.userId, { password: body.password });

@@ -441,6 +441,24 @@ test('темы в группе: включить, создать, писать �
   await expect(mem.locator('.bubble', { hasText: 'го в доту' })).toHaveCount(0);
 });
 
+test('после обновления сайта админка открывается без экрана ошибки', async ({ browser }) => {
+  const boss = await signUp(browser, 'Админ', `upd${run}`);
+  const { data } = await service.from('profiles').select('id').eq('username', `upd${run}`).single();
+  await service.from('profiles').update({ role: 'admin' }).eq('id', data!.id);
+  await boss.reload();
+  // Старый файл админки уже удалён с сервера — первая загрузка падает.
+  let failed = false;
+  await boss.route(/AdminPanel/, (route) => {
+    if (failed) return route.continue();
+    failed = true;
+    return route.abort();
+  });
+  await boss.goto('./#/admin');
+  await expect(boss.getByText('Что-то пошло не так')).toHaveCount(0);
+  await expect(boss.getByText('Админ-панель')).toBeVisible({ timeout: 15_000 });
+  expect(failed).toBe(true);
+});
+
 test('без сети сообщение ждёт с «часиками» и уходит, когда сеть появилась', async ({ browser }) => {
   const alice = await signUp(browser, 'Алиса', `aliceo${run}`);
   const bob = await signUp(browser, 'Боб', `bobo${run}`);

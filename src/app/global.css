@@ -2523,6 +2523,16 @@ button.setting-row:hover {
 .dev-popover strong {
   color: #1faa59;
 }
+.founder-badge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  filter: drop-shadow(0 0 3px rgba(255, 196, 0, 0.45));
+}
+.founder-badge .dev-popover strong {
+  color: #e0a100;
+}
 .boost-section {
   display: flex;
   flex-direction: column;

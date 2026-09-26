@@ -126,6 +126,7 @@ function ProfileScreen({ uid }: { uid: string }) {
               premium={isPremium(profile)}
               emoji={profile.emojiStatus}
               developer={profile.developer}
+              founder={profile.founder}
               size={22}
             />
           </h2>

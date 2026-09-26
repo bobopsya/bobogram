@@ -351,7 +351,8 @@
     "removeDeveloper": "Remove developer badge",
     "protected": "Only the owner can manage",
     "dmVerifiedOnlyOn": "Only verified can message",
-    "dmVerifiedOnlyOff": "Everyone can message"
+    "dmVerifiedOnlyOff": "Everyone can message",
+    "founder": "founder"
   },
   "notify": {
     "newMessage": "New message",
@@ -365,7 +366,9 @@
     "scamWarningTitle": "⚠️ Warning: scammer",
     "scamWarningText": "The administrators marked this account as a scam. Do not send money or share passwords.",
     "developer": "Bobogram developer",
-    "developerHint": "This person builds Bobogram."
+    "developerHint": "This person builds Bobogram.",
+    "founder": "Bobogram founder",
+    "founderHint": "One of the creators of Bobogram"
   },
   "appearance": {
     "title": "Appearance",
