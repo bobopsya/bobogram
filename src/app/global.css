@@ -634,6 +634,7 @@ select {
 }
 .search-box {
   flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -656,6 +657,36 @@ select {
   outline: none;
   background: none;
   font-size: 16px;
+}
+.story-add-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(45, 156, 219, 0.24);
+}
+.story-add-btn:disabled {
+  opacity: 0.55;
+}
+@media (max-width: 420px) {
+  .chat-list .topbar {
+    gap: 5px;
+    padding-right: calc(6px + var(--safe-right));
+    padding-left: calc(6px + var(--safe-left));
+  }
+  .search-box {
+    height: 40px;
+    padding-left: 12px;
+    border-radius: 20px;
+  }
+  .story-add-btn {
+    width: 40px;
+    height: 40px;
+  }
 }
 .chat-list-scroll {
   flex: 1;

@@ -113,17 +113,17 @@ export function EditProfileScreen() {
                 e.target.value = '';
               }}
             />
-            <div className="row gap">
-              <button className="btn btn-text" onClick={() => fileRef.current?.click()}>
-                {t('profile.changeAvatar')}
-              </button>
-              {avatar && (
+          <div className="row gap">
+            <button className="btn btn-text" onClick={() => fileRef.current?.click()}>
+              {t('profile.changeAvatar')}
+            </button>
+            {avatar && (
                 <button className="btn btn-text danger" onClick={() => setAvatar(null)}>
-                  {t('profile.removeAvatar')}
-                </button>
-              )}
-            </div>
+                {t('profile.removeAvatar')}
+              </button>
+            )}
           </div>
+        </div>
 
           <label className="field">
             <span className="field-label">{t('auth.displayName')}</span>

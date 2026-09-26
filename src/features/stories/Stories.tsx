@@ -86,7 +86,7 @@ export function StoryAvatar({
   );
 }
 
-export function AddStoryButton() {
+export function AddStoryButton({ variant = 'button' }: { variant?: 'button' | 'icon' }) {
   const { t } = useTranslation();
   const me = useMe();
   const showToast = useApp((s) => s.showToast);
@@ -118,10 +118,21 @@ export function AddStoryButton() {
 
   return (
     <>
-      <button className="action-btn" onClick={() => inputRef.current?.click()} disabled={busy}>
-        <Icon name="image" />
-        <span>{t('stories.add')}</span>
-      </button>
+      {variant === 'icon' ? (
+        <button
+          className="story-add-btn"
+          onClick={() => inputRef.current?.click()}
+          disabled={busy}
+          aria-label={t('stories.add')}
+        >
+          <Icon name="plus" size={20} />
+        </button>
+      ) : (
+        <button className="action-btn" onClick={() => inputRef.current?.click()} disabled={busy}>
+          <Icon name="image" />
+          <span>{t('stories.add')}</span>
+        </button>
+      )}
       <input
         ref={inputRef}
         type="file"
