@@ -586,6 +586,60 @@ test('форматирование: панель при выделении, сп
   await alice.screenshot({ path: 'test-results/markup.png' });
 });
 
+test('админка: «⋮» открывает меню даже при нажатии у края кнопки', async ({ browser }) => {
+  const boss = await signUp(browser, 'Админ', `edge${run}`);
+  await signUp(browser, 'Кто-то', `edgeu${run}`);
+  const { data } = await service.from('profiles').select('id').eq('username', `edge${run}`).single();
+  await service.from('profiles').update({ role: 'admin' }).eq('id', data!.id);
+  await boss.goto('./#/admin');
+  await boss.reload();
+  await boss.getByRole('main').getByPlaceholder('Поиск', { exact: true }).fill(`edgeu${run}`);
+  const more = boss.locator('.list-item', { hasText: `@edgeu${run}` }).getByRole('button', { name: 'more' });
+  await more.scrollIntoViewIfNeeded();
+  // Как человек: нажали у самого правого края и отпустили там же.
+  const box = (await more.boundingBox())!;
+  await boss.mouse.move(box.x + box.width - 1, box.y + box.height / 2);
+  await boss.mouse.down();
+  await boss.waitForTimeout(150);
+  await boss.mouse.up();
+  await expect(boss.getByRole('menuitem').first()).toBeVisible();
+});
+
+test('подсказка значка в списке чатов видна целиком', async ({ browser }) => {
+  const alice = await signUp(browser, 'Алиса', `tip${run}`);
+  const { data: a } = await service.from('profiles').select('id').eq('username', `tip${run}`).single();
+  const { data: b } = await service.auth.admin.createUser({
+    email: `${crypto.randomUUID()}@users.bobogram.app`,
+    password: 'secret123',
+    email_confirm: true,
+    user_metadata: { username: `tipd${run}`, display_name: 'Разраб' },
+  });
+  await service.from('profiles').update({ developer: true }).eq('id', b.user!.id);
+  const { data: chat } = await service
+    .from('chats')
+    .insert({ type: 'private', private_key: [a!.id, b.user!.id].sort().join('_') })
+    .select('id')
+    .single();
+  await service.from('chat_members').insert([
+    { chat_id: chat!.id, user_id: a!.id },
+    { chat_id: chat!.id, user_id: b.user!.id },
+  ]);
+  await service.from('messages').insert({ chat_id: chat!.id, sender_id: b.user!.id, text: 'привет' });
+  await alice.reload();
+  await alice.locator('.chat-item', { hasText: 'Разраб' }).locator('.dev-badge').click();
+  const tip = alice.getByRole('tooltip');
+  await expect(tip).toContainText('Разработчик Bobogram');
+  // Нижняя часть подсказки не обрезана строкой: в этой точке — сама подсказка.
+  const box = (await tip.boundingBox())!;
+  const hit = await alice.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest('.dev-popover'), {
+    x: box.x + box.width / 2,
+    y: box.y + box.height - 4,
+  });
+  expect(hit).toBe(true);
+  // Нажатие по значку не открывает чат.
+  await expect(alice.getByPlaceholder('Сообщение')).toHaveCount(0);
+});
+
 test('без сети сообщение ждёт с «часиками» и уходит, когда сеть появилась', async ({ browser }) => {
   const alice = await signUp(browser, 'Алиса', `aliceo${run}`);
   const bob = await signUp(browser, 'Боб', `bobo${run}`);

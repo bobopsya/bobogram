@@ -1979,20 +1979,30 @@ button.setting-row:hover {
     animation: slide-up 0.26s var(--ease-out);
   }
 }
-.list-item,
-.btn,
-.icon-btn,
-.setting-row {
+/* Нажатие: иконка в кнопке чуть «проседает», сама кнопка и строки не сжимаются — иначе
+   они съезжали из-под курсора и клик у края не засчитывался (меню «⋮» в админке). */
+.icon-btn > svg {
+  transition: transform 0.12s var(--ease-out);
+}
+.icon-btn:active:not(:disabled) > svg {
+  transform: scale(0.86);
+}
+.btn {
   transition:
     background 0.15s,
-    transform 0.12s var(--ease-out),
+    filter 0.12s,
     opacity 0.15s;
 }
+.btn:active:not(:disabled) {
+  filter: brightness(0.9);
+}
+.list-item,
+.setting-row {
+  transition: background 0.15s;
+}
 .list-item:active:not(:disabled),
-.btn:active:not(:disabled),
-.icon-btn:active:not(:disabled),
 .setting-row:active {
-  transform: scale(0.97);
+  background: var(--bg-hover);
 }
 /* Длинный список чатов: невидимые строки не рисуются. */
 .chat-item {
@@ -2641,11 +2651,8 @@ button.setting-row:hover {
   flex-shrink: 0;
 }
 .dev-popover {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 50;
+  position: fixed;
+  z-index: 150;
   display: flex;
   flex-direction: column;
   gap: 2px;
