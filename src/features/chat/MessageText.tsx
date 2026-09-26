@@ -2,13 +2,15 @@ import { Fragment, useMemo, useState, type ReactNode } from 'react';
 import { parseMarkup, TEXT_EFFECTS, type MarkNode } from '../../lib/markup';
 import { NAME_COLORS, nameColorStyle } from '../../app/themes';
 import { Link } from 'react-router';
+import { useApp } from '../../app/store';
 
 const STYLES: ReadonlySet<string> = new Set([...NAME_COLORS.map((c) => c.id), ...TEXT_EFFECTS]);
 
 /** Текст сообщения с разметкой, ссылками и @упоминаниями; highlight — подсветка поиска. */
 export function MessageText({ text, highlight }: { text: string; highlight?: string }) {
   const nodes = useMemo(() => parseMarkup(text, STYLES), [text]);
-  return <>{render(nodes, highlight)}</>;
+  const me = useApp((s) => s.profile?.username.toLowerCase());
+  return <>{render(nodes, highlight, me)}</>;
 }
 
 function Spoiler({ children }: { children: ReactNode }) {
@@ -27,7 +29,7 @@ function Spoiler({ children }: { children: ReactNode }) {
   );
 }
 
-function render(nodes: MarkNode[], q: string | undefined): ReactNode[] {
+function render(nodes: MarkNode[], q: string | undefined, me?: string): ReactNode[] {
   return nodes.map((n, key) => {
     switch (n.t) {
       case 'text':
@@ -35,15 +37,15 @@ function render(nodes: MarkNode[], q: string | undefined): ReactNode[] {
       case 'br':
         return <br key={key} />;
       case 'b':
-        return <strong key={key}>{render(n.c, q)}</strong>;
+        return <strong key={key}>{render(n.c, q, me)}</strong>;
       case 'i':
-        return <em key={key}>{render(n.c, q)}</em>;
+        return <em key={key}>{render(n.c, q, me)}</em>;
       case 's':
-        return <s key={key}>{render(n.c, q)}</s>;
+        return <s key={key}>{render(n.c, q, me)}</s>;
       case 'u':
-        return <u key={key}>{render(n.c, q)}</u>;
+        return <u key={key}>{render(n.c, q, me)}</u>;
       case 'spoiler':
-        return <Spoiler key={key}>{render(n.c, q)}</Spoiler>;
+        return <Spoiler key={key}>{render(n.c, q, me)}</Spoiler>;
       case 'code':
         return (
           <code key={key} className="md-code">
@@ -59,7 +61,7 @@ function render(nodes: MarkNode[], q: string | undefined): ReactNode[] {
       case 'quote':
         return (
           <blockquote key={key} className="md-quote">
-            {render(n.c, q)}
+            {render(n.c, q, me)}
           </blockquote>
         );
       case 'link':
@@ -71,7 +73,7 @@ function render(nodes: MarkNode[], q: string | undefined): ReactNode[] {
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
           >
-            {render(n.c, q)}
+            {render(n.c, q, me)}
           </a>
         );
       case 'url':
@@ -88,18 +90,23 @@ function render(nodes: MarkNode[], q: string | undefined): ReactNode[] {
         );
       case 'mention':
         return (
-          <Link key={key} to={`/u/${n.v.slice(1)}`} onClick={(e) => e.stopPropagation()}>
+          <Link
+            key={key}
+            to={`/u/${n.v.slice(1)}`}
+            className={n.v.slice(1).toLowerCase() === me ? 'md-mention me' : 'md-mention'}
+            onClick={(e) => e.stopPropagation()}
+          >
             {n.v}
           </Link>
         );
       case 'style':
         return (TEXT_EFFECTS as readonly string[]).includes(n.style) ? (
           <span key={key} className={`md-${n.style}`}>
-            {render(n.c, q)}
+            {render(n.c, q, me)}
           </span>
         ) : (
           <span key={key} className="md-color" style={nameColorStyle(n.style)}>
-            {render(n.c, q)}
+            {render(n.c, q, me)}
           </span>
         );
     }

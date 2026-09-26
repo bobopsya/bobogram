@@ -457,7 +457,8 @@
     "sendPhotos_one": "Send photo",
     "sendPhotos_other": "Send {{count}} photos",
     "micDenied": "No access to the microphone",
-    "badPhoto": "Could not open the photo"
+    "badPhoto": "Could not open the photo",
+    "photoOrVideo": "Photo or video"
   },
   "stories": {
     "title": "Stories",
@@ -563,5 +564,22 @@
     "bigShort": "Aa",
     "smallShort": "aa",
     "waveShort": "~Aa~"
+  },
+  "poll": {
+    "new": "Poll",
+    "create": "Create",
+    "question": "Question",
+    "options": "Answers",
+    "option": "Option {{n}}",
+    "addOption": "Add option",
+    "anonymous": "Anonymous poll",
+    "public": "Public poll",
+    "multiple": "Multiple answers",
+    "multipleShort": "multiple answers",
+    "vote": "Vote",
+    "retract": "Retract vote",
+    "whoVoted": "Who voted",
+    "votes_one": "{{count}} vote",
+    "votes_other": "{{count}} votes"
   }
 }

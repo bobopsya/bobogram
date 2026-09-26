@@ -465,7 +465,8 @@
     "sendPhotos_many": "Отправить {{count}} фото",
     "sendPhotos_other": "Отправить {{count}} фото",
     "micDenied": "Нет доступа к микрофону",
-    "badPhoto": "Не удалось открыть фото"
+    "badPhoto": "Не удалось открыть фото",
+    "photoOrVideo": "Фото или видео"
   },
   "stories": {
     "title": "Сторис",
@@ -573,5 +574,24 @@
     "bigShort": "Aa",
     "smallShort": "aa",
     "waveShort": "~Aa~"
+  },
+  "poll": {
+    "new": "Опрос",
+    "create": "Создать",
+    "question": "Вопрос",
+    "options": "Варианты ответа",
+    "option": "Вариант {{n}}",
+    "addOption": "Добавить вариант",
+    "anonymous": "Анонимный опрос",
+    "public": "Открытый опрос",
+    "multiple": "Несколько ответов",
+    "multipleShort": "несколько ответов",
+    "vote": "Голосовать",
+    "retract": "Отменить голос",
+    "whoVoted": "Кто голосовал",
+    "votes_one": "{{count}} голос",
+    "votes_few": "{{count}} голоса",
+    "votes_many": "{{count}} голосов",
+    "votes_other": "{{count}} голоса"
   }
 }

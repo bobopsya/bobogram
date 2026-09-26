@@ -10,6 +10,7 @@ import { useLongPress } from '../../ui/useLongPress';
 import { Badges } from '../../ui/Badges';
 import { callText, systemText } from '../chats/chatMeta';
 import { isEmojiOnly, MessageText } from './MessageText';
+import { PollView } from './Poll';
 import { PhotoMedia, VoiceMedia } from './MediaViews';
 import { nameColorStyle } from '../../app/themes';
 
@@ -192,7 +193,12 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
                 {!msg.text && meta}
               </div>
             ) : null}
-            {msg.text || !msg.media ? (
+            {msg.poll ? (
+              <div className="msg-text">
+                <PollView msg={msg} canVote />
+                {meta}
+              </div>
+            ) : msg.text || !msg.media ? (
               <div className="msg-text">
                 <MessageText text={msg.text} highlight={search} />
                 {meta}

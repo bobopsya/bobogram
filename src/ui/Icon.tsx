@@ -67,6 +67,33 @@ const ICONS = {
   ),
   plus: <path d="M12 5v14M5 12h14" />,
   hash: <path d="M4 9h16M4 15h16M10 3L8 21M16 3l-2 18" />,
+  poll: <path d="M5 20V10M12 20V4M19 20v-7" />,
+  file: (
+    <>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+      <path d="M14 3v5h5" />
+    </>
+  ),
+  circle: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="3.5" />
+    </>
+  ),
+  folder: <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />,
+  timer: (
+    <>
+      <circle cx="12" cy="13" r="8" />
+      <path d="M12 9v4l2.5 2.5M9 2h6" />
+    </>
+  ),
+  comment: <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.1-4.6A8 8 0 1 1 21 12z" />,
+  headphones: (
+    <>
+      <path d="M4 15v-3a8 8 0 0 1 16 0v3" />
+      <path d="M4 15a2 2 0 0 1 2-2h1v7H6a2 2 0 0 1-2-2zM20 15a2 2 0 0 0-2-2h-1v7h1a2 2 0 0 0 2-2z" />
+    </>
+  ),
   info: (
     <>
       <circle cx="12" cy="12" r="9" />

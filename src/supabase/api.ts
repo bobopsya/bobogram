@@ -161,6 +161,7 @@ export function toMessage(r: Row): Message {
     boostReactions: (r.boost_reactions as Record<string, number> | null) ?? {},
     media: (r.media as MediaInfo | null) ?? null,
     topicId: (r.topic_id as string | null) ?? null,
+    poll: (r.poll as Message['poll']) ?? null,
     pending: false,
   };
 }
@@ -1048,4 +1049,41 @@ export async function adminUserDevices(uid: string): Promise<UserDevice[]> {
     deviceBanned: r.device_banned === true,
     ipBanned: r.ip_banned === true,
   }));
+}
+
+// ---------- опросы ----------
+export async function createPoll(p: {
+  id: string;
+  chatId: string;
+  question: string;
+  options: string[];
+  anonymous: boolean;
+  multiple: boolean;
+  topicId?: string | null;
+}): Promise<void> {
+  check(
+    await supabase.rpc('create_poll', {
+      p_id: p.id,
+      p_chat: p.chatId,
+      p_question: p.question,
+      p_options: p.options,
+      p_anonymous: p.anonymous,
+      p_multiple: p.multiple,
+      p_topic: p.topicId ?? null,
+    }),
+  );
+}
+
+export async function votePoll(messageId: string, options: number[]): Promise<void> {
+  check(await supabase.rpc('vote_poll', { p_message: messageId, p_options: options }));
+}
+
+export async function fetchMyPollVotes(messageId: string): Promise<number[]> {
+  const rows = check(await supabase.from('poll_votes').select('option').eq('message_id', messageId)) as Row[];
+  return rows.map((r) => Number(r.option));
+}
+
+export async function fetchPollVoters(messageId: string): Promise<{ option: number; userId: string }[]> {
+  const rows = check(await supabase.rpc('get_poll_voters', { p_message: messageId })) as Row[];
+  return rows.map((r) => ({ option: Number(r.option), userId: String(r.user_id) }));
 }

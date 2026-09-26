@@ -673,6 +673,43 @@ test('админка: «Инфо» об устройстве и блокиров
   await expect(dialog.getByRole('button', { name: 'Заблокировать устройство' })).toBeVisible();
 });
 
+test('группа: @упоминание с подсказкой и опрос', async ({ browser }) => {
+  const own = await signUp(browser, 'Хозяин', `mnt${run}`);
+  const mem = await signUp(browser, 'Участник', `mntm${run}`, true);
+  await own.goto('./#/new/group');
+  await own.getByRole('button', { name: 'Далее' }).click();
+  await own.getByLabel('Название группы').fill(`Опросная ${run}`);
+  await own.getByRole('button', { name: 'Создать группу' }).click();
+  await expect(own.getByPlaceholder('Сообщение')).toBeVisible();
+  const chatId = own.url().split('/c/')[1];
+  const { data: m } = await service.from('profiles').select('id').eq('username', `mntm${run}`).single();
+  await service.from('chat_members').insert({ chat_id: chatId, user_id: m!.id });
+  await own.reload();
+
+  const input = own.getByPlaceholder('Сообщение');
+  await input.pressSequentially('привет @mntm');
+  await own.locator('.mention-item', { hasText: 'Участник' }).click();
+  await expect(input).toHaveValue(`привет @mntm${run} `);
+  await input.press('Enter');
+
+  await mem.goto(`./#/c/${chatId}`);
+  await expect(mem.locator('.bubble .md-mention.me', { hasText: `@mntm${run}` })).toBeVisible();
+
+  // Опрос.
+  await own.getByRole('button', { name: 'Прикрепить фото' }).click();
+  await own.getByRole('menuitem', { name: 'Опрос' }).click();
+  const dialog = own.getByRole('dialog');
+  await dialog.getByLabel('Вопрос').fill('Пицца или суши?');
+  await dialog.getByPlaceholder('Вариант 1').fill('Пицца');
+  await dialog.getByPlaceholder('Вариант 2').fill('Суши');
+  await dialog.getByRole('button', { name: 'Создать' }).click();
+  const poll = mem.locator('.poll', { hasText: 'Пицца или суши?' });
+  await poll.getByRole('button', { name: 'Суши' }).click();
+  await expect(poll.locator('.poll-pct').nth(1)).toHaveText('100%');
+  await expect(own.locator('.poll', { hasText: 'Пицца или суши?' }).getByText('1 голос')).toBeVisible();
+  await mem.screenshot({ path: 'test-results/poll.png' });
+});
+
 test('без сети сообщение ждёт с «часиками» и уходит, когда сеть появилась', async ({ browser }) => {
   const alice = await signUp(browser, 'Алиса', `aliceo${run}`);
   const bob = await signUp(browser, 'Боб', `bobo${run}`);

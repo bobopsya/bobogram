@@ -12,12 +12,19 @@ const cors = {
 };
 
 function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...cors, 'Content-Type': 'application/json' },
+  });
 }
 
-const admin: SupabaseClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
-  auth: { persistSession: false },
-});
+const admin: SupabaseClient = createClient(
+  Deno.env.get('SUPABASE_URL')!,
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  {
+    auth: { persistSession: false },
+  },
+);
 
 async function config(key: string): Promise<string | null> {
   const { data } = await admin.rpc('get_config', { p_key: key });
@@ -34,11 +41,15 @@ async function getVapid() {
   if (!pub || !priv) {
     const keys = webpush.generateVAPIDKeys();
     // Если две функции создают ключи одновременно, в базе останутся первые.
-    priv = (await admin.rpc('set_config_if_absent', { p_key: 'vapid_private', p_value: keys.privateKey })).data;
-    pub = (await admin.rpc('set_config_if_absent', {
-      p_key: 'vapid_public',
-      p_value: priv === keys.privateKey ? keys.publicKey : ((await config('vapid_public')) ?? keys.publicKey),
-    })).data;
+    priv = (await admin.rpc('set_config_if_absent', { p_key: 'vapid_private', p_value: keys.privateKey }))
+      .data;
+    pub = (
+      await admin.rpc('set_config_if_absent', {
+        p_key: 'vapid_public',
+        p_value:
+          priv === keys.privateKey ? keys.publicKey : ((await config('vapid_public')) ?? keys.publicKey),
+      })
+    ).data;
   }
   vapid = { publicKey: pub!, privateKey: priv! };
   webpush.setVapidDetails('mailto:admin@bobogram.app', vapid.publicKey, vapid.privateKey);
@@ -89,7 +100,8 @@ async function sendTo(userIds: string[], payload: Payload): Promise<SendResult> 
         const status = (err as { statusCode?: number }).statusCode;
         result.errors.push(`${status ?? ''} ${(err as Error).message}`.trim().slice(0, 200));
         // Подписка больше не действует (приложение удалили или отключили уведомления).
-        if (status === 404 || status === 410) await admin.from('push_subscriptions').delete().eq('endpoint', s.endpoint);
+        if (status === 404 || status === 410)
+          await admin.from('push_subscriptions').delete().eq('endpoint', s.endpoint);
       }
     }),
   );
@@ -125,9 +137,31 @@ async function pushMessage(id: string) {
     admin.from('chat_members').select('user_id, muted').eq('chat_id', msg.chat_id),
   ]);
   if (!chat || !sender || chat.type === 'saved') return none;
-  const recipients = (members ?? []).filter((m) => m.user_id !== msg.sender_id && !m.muted).map((m) => m.user_id);
+  // Упомянутых по @имени будим, даже если чат у них заглушен.
+  const tags = [
+    ...new Set(
+      [...(msg.text ?? '').matchAll(/@([a-zA-Z][a-zA-Z0-9_]{3,31})/g)].map((m) => m[1].toLowerCase()),
+    ),
+  ];
+  const mentioned = new Set<string>();
+  if (tags.length && chat.type === 'group') {
+    // Имена без учёта регистра; «_» в ilike — любой символ, поэтому экранируем.
+    const { data: found } = await admin
+      .from('profiles')
+      .select('id, username')
+      .or(tags.map((t) => `username.ilike.${t.replace(/_/g, '\\_')}`).join(','));
+    (found ?? []).forEach((p) => mentioned.add(p.id));
+  }
+  const recipients = (members ?? [])
+    .filter((m) => m.user_id !== msg.sender_id && (!m.muted || mentioned.has(m.user_id)))
+    .map((m) => m.user_id);
   const name = sender.display_name || '@' + sender.username;
-  const media = msg.media?.kind === 'voice' ? '🎤 Голосовое · Voice' : msg.media?.kind === 'photo' ? '📷 Фото · Photo' : '';
+  const media =
+    msg.media?.kind === 'voice'
+      ? '🎤 Голосовое · Voice'
+      : msg.media?.kind === 'photo'
+        ? '📷 Фото · Photo'
+        : '';
   const caption = truncate(stripMarkup(msg.text ?? ''), 300);
   const text = msg.call ? '📞' : media ? (caption ? `${media}: ${caption}` : media) : caption;
   const group = chat.type === 'group';
@@ -147,7 +181,11 @@ async function pushCall(id: string) {
     .eq('id', id)
     .single();
   if (!call || call.status !== 'ringing') return { sent: 0, errors: [] };
-  const { data: caller } = await admin.from('profiles').select('display_name, username').eq('id', call.caller_id).single();
+  const { data: caller } = await admin
+    .from('profiles')
+    .select('display_name, username')
+    .eq('id', call.caller_id)
+    .single();
   return sendTo([call.callee_id], {
     kind: 'call',
     chatId: call.chat_id,
@@ -193,14 +231,20 @@ Deno.serve(async (req) => {
       const uid = await callerId(req);
       if (!uid) return json({ error: 'unauthorized' }, 401);
       const [secret, host] = await Promise.all([config('turn_secret'), config('turn_host')]);
-      const stun: { urls: string[] } = { urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] };
+      const stun: { urls: string[] } = {
+        urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'],
+      };
       if (!secret || !host) return json({ iceServers: [stun] });
       const cred = await turnCredentials(secret, uid);
       return json({
         iceServers: [
           { urls: [`stun:${host}:3478`, ...stun.urls] },
           {
-            urls: [`turn:${host}:3478?transport=udp`, `turn:${host}:3478?transport=tcp`, `turn:${host}:443?transport=tcp`],
+            urls: [
+              `turn:${host}:3478?transport=udp`,
+              `turn:${host}:3478?transport=tcp`,
+              `turn:${host}:443?transport=tcp`,
+            ],
             ...cred,
           },
         ],
@@ -220,9 +264,14 @@ Deno.serve(async (req) => {
       const { data: userData } = await admin.auth.getUser(jwt);
       const caller = userData.user;
       if (!caller) return json({ error: 'unauthorized' }, 401);
-      const { data: profile } = await admin.from('profiles').select('role, banned').eq('id', caller.id).single();
+      const { data: profile } = await admin
+        .from('profiles')
+        .select('role, banned')
+        .eq('id', caller.id)
+        .single();
       if (profile?.role !== 'admin' || profile.banned) return json({ error: 'forbidden' }, 403);
-      if (typeof body.password !== 'string' || body.password.length < 6) return json({ error: 'weak password' }, 400);
+      if (typeof body.password !== 'string' || body.password.length < 6)
+        return json({ error: 'weak password' }, 400);
       // Пароль владельца и основателей не меняет никто другой, со-владельцев — только они; боту — никто.
       const [{ data: targetIsOwner }, { data: callerIsOwner }, { data: target }] = await Promise.all([
         admin.rpc('is_owner', { p_user: body.userId }),

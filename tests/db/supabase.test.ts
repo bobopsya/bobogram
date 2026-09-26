@@ -1220,3 +1220,62 @@ describe('блокировки по IP и устройству', () => {
     }
   });
 });
+
+describe('опросы', () => {
+  it('создание, голос, переголосование, итоги в сообщении, анонимность', async () => {
+    const own = await user('plown');
+    const a = await user('pla');
+    const b = await user('plb');
+    const g = await rpc<string>(own, 'create_chat', {
+      p_type: 'group',
+      p_title: 'Опросы',
+      p_members: [a.id, b.id],
+    });
+    const id = crypto.randomUUID();
+    await fails(
+      rpc(own, 'create_poll', { p_id: crypto.randomUUID(), p_chat: g, p_question: 'Q', p_options: ['один'] }),
+    );
+    await rpc(own, 'create_poll', {
+      p_id: id,
+      p_chat: g,
+      p_question: 'Пицца?',
+      p_options: ['Да', 'Нет', ' '],
+    });
+    type P = { question: string; options: string[]; counts: number[]; voters: number; anonymous: boolean };
+    const poll = async () =>
+      (await admin.from('messages').select('poll').eq('id', id).single()).data!.poll as P;
+    expect(await poll()).toMatchObject({
+      question: 'Пицца?',
+      options: ['Да', 'Нет'],
+      counts: [0, 0],
+      voters: 0,
+    });
+    await rpc(a, 'vote_poll', { p_message: id, p_options: [0] });
+    await rpc(b, 'vote_poll', { p_message: id, p_options: [1] });
+    await rpc(a, 'vote_poll', { p_message: id, p_options: [1] });
+    expect(await poll()).toMatchObject({ counts: [0, 2], voters: 2 });
+    await fails(rpc(a, 'vote_poll', { p_message: id, p_options: [0, 1] }));
+    await fails(rpc(a, 'vote_poll', { p_message: id, p_options: [5] }));
+    // Свой голос видно, чужой — нет; в анонимном опросе список голосовавших пуст.
+    const { data: mine } = await a.db.from('poll_votes').select('option, user_id').eq('message_id', id);
+    expect(mine).toEqual([{ option: 1, user_id: a.id }]);
+    expect(await rpc<unknown[]>(own, 'get_poll_voters', { p_message: id })).toEqual([]);
+    const open = crypto.randomUUID();
+    await rpc(own, 'create_poll', {
+      p_id: open,
+      p_chat: g,
+      p_question: 'Куда?',
+      p_options: ['A', 'B', 'C'],
+      p_anonymous: false,
+      p_multiple: true,
+    });
+    await rpc(b, 'vote_poll', { p_message: open, p_options: [0, 2] });
+    expect(
+      await rpc<{ option: number; user_id: string }[]>(own, 'get_poll_voters', { p_message: open }),
+    ).toHaveLength(2);
+    // Чужой не голосует и не видит.
+    const stranger = await user('plx');
+    await fails(rpc(stranger, 'vote_poll', { p_message: id, p_options: [0] }));
+    await fails(rpc(stranger, 'get_poll_voters', { p_message: open }));
+  });
+});

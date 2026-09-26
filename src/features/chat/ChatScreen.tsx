@@ -28,6 +28,7 @@ import { Modal } from '../../ui/Modal';
 import { FullScreenSpinner, PageHeader, Spinner } from '../../ui/misc';
 import { useChat, useMessages } from './useChatData';
 import { TopicList, useTopic } from './TopicList';
+import { PollDialog } from './Poll';
 import { ChatHeader } from './ChatHeader';
 import { MessageBubble } from './MessageBubble';
 import { Composer, splitText } from './Composer';
@@ -105,6 +106,7 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
   const [boosting, setBoosting] = useState<Message | null>(null);
   const [reporting, setReporting] = useState<Message | null>(null);
   const [channelBoostOpen, setChannelBoostOpen] = useState(false);
+  const [pollOpen, setPollOpen] = useState(false);
   const other = useProfile(chat.type === 'private' ? chat.otherId : null);
   const scam = chat.scam || (chat.type === 'private' && other?.scam === true);
   const [highlight, setHighlight] = useState<string | null>(null);
@@ -518,6 +520,10 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
         onEditLast={editLast}
         onSendPhotos={(files, caption) => void sendPhotos(files, caption)}
         onSendVoice={sendVoice}
+        mentions={chat.type === 'group'}
+        attachItems={
+          moderatable ? [{ icon: 'poll', label: t('poll.new'), onClick: () => setPollOpen(true) }] : []
+        }
       />
     );
   }
@@ -748,6 +754,7 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
 
       {boosting && <BoostDialog msg={boosting} onClose={() => setBoosting(null)} />}
       {reporting && <ReportDialog messageId={reporting.id} onClose={() => setReporting(null)} />}
+      {pollOpen && <PollDialog chatId={chat.id} topicId={topicId} onClose={() => setPollOpen(false)} />}
       {channelBoostOpen && (
         <ChannelBoostDialog
           chatId={chat.id}

@@ -195,6 +195,8 @@ export interface Message {
   /** Накрутка реакций: эмодзи → сколько прибавить. */
   boostReactions: Record<string, number>;
   media: MediaInfo | null;
+  /** Опрос: вопрос, варианты и итоги. */
+  poll?: PollInfo | null;
   /** Тема группы (null — «Общее» или обычный чат). */
   topicId?: string | null;
   /** Локальный адрес файла, пока он загружается (только у своих неотправленных). */
@@ -241,4 +243,13 @@ export function normalizeMessage(m: Message): Message {
     boostReactions: m.boostReactions ?? {},
     media: m.media ?? null,
   };
+}
+
+export interface PollInfo {
+  question: string;
+  options: string[];
+  anonymous: boolean;
+  multiple: boolean;
+  counts: number[];
+  voters: number;
 }
