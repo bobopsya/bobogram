@@ -1,4 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { stripMarkup, wrapSelection, TEXT_EFFECTS } from '../../lib/markup';
+import { NAME_COLORS } from '../../app/themes';
+import { isPremium } from '../../supabase/types';
+import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { Message } from '../../supabase/types';
 import { MESSAGE_MAX_LENGTH } from '../../supabase/types';
@@ -73,6 +77,11 @@ export function Composer(props: Props) {
   const [text, setText] = useState(() => drafts.get(chatId) ?? '');
   const [emojiOpen, setEmojiOpen] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
+  // Выделен текст — над полем панель форматирования.
+  const [selection, setSelection] = useState<{ start: number; end: number } | null>(null);
+  const [stylesOpen, setStylesOpen] = useState(false);
+  const premium = useApp((s) => isPremium(s.profile));
+  const navigate = useNavigate();
   const typingSent = useRef(0);
   const typingTimer = useRef<number | undefined>(undefined);
   const replyAuthor = useProfile(replyTo?.senderId ?? null);
@@ -147,7 +156,65 @@ export function Composer(props: Props) {
     ref.current?.focus();
   };
 
+  const readSelection = () => {
+    const el = ref.current;
+    if (!el) return;
+    const { selectionStart: start, selectionEnd: end } = el;
+    setSelection(start !== end ? { start, end } : null);
+    if (start === end) setStylesOpen(false);
+  };
+
+  const applyFormat = (open: string, close = open) => {
+    const el = ref.current;
+    if (!el) return;
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    if (start === end) return;
+    const next = wrapSelection(text, start, end, open, close);
+    onChange(next.text);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(next.start, next.end);
+      setSelection({ start: next.start, end: next.end });
+    });
+  };
+
+  const addLink = () => {
+    const url = window.prompt(t('format.linkPrompt'), 'https://');
+    if (url && /^https?:\/\/\S+$/.test(url.trim())) applyFormat('[', `](${url.trim()})`);
+  };
+
+  const premiumStyle = (id: string) => {
+    if (!premium) {
+      navigate('/settings/premium');
+      return;
+    }
+    applyFormat(`{${id}|`, '}');
+  };
+
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    const mod = e.ctrlKey || e.metaKey;
+    const key = e.key.toLowerCase();
+    if (mod && !e.altKey && ['b', 'i', 'u', 'x', 'm', 'p', 'k'].includes(key)) {
+      const format: Record<string, [string, string?]> = {
+        b: ['**'],
+        i: ['__'],
+        u: ['--'],
+        x: ['~~'],
+        m: ['`'],
+        p: ['||'],
+      };
+      const el = e.currentTarget;
+      if (
+        el.selectionStart !== el.selectionEnd &&
+        (key === 'b' || key === 'i' || key === 'u' || e.shiftKey)
+      ) {
+        e.preventDefault();
+        if (key === 'k') addLink();
+        else if (format[key]) applyFormat(...(format[key] as [string, string?]));
+        return;
+      }
+    }
     if (
       e.key === 'Enter' &&
       !e.shiftKey &&
@@ -253,7 +320,7 @@ export function Composer(props: Props) {
       <Icon name="reply" size={20} className="accent-text" />
       <div className="composer-bar-body">
         <div className="accent-text">{t('chat.replyTo', { name: displayNameOf(replyAuthor, '…') })}</div>
-        <div className="ellipsis muted">{replyTo.text || mediaLabel(replyTo, t)}</div>
+        <div className="ellipsis muted">{stripMarkup(replyTo.text) || mediaLabel(replyTo, t)}</div>
       </div>
       <button className="icon-btn small" onClick={onCancelReply} aria-label={t('common.cancel')}>
         <Icon name="close" size={18} />
@@ -266,6 +333,67 @@ export function Composer(props: Props) {
       {emojiOpen && (
         <div className="emoji-panel">
           <EmojiPicker onPick={insertEmoji} />
+        </div>
+      )}
+      {selection && !recording && (
+        <div
+          className="format-bar"
+          onPointerDown={(e) => e.preventDefault()}
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <button className="format-btn" onClick={() => applyFormat('**')} aria-label={t('format.bold')}>
+            <b>B</b>
+          </button>
+          <button className="format-btn" onClick={() => applyFormat('__')} aria-label={t('format.italic')}>
+            <i>I</i>
+          </button>
+          <button className="format-btn" onClick={() => applyFormat('~~')} aria-label={t('format.strike')}>
+            <s>S</s>
+          </button>
+          <button className="format-btn" onClick={() => applyFormat('--')} aria-label={t('format.underline')}>
+            <u>U</u>
+          </button>
+          <button className="format-btn mono" onClick={() => applyFormat('`')} aria-label={t('format.code')}>
+            {'</>'}
+          </button>
+          <button className="format-btn" onClick={() => applyFormat('||')} aria-label={t('format.spoiler')}>
+            <span className="format-spoiler">••</span>
+          </button>
+          <button className="format-btn" onClick={addLink} aria-label={t('format.link')}>
+            <Icon name="link" size={18} />
+          </button>
+          <button
+            className={stylesOpen ? 'format-btn premium active' : 'format-btn premium'}
+            onClick={() => (premium ? setStylesOpen((v) => !v) : navigate('/settings/premium'))}
+            aria-label={t('format.premium')}
+          >
+            ⭐
+          </button>
+          {stylesOpen && (
+            <div className="format-styles">
+              {NAME_COLORS.map((c) => (
+                <button
+                  key={c.id}
+                  className="format-color"
+                  style={{ background: c.css }}
+                  onClick={() => premiumStyle(c.id)}
+                  aria-label={c.id}
+                />
+              ))}
+              {TEXT_EFFECTS.map((fx) => (
+                <button
+                  key={fx}
+                  className="format-btn"
+                  onClick={() => premiumStyle(fx)}
+                  aria-label={t(`format.${fx}`)}
+                >
+                  <span className={`md-${fx}`} style={fx === 'big' ? { fontSize: '1.1em' } : undefined}>
+                    {t(`format.${fx}Short`)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
       {bar}
@@ -326,6 +454,8 @@ export function Composer(props: Props) {
             placeholder={t('chat.placeholder')}
             onChange={(e) => onChange(e.target.value)}
             onKeyDown={onKeyDown}
+            onSelect={readSelection}
+            onBlur={() => window.setTimeout(readSelection, 150)}
             onPaste={(e) => {
               const files = imagesOf(e.clipboardData?.files);
               if (files.length && !editing) {

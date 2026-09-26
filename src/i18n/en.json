@@ -516,5 +516,22 @@
     "closedBar": "Topic is closed — only admins can post",
     "closedError": "Topic is closed",
     "tooMany": "Too many topics (max 100)"
+  },
+  "format": {
+    "bold": "Bold",
+    "italic": "Italic",
+    "strike": "Strikethrough",
+    "underline": "Underline",
+    "code": "Monospace",
+    "spoiler": "Spoiler",
+    "link": "Link",
+    "linkPrompt": "Link URL",
+    "premium": "Premium styles",
+    "big": "Large",
+    "small": "Small",
+    "wave": "Shimmer",
+    "bigShort": "Aa",
+    "smallShort": "aa",
+    "waveShort": "~Aa~"
   }
 }

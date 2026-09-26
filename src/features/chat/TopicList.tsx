@@ -1,4 +1,5 @@
 import { useEffect, useState, type MouseEvent } from 'react';
+import { stripMarkup } from '../../lib/markup';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { Chat, Topic } from '../../supabase/types';
@@ -92,8 +93,9 @@ function TopicRow({
   let preview = '';
   if (last) {
     if (last.system) preview = systemText(last.system, last.senderId, t, me);
-    else if (last.media) preview = last.text ? `${mediaLabel(last, t)}, ${last.text}` : mediaLabel(last, t);
-    else preview = last.text;
+    else if (last.media)
+      preview = last.text ? `${mediaLabel(last, t)}, ${stripMarkup(last.text)}` : mediaLabel(last, t);
+    else preview = stripMarkup(last.text);
   }
   const prefix =
     last && !last.system ? (last.senderId === me ? t('common.you') : displayNameOf(sender, '…')) + ': ' : '';

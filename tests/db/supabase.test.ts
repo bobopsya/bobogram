@@ -1114,3 +1114,25 @@ describe('темы в группах', () => {
     expect(left.map((m) => m.text).filter(Boolean)).toEqual(['в общем']);
   });
 });
+
+describe('форматирование', () => {
+  it('премиум-стили только с премиумом, обычная разметка — у всех', async () => {
+    const plain = await user('mkplain');
+    const prem = await user('mkprem');
+    await admin.from('profiles').update({ premium_until: '9999-12-31' }).eq('id', prem.id);
+    const g = await rpc<string>(prem, 'create_chat', {
+      p_type: 'group',
+      p_title: 'Разметка',
+      p_members: [plain.id],
+    });
+    const text = async (id: string) =>
+      (await admin.from('messages').select('text').eq('id', id).single()).data!.text as string;
+
+    const a = await send(plain, g, '{red|красный} **жирный** {wave|волна}');
+    expect(await text(a)).toBe('красный **жирный** волна');
+    const b = await send(prem, g, '{red|красный} {wave|волна}');
+    expect(await text(b)).toBe('{red|красный} {wave|волна}');
+    await rpc(plain, 'edit_message', { p_id: a, p_text: 'снова {fire|огонь}' });
+    expect(await text(a)).toBe('снова огонь');
+  });
+});

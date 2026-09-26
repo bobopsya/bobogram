@@ -1811,6 +1811,128 @@ button.setting-row:hover {
   }
 }
 
+/* ============ Разметка сообщений ============ */
+.md-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(127, 127, 127, 0.16);
+}
+.md-pre {
+  margin: 4px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(127, 127, 127, 0.14);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88em;
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+.md-quote {
+  margin: 4px 0;
+  padding: 2px 0 2px 9px;
+  border-left: 3px solid var(--accent);
+  border-radius: 2px;
+}
+.md-spoiler {
+  border-radius: 4px;
+  background: rgba(127, 127, 127, 0.55);
+  color: transparent;
+  cursor: pointer;
+  filter: blur(4px);
+  transition:
+    filter 0.25s,
+    color 0.25s,
+    background 0.25s;
+  user-select: none;
+}
+.md-spoiler * {
+  color: transparent !important;
+}
+.md-spoiler.open {
+  background: transparent;
+  color: inherit;
+  filter: none;
+  cursor: text;
+  user-select: text;
+}
+.md-spoiler.open * {
+  color: inherit !important;
+}
+.md-color {
+  font-weight: 600;
+}
+.md-big {
+  font-size: 1.45em;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.md-small {
+  font-size: 0.78em;
+}
+.md-wave {
+  font-weight: 700;
+  background: linear-gradient(90deg, #ff5f6d, #ffc371, #47e5bc, #4a90e2, #b36bff, #ff5f6d);
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: md-wave 3s linear infinite;
+}
+@keyframes md-wave {
+  to {
+    background-position: -250% 0;
+  }
+}
+
+.format-bar {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 4px calc(8px + var(--safe-right)) 0 calc(8px + var(--safe-left));
+  animation: fade-in 0.15s;
+}
+.format-btn {
+  min-width: 38px;
+  height: 36px;
+  padding: 0 8px;
+  border-radius: 9px;
+  background: var(--bg-secondary);
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.format-btn.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  font-weight: 700;
+}
+.format-btn.active {
+  background: var(--accent-soft);
+}
+.format-spoiler {
+  filter: blur(2px);
+  letter-spacing: 1px;
+}
+.format-styles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 0 2px;
+}
+.format-color {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
 /* ============ Плавность ============ */
 :root {
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
