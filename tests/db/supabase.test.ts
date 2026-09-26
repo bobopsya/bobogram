@@ -1220,3 +1220,176 @@ describe('блокировки по IP и устройству', () => {
     }
   });
 });
+
+describe('опросы', () => {
+  it('создание, голос, переголосование, итоги в сообщении, анонимность', async () => {
+    const own = await user('plown');
+    const a = await user('pla');
+    const b = await user('plb');
+    const g = await rpc<string>(own, 'create_chat', {
+      p_type: 'group',
+      p_title: 'Опросы',
+      p_members: [a.id, b.id],
+    });
+    const id = crypto.randomUUID();
+    await fails(
+      rpc(own, 'create_poll', { p_id: crypto.randomUUID(), p_chat: g, p_question: 'Q', p_options: ['один'] }),
+    );
+    await rpc(own, 'create_poll', {
+      p_id: id,
+      p_chat: g,
+      p_question: 'Пицца?',
+      p_options: ['Да', 'Нет', ' '],
+    });
+    type P = { question: string; options: string[]; counts: number[]; voters: number; anonymous: boolean };
+    const poll = async () =>
+      (await admin.from('messages').select('poll').eq('id', id).single()).data!.poll as P;
+    expect(await poll()).toMatchObject({
+      question: 'Пицца?',
+      options: ['Да', 'Нет'],
+      counts: [0, 0],
+      voters: 0,
+    });
+    await rpc(a, 'vote_poll', { p_message: id, p_options: [0] });
+    await rpc(b, 'vote_poll', { p_message: id, p_options: [1] });
+    await rpc(a, 'vote_poll', { p_message: id, p_options: [1] });
+    expect(await poll()).toMatchObject({ counts: [0, 2], voters: 2 });
+    await fails(rpc(a, 'vote_poll', { p_message: id, p_options: [0, 1] }));
+    await fails(rpc(a, 'vote_poll', { p_message: id, p_options: [5] }));
+    // Свой голос видно, чужой — нет; в анонимном опросе список голосовавших пуст.
+    const { data: mine } = await a.db.from('poll_votes').select('option, user_id').eq('message_id', id);
+    expect(mine).toEqual([{ option: 1, user_id: a.id }]);
+    expect(await rpc<unknown[]>(own, 'get_poll_voters', { p_message: id })).toEqual([]);
+    const open = crypto.randomUUID();
+    await rpc(own, 'create_poll', {
+      p_id: open,
+      p_chat: g,
+      p_question: 'Куда?',
+      p_options: ['A', 'B', 'C'],
+      p_anonymous: false,
+      p_multiple: true,
+    });
+    await rpc(b, 'vote_poll', { p_message: open, p_options: [0, 2] });
+    expect(
+      await rpc<{ option: number; user_id: string }[]>(own, 'get_poll_voters', { p_message: open }),
+    ).toHaveLength(2);
+    // Чужой не голосует и не видит.
+    const stranger = await user('plx');
+    await fails(rpc(stranger, 'vote_poll', { p_message: id, p_options: [0] }));
+    await fails(rpc(stranger, 'get_poll_voters', { p_message: open }));
+  });
+});
+
+describe('поиск, папки, отложенные, исчезающие', () => {
+  it('поиск только по своим чатам, без удалённых', async () => {
+    const a = await user('sra');
+    const b = await user('srb');
+    const c = await user('src');
+    const chat = await rpc<string>(a, 'get_or_create_private_chat', { p_other: b.id });
+    await send(a, chat, `секретный пароль ${run}`);
+    const gone = await send(a, chat, `удалённый пароль ${run}`);
+    await rpc(a, 'delete_message', { p_id: gone, p_for_all: true });
+    type R = { text: string };
+    expect((await rpc<R[]>(b, 'search_messages', { p_query: `пароль ${run}` })).map((r) => r.text)).toEqual([
+      `секретный пароль ${run}`,
+    ]);
+    expect(await rpc<R[]>(c, 'search_messages', { p_query: `пароль ${run}` })).toEqual([]);
+    expect(await rpc<R[]>(b, 'search_messages', { p_query: 'п' })).toEqual([]);
+    expect(await rpc<R[]>(b, 'search_messages', { p_query: '100%_' })).toEqual([]);
+  });
+
+  it('папки — только свои', async () => {
+    const a = await user('fla');
+    const b = await user('flb');
+    const { error } = await a.db.from('chat_folders').insert({ title: 'Работа', chat_ids: [] });
+    expect(error).toBeNull();
+    const { data: theirs } = await b.db.from('chat_folders').select('*');
+    expect(theirs).toEqual([]);
+    const { error: fake } = await a.db.from('chat_folders').insert({ title: 'X', user_id: b.id });
+    expect(fake).not.toBeNull();
+  });
+
+  it('отложенное уходит в своё время от автора', async () => {
+    const a = await user('sca');
+    const b = await user('scb');
+    const chat = await rpc<string>(a, 'get_or_create_private_chat', { p_other: b.id });
+    await fails(rpc(a, 'schedule_message', { p_chat: chat, p_text: 'рано', p_at: new Date().toISOString() }));
+    const at = new Date(Date.now() + 60_000).toISOString();
+    const id = await rpc<string>(a, 'schedule_message', { p_chat: chat, p_text: 'через минуту', p_at: at });
+    const { data: list } = await a.db.from('scheduled_messages').select('id');
+    expect(list!.map((r) => r.id)).toContain(id);
+    await admin
+      .from('scheduled_messages')
+      .update({ send_at: new Date(Date.now() - 1000).toISOString() })
+      .eq('id', id);
+    const { data: jobs } = await admin.rpc('run_scheduled_jobs');
+    expect((jobs as { sent: number }).sent).toBeGreaterThanOrEqual(1);
+    const { data: msgs } = await b.db.from('messages').select('text, sender_id').eq('chat_id', chat);
+    expect(msgs).toContainEqual({ text: 'через минуту', sender_id: a.id });
+  });
+
+  it('автоудаление: таймер ставит участник лички, в группе — админ', async () => {
+    const a = await user('tta');
+    const b = await user('ttb');
+    const chat = await rpc<string>(a, 'get_or_create_private_chat', { p_other: b.id });
+    await fails(rpc(a, 'set_chat_ttl', { p_chat: chat, p_seconds: 60 }));
+    await rpc(b, 'set_chat_ttl', { p_chat: chat, p_seconds: 86400 });
+    const id = await send(a, chat, 'исчезну');
+    const { data: m } = await admin.from('messages').select('expires_at').eq('id', id).single();
+    expect(Date.parse(m!.expires_at as string)).toBeGreaterThan(Date.now() + 86000_000);
+    await admin
+      .from('messages')
+      .update({ expires_at: new Date(Date.now() - 1000).toISOString() })
+      .eq('id', id);
+    await admin.rpc('run_scheduled_jobs');
+    const { data: after } = await admin.from('messages').select('deleted, text').eq('id', id).single();
+    expect(after).toEqual({ deleted: true, text: '' });
+    const g = await rpc<string>(a, 'create_chat', { p_type: 'group', p_title: 'TTL', p_members: [b.id] });
+    await fails(rpc(b, 'set_chat_ttl', { p_chat: g, p_seconds: 86400 }));
+  });
+});
+
+describe('комментарии и голосовые чаты', () => {
+  it('комментарии включает владелец канала; пишут подписчики; счётчик у поста', async () => {
+    const own = await user('cmown');
+    const sub = await user('cmsub');
+    const ch = await rpc<string>(own, 'create_chat', {
+      p_type: 'channel',
+      p_title: 'Комменты',
+      p_members: [sub.id],
+    });
+    const post = await send(own, ch, 'пост');
+    await fails(rpc(sub, 'add_comment', { p_post: post, p_text: 'рано' }));
+    await fails(rpc(sub, 'set_channel_comments', { p_chat: ch, p_on: true }));
+    await rpc(own, 'set_channel_comments', { p_chat: ch, p_on: true });
+    const c = await rpc<string>(sub, 'add_comment', { p_post: post, p_text: 'класс!' });
+    const count = async () =>
+      (await admin.from('messages').select('comments').eq('id', post).single()).data!.comments;
+    expect(await count()).toBe(1);
+    const { data: list } = await sub.db.from('post_comments').select('text').eq('post_id', post);
+    expect(list).toEqual([{ text: 'класс!' }]);
+    await rpc(own, 'delete_comment', { p_id: c });
+    expect(await count()).toBe(0);
+    // В ленту канала комментарии не попадают.
+    const feed = await rpc<{ text: string }[]>(own, 'get_messages', { p_chat: ch });
+    expect(feed.map((m) => m.text)).not.toContain('класс!');
+  });
+
+  it('голосовой чат: вход, выход, конец, лимит только для участников группы', async () => {
+    const a = await user('gca');
+    const b = await user('gcb');
+    const x = await user('gcx');
+    const g = await rpc<string>(a, 'create_chat', { p_type: 'group', p_title: 'Голос', p_members: [b.id] });
+    const call = await rpc<string>(a, 'join_group_call', { p_chat: g });
+    expect(await rpc<string>(b, 'join_group_call', { p_chat: g })).toBe(call);
+    await fails(rpc(x, 'join_group_call', { p_chat: g }));
+    const { data: members } = await b.db.from('group_call_members').select('user_id').eq('call_id', call);
+    expect(members).toHaveLength(2);
+    await rpc(a, 'leave_group_call', { p_call: call });
+    await rpc(b, 'leave_group_call', { p_call: call });
+    const { data: row } = await admin.from('group_calls').select('ended_at').eq('id', call).single();
+    expect(row!.ended_at).not.toBeNull();
+    // Новый звонок после конца — новый id.
+    expect(await rpc<string>(a, 'join_group_call', { p_chat: g })).not.toBe(call);
+  });
+});

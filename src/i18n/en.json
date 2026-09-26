@@ -110,7 +110,8 @@
     "deletedMessage": "Message deleted",
     "deletedAccount": "Deleted account",
     "noMessages": "No messages",
-    "bot": "bot"
+    "bot": "bot",
+    "messages": "Messages"
   },
   "chat": {
     "placeholder": "Message",
@@ -171,7 +172,10 @@
     "left": "{{name}} left",
     "added": "{{name}} added {{users}}",
     "removed": "{{name}} removed {{user}}",
-    "renamed": "{{name}} renamed the chat to “{{title}}”"
+    "renamed": "{{name}} renamed the chat to “{{title}}”",
+    "ttlOn": "{{name}} enabled auto-delete: {{period}}",
+    "ttlOff": "{{name}} disabled auto-delete",
+    "voiceStarted": "{{name}} started a voice chat"
   },
   "profile": {
     "title": "Profile",
@@ -457,12 +461,20 @@
     "sendPhotos_one": "Send photo",
     "sendPhotos_other": "Send {{count}} photos",
     "micDenied": "No access to the microphone",
-    "badPhoto": "Could not open the photo"
+    "badPhoto": "Could not open the photo",
+    "photoOrVideo": "Photo or video",
+    "video": "Video",
+    "videoNote": "Video message",
+    "file": "File",
+    "tooBig": "File is larger than 50 MB",
+    "recordNote": "Record video message",
+    "cameraDenied": "No camera access"
   },
   "stories": {
     "title": "Stories",
-    "add": "Story",
-    "published": "Story published"
+    "add": "Add story",
+    "published": "Story published",
+    "mine": "My story"
   },
   "nft": {
     "collectible": "Collectible usernames",
@@ -562,5 +574,75 @@
     "bigShort": "Aa",
     "smallShort": "aa",
     "waveShort": "~Aa~"
+  },
+  "poll": {
+    "new": "Poll",
+    "create": "Create",
+    "question": "Question",
+    "options": "Answers",
+    "option": "Option {{n}}",
+    "addOption": "Add option",
+    "anonymous": "Anonymous poll",
+    "public": "Public poll",
+    "multiple": "Multiple answers",
+    "multipleShort": "multiple answers",
+    "vote": "Vote",
+    "retract": "Retract vote",
+    "whoVoted": "Who voted",
+    "votes_one": "{{count}} vote",
+    "votes_other": "{{count}} votes"
+  },
+  "folders": {
+    "all": "All",
+    "private": "Personal",
+    "groups": "Groups",
+    "channels": "Channels",
+    "unread": "Unread",
+    "new": "New folder",
+    "edit": "Edit folder",
+    "delete": "Delete folder",
+    "name": "Folder name",
+    "chats_one": "{{count}} chat",
+    "chats_other": "{{count}} chats"
+  },
+  "schedule": {
+    "title": "Send later",
+    "later": "Send later",
+    "send": "Schedule",
+    "when": "Date and time",
+    "in1h": "In 1 hour",
+    "in3h": "In 3 hours",
+    "tomorrow": "Tomorrow 9:00",
+    "done": "Will be sent {{when}}",
+    "list": "Scheduled messages",
+    "empty": "No scheduled messages"
+  },
+  "ttl": {
+    "menu": "Auto-delete",
+    "off": "Turn off",
+    "s86400": "1 day",
+    "s604800": "1 week",
+    "s2592000": "1 month"
+  },
+  "groupCall": {
+    "title": "Voice chat",
+    "start": "Start voice chat",
+    "join": "Join",
+    "leave": "Leave",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "full": "Voice chat already has 6 people",
+    "members_one": "{{count}} participant",
+    "members_other": "{{count}} participants"
+  },
+  "comments": {
+    "title": "Comments · {{count}}",
+    "empty": "No comments yet — be the first",
+    "placeholder": "Comment…",
+    "leave": "Leave a comment",
+    "count_one": "{{count}} comment",
+    "count_other": "{{count}} comments",
+    "toggle": "Comments",
+    "toggleHint": "Subscribers can discuss posts"
   }
 }

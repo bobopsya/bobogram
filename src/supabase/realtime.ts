@@ -14,7 +14,10 @@ export type DbEvent = {
     | 'calls'
     | 'call_candidates'
     | 'nft_usernames'
-    | 'topics';
+    | 'topics'
+    | 'post_comments'
+    | 'group_calls'
+    | 'group_call_members';
   type: 'INSERT' | 'UPDATE' | 'DELETE';
   row: Record<string, unknown>;
   old: Record<string, unknown>;
@@ -51,6 +54,9 @@ export function startDbChannel(): () => void {
     'call_candidates',
     'nft_usernames',
     'topics',
+    'post_comments',
+    'group_calls',
+    'group_call_members',
   ];
   let ch = supabase.channel('db-changes');
   for (const table of tables) {

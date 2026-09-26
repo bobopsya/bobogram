@@ -153,3 +153,123 @@ export class VoiceRecorder {
     this.levels = [];
   }
 }
+
+// ---------- видео и файлы ----------
+export const FILE_MAX_BYTES = 50 * 1024 * 1024;
+
+export interface VideoMeta {
+  width: number;
+  height: number;
+  duration: number;
+}
+
+/** Размер и длительность видео — из метаданных, без перекодирования. */
+export function readVideoMeta(file: Blob): Promise<VideoMeta> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const v = document.createElement('video');
+    v.preload = 'metadata';
+    v.muted = true;
+    const done = (meta: VideoMeta) => {
+      URL.revokeObjectURL(url);
+      resolve(meta);
+    };
+    v.onloadedmetadata = () =>
+      done({
+        width: v.videoWidth || 640,
+        height: v.videoHeight || 360,
+        duration: Number.isFinite(v.duration) ? Math.round(v.duration * 10) / 10 : 0,
+      });
+    v.onerror = () => done({ width: 640, height: 360, duration: 0 });
+    v.src = url;
+  });
+}
+
+/** Расширение для пути в хранилище: из имени файла или типа. */
+export function fileExt(file: File): string {
+  const fromName = /\.([a-z0-9]{1,8})$/i.exec(file.name)?.[1]?.toLowerCase();
+  if (fromName) return fromName;
+  const fromType = file.type.split('/')[1]?.split(/[;+]/)[0]?.toLowerCase();
+  return fromType && /^[a-z0-9]{1,8}$/.test(fromType) ? fromType : 'bin';
+}
+
+export function formatSize(bytes: number | undefined): string {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes} Б`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} КБ`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} МБ`;
+}
+
+// ---------- видеокружочки ----------
+const VIDEO_TYPES = [
+  'video/mp4;codecs=avc1,mp4a.40.2',
+  'video/mp4',
+  'video/webm;codecs=vp8,opus',
+  'video/webm',
+];
+export const VIDEO_NOTE_MAX_S = 60;
+
+export interface VideoNoteResult {
+  blob: Blob;
+  mime: string;
+  ext: string;
+  duration: number;
+}
+
+/** Кружок с фронтальной камеры: start(videoEl) показывает превью, stop() — файл. */
+export class VideoNoteRecorder {
+  stream: MediaStream | null = null;
+  private recorder: MediaRecorder | null = null;
+  private chunks: Blob[] = [];
+  private startedAt = 0;
+
+  async start(): Promise<MediaStream> {
+    this.stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 }, aspectRatio: 1 },
+      audio: { echoCancellation: true, noiseSuppression: true },
+    });
+    const mime = VIDEO_TYPES.find((t) => MediaRecorder.isTypeSupported(t));
+    this.recorder = new MediaRecorder(
+      this.stream,
+      mime ? { mimeType: mime, videoBitsPerSecond: 900_000, audioBitsPerSecond: 64_000 } : undefined,
+    );
+    this.recorder.ondataavailable = (e) => e.data.size > 0 && this.chunks.push(e.data);
+    this.recorder.start(250);
+    this.startedAt = Date.now();
+    return this.stream;
+  }
+
+  get elapsed(): number {
+    return this.startedAt ? (Date.now() - this.startedAt) / 1000 : 0;
+  }
+
+  stop(): Promise<VideoNoteResult> {
+    return new Promise((resolve, reject) => {
+      const rec = this.recorder;
+      if (!rec) return reject(new Error('not recording'));
+      const duration = Math.round(this.elapsed * 10) / 10;
+      rec.onstop = () => {
+        const mime = (rec.mimeType || 'video/webm').split(';')[0];
+        const blob = new Blob(this.chunks, { type: mime });
+        this.release();
+        resolve({ blob, mime, ext: mime.includes('mp4') ? 'mp4' : 'webm', duration });
+      };
+      rec.stop();
+    });
+  }
+
+  cancel() {
+    if (this.recorder && this.recorder.state !== 'inactive') {
+      this.recorder.onstop = null;
+      this.recorder.stop();
+    }
+    this.release();
+  }
+
+  private release() {
+    this.stream?.getTracks().forEach((t) => t.stop());
+    this.stream = null;
+    this.recorder = null;
+    this.chunks = [];
+  }
+}

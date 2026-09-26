@@ -6,12 +6,17 @@ import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { Message } from '../../supabase/types';
 import { MESSAGE_MAX_LENGTH } from '../../supabase/types';
-import { displayNameOf, useProfile } from '../../app/profiles';
+import { displayNameOf, peekProfile, useProfile, useProfilesLoaded } from '../../app/profiles';
+import { fetchMembers } from '../../supabase/api';
+import { Avatar } from '../../ui/Avatar';
 import { sendTyping } from '../../supabase/realtime';
 import { isTouchDevice } from '../../app/effects';
 import { Icon } from '../../ui/Icon';
+import { Menu, type MenuItem } from '../../ui/Menu';
+import { useLongPress } from '../../ui/useLongPress';
 import { EmojiPicker } from './EmojiPicker';
-import { canRecordVoice, VoiceRecorder, type VoiceResult } from '../../lib/mediaFiles';
+import { canRecordVoice, VoiceRecorder, type VideoNoteResult, type VoiceResult } from '../../lib/mediaFiles';
+import { VideoNoteCapture } from './VideoNoteCapture';
 import { formatDuration } from '../../lib/time';
 import { useApp } from '../../app/store';
 import { PhotoSendDialog } from './PhotoSendDialog';
@@ -31,10 +36,18 @@ interface Props {
   onEditLast: () => void;
   onSendPhotos: (files: File[], caption: string) => void;
   onSendVoice: (voice: VoiceResult) => void;
+  onSendFile?: (file: File) => void;
+  /** Отправить позже (долгое нажатие или правый клик на «Отправить»). */
+  onSchedule?: (text: string) => void;
+  onSendVideoNote?: (note: VideoNoteResult) => void;
+  /** Дополнительные пункты меню скрепки (опрос, файл…). */
+  attachItems?: MenuItem[];
+  /** Группа: при вводе @ подсказывать участников. */
+  mentions?: boolean;
 }
 
 const imagesOf = (list: FileList | File[] | null | undefined): File[] =>
-  [...(list ?? [])].filter((f) => f.type.startsWith('image/')).slice(0, 10);
+  [...(list ?? [])].filter((f) => f.type.startsWith('image/') || f.type.startsWith('video/')).slice(0, 10);
 
 /** Делит длинный текст на части по 4096 символов (по возможности по переносу строки). */
 export function splitText(text: string, max = MESSAGE_MAX_LENGTH): string[] {
@@ -64,7 +77,28 @@ export function Composer(props: Props) {
     onEditLast,
     onSendPhotos,
     onSendVoice,
+    attachItems = [],
+    mentions = false,
+    onSendFile,
+    onSendVideoNote,
+    onSchedule,
   } = props;
+  const [sendMenu, setSendMenu] = useState<{ x: number; y: number } | null>(null);
+  const sendLongPress = useLongPress(
+    (x, y) => !editing && onSchedule && text.trim() && setSendMenu({ x: x - 200, y: y - 60 }),
+  );
+  const docInput = useRef<HTMLInputElement>(null);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [members, setMembers] = useState<string[]>([]);
+  const [caret, setCaret] = useState(0);
+  useEffect(() => {
+    if (!mentions) return;
+    void fetchMembers(chatId)
+      .then((list) => setMembers(list.map((m) => m.userId).filter((u) => u !== me)))
+      .catch(() => undefined);
+  }, [mentions, chatId, me]);
+  useProfilesLoaded(members);
+  const [attachMenu, setAttachMenu] = useState<{ x: number; y: number } | null>(null);
   const { t } = useTranslation();
   const showToast = useApp((s) => s.showToast);
   const enterToSend = useApp((s) => s.enterToSend);
@@ -85,6 +119,33 @@ export function Composer(props: Props) {
   const typingSent = useRef(0);
   const typingTimer = useRef<number | undefined>(undefined);
   const replyAuthor = useProfile(replyTo?.senderId ?? null);
+  const mentionQuery = mentions
+    ? /(?:^|\s)@([A-Za-z0-9_]{0,32})$/.exec(text.slice(0, caret))?.[1]
+    : undefined;
+  const suggestions =
+    mentionQuery === undefined
+      ? []
+      : members
+          .map((uid) => peekProfile(uid))
+          .filter((p): p is NonNullable<typeof p> => !!p)
+          .filter(
+            (p) =>
+              p.username.toLowerCase().startsWith(mentionQuery.toLowerCase()) ||
+              p.displayName.toLowerCase().startsWith(mentionQuery.toLowerCase()),
+          )
+          .slice(0, 6);
+  const insertMention = (username: string) => {
+    const before = text.slice(0, caret).replace(/@([A-Za-z0-9_]{0,32})$/, `@${username} `);
+    const next = before + text.slice(caret);
+    onChange(next);
+    requestAnimationFrame(() => {
+      const el = ref.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(before.length, before.length);
+      setCaret(before.length);
+    });
+  };
 
   // Начали редактировать — подставляем текст.
   useEffect(() => {
@@ -128,6 +189,7 @@ export function Composer(props: Props) {
 
   const onChange = (value: string) => {
     setText(value);
+    setCaret(ref.current?.selectionEnd ?? value.length);
     if (editing) return;
     const now = Date.now();
     if (value && now - typingSent.current > 3000) {
@@ -160,6 +222,7 @@ export function Composer(props: Props) {
     const el = ref.current;
     if (!el) return;
     const { selectionStart: start, selectionEnd: end } = el;
+    setCaret(end);
     setSelection(start !== end ? { start, end } : null);
     if (start === end) setStylesOpen(false);
   };
@@ -396,6 +459,53 @@ export function Composer(props: Props) {
           )}
         </div>
       )}
+      {suggestions.length > 0 && (
+        <div
+          className="mention-list"
+          onPointerDown={(e) => e.preventDefault()}
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          {suggestions.map((p) => (
+            <button key={p.uid} className="list-item mention-item" onClick={() => insertMention(p.username)}>
+              <Avatar name={displayNameOf(p)} seed={p.uid} src={p.avatar} size={32} />
+              <span className="ellipsis">{displayNameOf(p)}</span>
+              <span className="muted small">@{p.username}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {sendMenu && (
+        <Menu
+          x={sendMenu.x}
+          y={sendMenu.y}
+          onClose={() => setSendMenu(null)}
+          items={[
+            {
+              icon: 'clock',
+              label: t('schedule.later'),
+              onClick: () => {
+                onSchedule?.(text.trim());
+                setText('');
+                drafts.delete(chatId);
+              },
+            },
+          ]}
+        />
+      )}
+      {attachMenu && (
+        <Menu
+          x={attachMenu.x}
+          y={attachMenu.y}
+          onClose={() => setAttachMenu(null)}
+          items={[
+            { icon: 'image', label: t('media.photoOrVideo'), onClick: () => fileInput.current?.click() },
+            ...(onSendFile
+              ? [{ icon: 'file' as const, label: t('media.file'), onClick: () => docInput.current?.click() }]
+              : []),
+            ...attachItems,
+          ]}
+        />
+      )}
       {bar}
       {photos.length > 0 && (
         <PhotoSendDialog
@@ -413,9 +523,28 @@ export function Composer(props: Props) {
         />
       )}
       <input
+        ref={docInput}
+        type="file"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onSendFile?.(f);
+          e.target.value = '';
+        }}
+      />
+      {noteOpen && onSendVideoNote && (
+        <VideoNoteCapture
+          onCancel={() => setNoteOpen(false)}
+          onSend={(note) => {
+            setNoteOpen(false);
+            onSendVideoNote(note);
+          }}
+        />
+      )}
+      <input
         ref={fileInput}
         type="file"
-        accept="image/*"
+        accept="image/*,video/*"
         multiple
         hidden
         onChange={(e) => {
@@ -469,10 +598,20 @@ export function Composer(props: Props) {
           {!editing && (
             <button
               className="icon-btn"
-              onClick={() => fileInput.current?.click()}
+              onClick={(e) => {
+                const count = attachItems.length + (onSendFile ? 1 : 0);
+                if (count === 0) return fileInput.current?.click();
+                const r = e.currentTarget.getBoundingClientRect();
+                setAttachMenu({ x: r.right - 200, y: r.top - 8 - 44 * (count + 1) });
+              }}
               aria-label={t('media.attach')}
             >
               <Icon name="attach" />
+            </button>
+          )}
+          {!text.trim() && !editing && canRecordVoice() && onSendVideoNote && (
+            <button className="icon-btn" onClick={() => setNoteOpen(true)} aria-label={t('media.recordNote')}>
+              <Icon name="circle" />
             </button>
           )}
           {!text.trim() && !editing && canRecordVoice() ? (
@@ -490,6 +629,12 @@ export function Composer(props: Props) {
               disabled={!text.trim()}
               aria-label={t('chat.send')}
               onMouseDown={(e) => e.preventDefault()}
+              onContextMenu={(e) => {
+                if (editing || !onSchedule || !text.trim()) return;
+                e.preventDefault();
+                setSendMenu({ x: e.clientX - 200, y: e.clientY - 60 });
+              }}
+              {...sendLongPress}
             >
               <Icon name={editing ? 'check' : 'send'} />
             </button>

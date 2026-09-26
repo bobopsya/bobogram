@@ -161,6 +161,8 @@ export function toMessage(r: Row): Message {
     boostReactions: (r.boost_reactions as Record<string, number> | null) ?? {},
     media: (r.media as MediaInfo | null) ?? null,
     topicId: (r.topic_id as string | null) ?? null,
+    poll: (r.poll as Message['poll']) ?? null,
+    comments: Number(r.comments ?? 0),
     pending: false,
   };
 }
@@ -246,6 +248,7 @@ export function errorKey(err: unknown): string {
   if (msg.includes('profile locked')) return 'errors.profileLocked';
   if (msg.includes('verified only')) return 'errors.verifiedOnly';
   if (msg.includes('banned ip')) return 'errors.bannedIp';
+  if (msg.includes('call full')) return 'groupCall.full';
   if (msg.includes('topic closed')) return 'topics.closedError';
   if (msg.includes('too many topics')) return 'topics.tooMany';
   if (msg.includes('too many reports')) return 'report.tooMany';
@@ -359,6 +362,29 @@ export async function fetchStories(authorId: string): Promise<Story[]> {
   const views = check(await supabase.from('story_views').select('story_id').in('story_id', ids)) as Row[];
   const viewed = new Set(views.map((r) => String(r.story_id)));
   return rows.map((r) => toStory(r, viewed));
+}
+
+/** Все активные сторис (за 24 часа) с отметкой «я смотрел» — одним запросом для ленты и колец. */
+export async function fetchActiveStories(): Promise<Story[]> {
+  const rows = check(
+    await supabase.from('stories').select('*').gt('expires_at', new Date().toISOString()).order('created_at'),
+  ) as Row[];
+  if (rows.length === 0) return [];
+  const views = check(
+    await supabase
+      .from('story_views')
+      .select('story_id')
+      .in(
+        'story_id',
+        rows.map((r) => String(r.id)),
+      ),
+  ) as Row[];
+  const viewed = new Set(views.map((r) => String(r.story_id)));
+  return rows.map((r) => toStory(r, viewed));
+}
+
+export async function deleteStory(id: string): Promise<void> {
+  check(await supabase.from('stories').delete().eq('id', id));
 }
 
 export async function fetchStorySummary(authorId: string): Promise<StorySummary> {
@@ -1025,4 +1051,165 @@ export async function adminUserDevices(uid: string): Promise<UserDevice[]> {
     deviceBanned: r.device_banned === true,
     ipBanned: r.ip_banned === true,
   }));
+}
+
+// ---------- опросы ----------
+export async function createPoll(p: {
+  id: string;
+  chatId: string;
+  question: string;
+  options: string[];
+  anonymous: boolean;
+  multiple: boolean;
+  topicId?: string | null;
+}): Promise<void> {
+  check(
+    await supabase.rpc('create_poll', {
+      p_id: p.id,
+      p_chat: p.chatId,
+      p_question: p.question,
+      p_options: p.options,
+      p_anonymous: p.anonymous,
+      p_multiple: p.multiple,
+      p_topic: p.topicId ?? null,
+    }),
+  );
+}
+
+export async function votePoll(messageId: string, options: number[]): Promise<void> {
+  check(await supabase.rpc('vote_poll', { p_message: messageId, p_options: options }));
+}
+
+export async function fetchMyPollVotes(messageId: string): Promise<number[]> {
+  const rows = check(await supabase.from('poll_votes').select('option').eq('message_id', messageId)) as Row[];
+  return rows.map((r) => Number(r.option));
+}
+
+export async function fetchPollVoters(messageId: string): Promise<{ option: number; userId: string }[]> {
+  const rows = check(await supabase.rpc('get_poll_voters', { p_message: messageId })) as Row[];
+  return rows.map((r) => ({ option: Number(r.option), userId: String(r.user_id) }));
+}
+
+// ---------- поиск ----------
+export interface SearchHit {
+  id: string;
+  chatId: string;
+  senderId: string;
+  text: string;
+  createdAt: number;
+}
+
+export async function searchMessages(query: string, chatId?: string): Promise<SearchHit[]> {
+  const rows = check(
+    await supabase.rpc('search_messages', { p_query: query, p_chat: chatId ?? null, p_limit: 50 }),
+  ) as Row[];
+  return rows.map((r) => ({
+    id: String(r.id),
+    chatId: String(r.chat_id),
+    senderId: String(r.sender_id),
+    text: String(r.text ?? ''),
+    createdAt: ms(r.created_at),
+  }));
+}
+
+// ---------- папки ----------
+export interface ChatFolder {
+  id: string;
+  title: string;
+  chatIds: string[];
+}
+
+export async function fetchFolders(): Promise<ChatFolder[]> {
+  const rows = check(await supabase.from('chat_folders').select('*').order('sort').order('created_at')) as Row[];
+  return rows.map((r) => ({ id: String(r.id), title: String(r.title), chatIds: (r.chat_ids as string[]) ?? [] }));
+}
+
+export async function saveFolder(f: { id?: string; title: string; chatIds: string[] }): Promise<void> {
+  if (f.id) check(await supabase.from('chat_folders').update({ title: f.title, chat_ids: f.chatIds }).eq('id', f.id));
+  else check(await supabase.from('chat_folders').insert({ title: f.title, chat_ids: f.chatIds }));
+}
+
+export async function deleteFolder(id: string): Promise<void> {
+  check(await supabase.from('chat_folders').delete().eq('id', id));
+}
+
+// ---------- отложенные ----------
+export interface ScheduledMessage {
+  id: string;
+  chatId: string;
+  text: string;
+  sendAt: number;
+}
+
+export async function scheduleMessage(chatId: string, text: string, at: Date, topicId?: string | null) {
+  check(
+    await supabase.rpc('schedule_message', {
+      p_chat: chatId,
+      p_text: text,
+      p_at: at.toISOString(),
+      p_topic: topicId ?? null,
+    }),
+  );
+}
+
+export async function fetchScheduled(chatId: string): Promise<ScheduledMessage[]> {
+  const rows = check(
+    await supabase.from('scheduled_messages').select('*').eq('chat_id', chatId).order('send_at'),
+  ) as Row[];
+  return rows.map((r) => ({ id: String(r.id), chatId: String(r.chat_id), text: String(r.text), sendAt: ms(r.send_at) }));
+}
+
+export async function deleteScheduled(id: string): Promise<void> {
+  check(await supabase.from('scheduled_messages').delete().eq('id', id));
+}
+
+// ---------- автоудаление ----------
+export async function setChatTtl(chatId: string, seconds: number | null): Promise<void> {
+  check(await supabase.rpc('set_chat_ttl', { p_chat: chatId, p_seconds: seconds }));
+}
+
+// ---------- комментарии к постам ----------
+export interface PostComment {
+  id: string;
+  postId: string;
+  senderId: string;
+  text: string;
+  deleted: boolean;
+  createdAt: number;
+}
+
+export function toComment(r: Row): PostComment {
+  return {
+    id: String(r.id),
+    postId: String(r.post_id),
+    senderId: String(r.sender_id),
+    text: String(r.text ?? ''),
+    deleted: r.deleted === true,
+    createdAt: ms(r.created_at),
+  };
+}
+
+export async function fetchComments(postId: string): Promise<PostComment[]> {
+  const rows = check(
+    await supabase.from('post_comments').select('*').eq('post_id', postId).order('created_at').limit(500),
+  ) as Row[];
+  return rows.map(toComment);
+}
+
+export async function addComment(postId: string, text: string): Promise<void> {
+  check(await supabase.rpc('add_comment', { p_post: postId, p_text: text }));
+}
+
+export async function deleteComment(id: string): Promise<void> {
+  check(await supabase.rpc('delete_comment', { p_id: id }));
+}
+
+export async function setChannelComments(chatId: string, on: boolean): Promise<void> {
+  check(await supabase.rpc('set_channel_comments', { p_chat: chatId, p_on: on }));
+}
+
+/** Настройки чата, которых нет в списке чатов (комментарии, автоудаление). */
+export async function fetchChatFlags(chatId: string): Promise<{ comments: boolean; ttl: number | null }> {
+  const rows = check(await supabase.from('chats').select('comments_enabled, ttl_seconds').eq('id', chatId)) as Row[];
+  return { comments: rows[0]?.comments_enabled === true, ttl: (rows[0]?.ttl_seconds as number | null) ?? null };
 }

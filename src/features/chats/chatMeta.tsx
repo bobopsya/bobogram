@@ -110,6 +110,12 @@ export function systemText(ev: SystemEvent, senderId: string, t: TFunction, me: 
       return t('system.removed', { name, user: nameOf(ev.uid, t, me) });
     case 'renamed':
       return t('system.renamed', { name, title: ev.title });
+    case 'voiceStarted':
+      return t('system.voiceStarted', { name });
+    case 'ttl':
+      return ev.seconds
+        ? t('system.ttlOn', { name, period: t(`ttl.s${ev.seconds}`) })
+        : t('system.ttlOff', { name });
   }
 }
 
@@ -123,5 +129,16 @@ export function callText(msg: Pick<Message, 'call' | 'senderId'>, t: TFunction, 
 /** «📷 Фото» / «🎤 Голосовое сообщение» — для превью, ответов и закрепов. */
 export function mediaLabel(msg: { media: { kind: string } | null }, t: TFunction): string {
   if (!msg.media) return '';
-  return msg.media.kind === 'voice' ? '🎤 ' + t('media.voice') : '📷 ' + t('media.photo');
+  switch (msg.media.kind) {
+    case 'voice':
+      return '🎤 ' + t('media.voice');
+    case 'video':
+      return '🎬 ' + t('media.video');
+    case 'video_note':
+      return '⭕ ' + t('media.videoNote');
+    case 'file':
+      return '📎 ' + t('media.file');
+    default:
+      return '📷 ' + t('media.photo');
+  }
 }

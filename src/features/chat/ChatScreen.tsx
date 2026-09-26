@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { stripMarkup } from '../../lib/markup';
-import { useNavigate, useParams } from 'react-router';
+import { useLocation, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useApp, useMe } from '../../app/store';
 import type { Chat, Message } from '../../supabase/types';
@@ -11,6 +11,9 @@ import {
   errorKey,
   markRead,
   markTopicRead,
+  fetchChatFlags,
+  searchMessages,
+  setChatTtl,
   setBlocked,
   setChatPrefs,
   setPinnedMessages,
@@ -19,7 +22,14 @@ import {
 } from '../../supabase/api';
 import { refreshBlocked, refreshChats } from '../../app/session';
 import { discardFailed, queueMedia, queueMessage, retryFailed } from '../../app/outbox';
-import { preparePhoto, type VoiceResult } from '../../lib/mediaFiles';
+import {
+  fileExt,
+  FILE_MAX_BYTES,
+  preparePhoto,
+  readVideoMeta,
+  type VideoNoteResult,
+  type VoiceResult,
+} from '../../lib/mediaFiles';
 import { mediaLabel } from '../chats/chatMeta';
 import { dayLabel, isReadByOthers, isSameDay, toDate } from '../../lib/time';
 import { Icon } from '../../ui/Icon';
@@ -28,6 +38,11 @@ import { Modal } from '../../ui/Modal';
 import { FullScreenSpinner, PageHeader, Spinner } from '../../ui/misc';
 import { useChat, useMessages } from './useChatData';
 import { TopicList, useTopic } from './TopicList';
+import { PollDialog } from './Poll';
+import { CommentsSheet } from './Comments';
+import { GroupCallBar, useActiveGroupCall, useStartGroupCall } from '../calls/GroupCallBar';
+import { onDbEvent } from '../../supabase/realtime';
+import { ScheduleDialog, ScheduledList } from './Scheduled';
 import { ChatHeader } from './ChatHeader';
 import { MessageBubble } from './MessageBubble';
 import { Composer, splitText } from './Composer';
@@ -105,6 +120,24 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
   const [boosting, setBoosting] = useState<Message | null>(null);
   const [reporting, setReporting] = useState<Message | null>(null);
   const [channelBoostOpen, setChannelBoostOpen] = useState(false);
+  const [pollOpen, setPollOpen] = useState(false);
+  const [commentsFor, setCommentsFor] = useState<Message | null>(null);
+  const groupCall = useActiveGroupCall(chat.id, chat.type === 'group' && isMember);
+  const startGroupCall = useStartGroupCall(chat.id);
+  const [commentsOn, setCommentsOn] = useState(false);
+  const openComments = useCallback((m: Message) => setCommentsFor(m), []);
+  useEffect(() => {
+    if (chat.type !== 'channel') return;
+    const load = () =>
+      void fetchChatFlags(chat.id)
+        .then((f) => setCommentsOn(f.comments))
+        .catch(() => undefined);
+    load();
+    return onDbEvent((e) => e.table === 'chats' && e.row.id === chat.id && load());
+  }, [chat.id, chat.type]);
+  const [ttlMenu, setTtlMenu] = useState<MenuItem[] | null>(null);
+  const [scheduleText, setScheduleText] = useState<string | null>(null);
+  const [scheduledOpen, setScheduledOpen] = useState(false);
   const other = useProfile(chat.type === 'private' ? chat.otherId : null);
   const scam = chat.scam || (chat.type === 'private' && other?.scam === true);
   const [highlight, setHighlight] = useState<string | null>(null);
@@ -197,16 +230,46 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
 
   // ---------- поиск по чату ----------
   const q = search.trim().toLowerCase();
+  // По всей истории на сервере; пока ответа нет — по загруженным сообщениям.
+  const [serverMatches, setServerMatches] = useState<string[] | null>(null);
+  useEffect(() => {
+    setServerMatches(null);
+    if (q.length < 2) return;
+    let cancelled = false;
+    const timer = window.setTimeout(
+      () =>
+        void searchMessages(q, chat.id)
+          .then((hits) => !cancelled && setServerMatches(hits.map((h) => h.id)))
+          .catch(() => undefined),
+      250,
+    );
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [q, chat.id]);
   const matches = useMemo(
     () =>
       q
-        ? visible
+        ? (serverMatches ??
+          visible
             .filter((m) => m.text.toLowerCase().includes(q))
             .map((m) => m.id)
-            .reverse()
+            .reverse())
         : [],
-    [visible, q],
+    [visible, q, serverMatches],
   );
+
+  // Переход к сообщению из глобального поиска.
+  const location = useLocation();
+  const jumpTarget = (location.state as { jump?: string } | null)?.jump;
+  useEffect(() => {
+    if (jumpTarget && loaded) {
+      jumpTo(jumpTarget);
+      navigate(location.pathname, { replace: true, state: null });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jumpTarget, loaded]);
   useEffect(() => setSearchIdx(0), [q]);
   useEffect(() => {
     if (matches[searchIdx]) jumpTo(matches[searchIdx]);
@@ -242,6 +305,27 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
     setReplyTo(null);
     for (const [i, file] of files.entries()) {
       try {
+        if (file.type.startsWith('video/')) {
+          if (file.size > FILE_MAX_BYTES) {
+            showToast(t('media.tooBig'));
+            continue;
+          }
+          const meta = await readVideoMeta(file);
+          queueMedia(
+            {
+              id: crypto.randomUUID(),
+              chatId: chat.id,
+              topicId,
+              text: i === 0 ? caption : '',
+              replyTo: i === 0 ? reply : null,
+              media: { kind: 'video', mime: file.type, ...meta },
+            },
+            file,
+            fileExt(file),
+            me,
+          );
+          continue;
+        }
         const photo = await preparePhoto(file);
         queueMedia(
           {
@@ -260,6 +344,46 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
         showToast(t('media.badPhoto'));
       }
     }
+    scrollToBottom(false);
+  };
+
+  const sendFile = (file: File) => {
+    if (file.size > FILE_MAX_BYTES) {
+      showToast(t('media.tooBig'));
+      return;
+    }
+    queueMedia(
+      {
+        id: crypto.randomUUID(),
+        chatId: chat.id,
+        topicId,
+        text: '',
+        replyTo: replyRef(),
+        media: { kind: 'file', mime: file.type || 'application/octet-stream', name: file.name.slice(0, 200) },
+      },
+      file,
+      fileExt(file),
+      me,
+    );
+    setReplyTo(null);
+    scrollToBottom(false);
+  };
+
+  const sendVideoNote = (note: VideoNoteResult) => {
+    queueMedia(
+      {
+        id: crypto.randomUUID(),
+        chatId: chat.id,
+        topicId,
+        text: '',
+        replyTo: replyRef(),
+        media: { kind: 'video_note', mime: note.mime, duration: note.duration, width: 480, height: 480 },
+      },
+      note.blob,
+      note.ext,
+      me,
+    );
+    setReplyTo(null);
     scrollToBottom(false);
   };
 
@@ -389,6 +513,31 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
     headerItems.push({ icon: 'star', label: t('boost.menu'), onClick: () => setChannelBoostOpen(true) });
   }
   headerItems.push({ icon: 'search', label: t('chat.searchInChat'), onClick: () => setSearchOpen(true) });
+  if (chat.type === 'group' && isMember) {
+    headerItems.unshift({
+      icon: 'headphones',
+      label: groupCall?.members.length ? t('groupCall.join') : t('groupCall.start'),
+      onClick: startGroupCall,
+    });
+  }
+  if (isMember && chat.type !== 'saved' && (chat.type === 'private' || isChatAdmin)) {
+    headerItems.push({
+      icon: 'timer',
+      label: t('ttl.menu'),
+      onClick: () =>
+        setTtlMenu([
+          { icon: 'close', label: t('ttl.off'), onClick: () => void setChatTtl(chat.id, null).catch(fail) },
+          ...[86400, 604800, 2592000].map((s) => ({
+            icon: 'timer' as const,
+            label: t(`ttl.s${s}`),
+            onClick: () => void setChatTtl(chat.id, s).catch(fail),
+          })),
+        ]),
+    });
+  }
+  if (canPost) {
+    headerItems.push({ icon: 'clock', label: t('schedule.list'), onClick: () => setScheduledOpen(true) });
+  }
   if (moderatable)
     headerItems.push({ icon: 'users', label: t('chat.info'), onClick: () => navigate(`/c/${chat.id}/info`) });
   if (otherUid) {
@@ -518,6 +667,13 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
         onEditLast={editLast}
         onSendPhotos={(files, caption) => void sendPhotos(files, caption)}
         onSendVoice={sendVoice}
+        onSendFile={sendFile}
+        onSendVideoNote={sendVideoNote}
+        onSchedule={(text) => setScheduleText(text)}
+        mentions={chat.type === 'group'}
+        attachItems={
+          moderatable ? [{ icon: 'poll', label: t('poll.new'), onClick: () => setPollOpen(true) }] : []
+        }
       />
     );
   }
@@ -593,6 +749,7 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
       )}
 
       {scam && <ScamWarning />}
+      {chat.type === 'group' && isMember && <GroupCallBar chatId={chat.id} active={groupCall} />}
 
       {chat.pinnedMessageIds.length > 0 && <PinnedBar chat={chat} canUnpin={canPin} onJump={jumpTo} />}
 
@@ -619,6 +776,7 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
                   onReact={onReact}
                   onJump={jumpTo}
                   onOpenProfile={openProfile}
+                  onComments={commentsOn ? openComments : undefined}
                 />
               </Fragment>
             ),
@@ -748,6 +906,26 @@ function ChatBody({ chat, me, topic }: { chat: Chat; me: string; topic?: string 
 
       {boosting && <BoostDialog msg={boosting} onClose={() => setBoosting(null)} />}
       {reporting && <ReportDialog messageId={reporting.id} onClose={() => setReporting(null)} />}
+      {ttlMenu && headerMenu === null && (
+        <Menu x={window.innerWidth - 240} y={64} items={ttlMenu} onClose={() => setTtlMenu(null)} />
+      )}
+      {scheduleText !== null && (
+        <ScheduleDialog
+          chatId={chat.id}
+          topicId={topicId}
+          text={scheduleText}
+          onClose={() => setScheduleText(null)}
+        />
+      )}
+      {scheduledOpen && <ScheduledList chatId={chat.id} onClose={() => setScheduledOpen(false)} />}
+      {commentsFor && (
+        <CommentsSheet
+          post={messages.find((m) => m.id === commentsFor.id) ?? commentsFor}
+          isAdmin={isChatAdmin || isGlobalAdmin}
+          onClose={() => setCommentsFor(null)}
+        />
+      )}
+      {pollOpen && <PollDialog chatId={chat.id} topicId={topicId} onClose={() => setPollOpen(false)} />}
       {channelBoostOpen && (
         <ChannelBoostDialog
           chatId={chat.id}

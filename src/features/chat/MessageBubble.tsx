@@ -10,7 +10,8 @@ import { useLongPress } from '../../ui/useLongPress';
 import { Badges } from '../../ui/Badges';
 import { callText, systemText } from '../chats/chatMeta';
 import { isEmojiOnly, MessageText } from './MessageText';
-import { PhotoMedia, VoiceMedia } from './MediaViews';
+import { PollView } from './Poll';
+import { FileMedia, PhotoMedia, VideoMedia, VideoNoteMedia, VoiceMedia } from './MediaViews';
 import { nameColorStyle } from '../../app/themes';
 
 const NAME_COLORS = ['#e17076', '#eda86c', '#a695e7', '#7bc862', '#6ec9cb', '#65aadd', '#ee7aae'];
@@ -35,6 +36,8 @@ interface Props {
   onReact: (msg: Message, emoji: string) => void;
   onJump: (id: string) => void;
   onOpenProfile: (uid: string) => void;
+  /** Канал с комментариями: кнопка «N комментариев» под постом. */
+  onComments?: (msg: Message) => void;
 }
 
 export const MessageBubble = memo(function MessageBubble(props: Props) {
@@ -51,6 +54,7 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
     onReact,
     onJump,
     onOpenProfile,
+    onComments,
   } = props;
   const { t, i18n } = useTranslation();
   const own = msg.senderId === me && chatType !== 'channel';
@@ -88,6 +92,9 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
   const big = !msg.replyTo && !msg.forwardedFrom && !msg.media && isEmojiOnly(msg.text);
   const photo = msg.media?.kind === 'photo' ? msg.media : null;
   const voice = msg.media?.kind === 'voice' ? msg.media : null;
+  const video = msg.media?.kind === 'video' ? msg.media : null;
+  const file = msg.media?.kind === 'file' ? msg.media : null;
+  const note = msg.media?.kind === 'video_note' ? msg.media : null;
 
   const meta = (
     <span className="msg-meta">
@@ -130,11 +137,13 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
         className={
           big
             ? 'bubble big-emoji'
-            : photo
-              ? msg.text
-                ? 'bubble has-photo'
-                : 'bubble has-photo only-photo'
-              : 'bubble'
+            : note
+              ? 'bubble video-note-bubble'
+              : photo || video
+                ? msg.text
+                  ? 'bubble has-photo'
+                  : 'bubble has-photo only-photo'
+                : 'bubble'
         }
         onContextMenu={onContext}
         onDoubleClick={(e) => onMenu(msg, e.clientX, e.clientY)}
@@ -186,19 +195,32 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
         ) : (
           <>
             {photo && <PhotoMedia media={photo} uploading={msg.uploading} />}
+            {video && <VideoMedia media={video} uploading={msg.uploading} />}
+            {note && (
+              <div className="msg-note">
+                <VideoNoteMedia media={note} uploading={msg.uploading} />
+                {meta}
+              </div>
+            )}
+            {file && <FileMedia media={file} uploading={msg.uploading} />}
             {voice ? (
               <div className="msg-voice">
                 <VoiceMedia media={voice} own={own} />
                 {!msg.text && meta}
               </div>
             ) : null}
-            {msg.text || !msg.media ? (
+            {msg.poll ? (
+              <div className="msg-text">
+                <PollView msg={msg} canVote />
+                {meta}
+              </div>
+            ) : note ? null : msg.text || !msg.media || file ? (
               <div className="msg-text">
                 <MessageText text={msg.text} highlight={search} />
                 {meta}
               </div>
             ) : (
-              photo && <div className="msg-photo-meta">{meta}</div>
+              (photo || video) && <div className="msg-photo-meta">{meta}</div>
             )}
           </>
         )}
@@ -215,6 +237,21 @@ export const MessageBubble = memo(function MessageBubble(props: Props) {
               </button>
             ))}
           </div>
+        )}
+        {onComments && !msg.pending && !msg.system && (
+          <button
+            className="comments-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              onComments(msg);
+            }}
+          >
+            <Icon name="comment" size={16} />
+            <span className="grow">
+              {msg.comments ? t('comments.count', { count: msg.comments }) : t('comments.leave')}
+            </span>
+            <Icon name="back" size={14} className="comments-arrow" />
+          </button>
         )}
       </div>
     </div>

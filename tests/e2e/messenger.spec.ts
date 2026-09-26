@@ -172,7 +172,7 @@ test('фото с подписью и голосовое доходят до с�
   });
   await alice
     .getByRole('main')
-    .locator('input[type="file"]')
+    .locator('input[type="file"][accept^="image"]')
     .setInputFiles({
       name: 'pic.png',
       mimeType: 'image/png',
@@ -487,6 +487,11 @@ test('сторис из списка чатов открывается на ве
   await service.from('messages').insert({ chat_id: chat!.id, sender_id: bid, text: 'смотри сторис' });
 
   await alice.reload();
+  // Лента сторис над чатами: кружок автора с цветным кольцом.
+  await expect(
+    alice.locator('.stories-bar .story-bubble', { hasText: 'Сторисный' }).locator('.unviewed'),
+  ).toBeVisible();
+  await alice.screenshot({ path: 'test-results/stories-bar.png' });
   const row = alice.locator('.chat-item', { hasText: 'Сторисный' });
   await row.locator('.story-avatar.unviewed').click();
   const viewer = alice.locator('.story-viewer');
@@ -520,7 +525,7 @@ test('iPhone: окно фото с подписью остаётся над кл
   });
   await alice
     .getByRole('main')
-    .locator('input[type="file"]')
+    .locator('input[type="file"][accept^="image"]')
     .setInputFiles({
       name: 'tall.png',
       mimeType: 'image/png',
@@ -666,6 +671,195 @@ test('админка: «Инфо» об устройстве и блокиров
   // Снимаем, чтобы не мешать другим тестам.
   await dialog.getByRole('button', { name: 'Разблокировать устройство' }).click();
   await expect(dialog.getByRole('button', { name: 'Заблокировать устройство' })).toBeVisible();
+});
+
+test('группа: @упоминание с подсказкой и опрос', async ({ browser }) => {
+  const own = await signUp(browser, 'Хозяин', `mnt${run}`);
+  const mem = await signUp(browser, 'Участник', `mntm${run}`, true);
+  await own.goto('./#/new/group');
+  await own.getByRole('button', { name: 'Далее' }).click();
+  await own.getByLabel('Название группы').fill(`Опросная ${run}`);
+  await own.getByRole('button', { name: 'Создать группу' }).click();
+  await expect(own.getByPlaceholder('Сообщение')).toBeVisible();
+  const chatId = own.url().split('/c/')[1];
+  const { data: m } = await service.from('profiles').select('id').eq('username', `mntm${run}`).single();
+  await service.from('chat_members').insert({ chat_id: chatId, user_id: m!.id });
+  await own.reload();
+
+  const input = own.getByPlaceholder('Сообщение');
+  await input.pressSequentially('привет @mntm');
+  await own.locator('.mention-item', { hasText: 'Участник' }).click();
+  await expect(input).toHaveValue(`привет @mntm${run} `);
+  await input.press('Enter');
+
+  await mem.goto(`./#/c/${chatId}`);
+  await expect(mem.locator('.bubble .md-mention.me', { hasText: `@mntm${run}` })).toBeVisible();
+
+  // Опрос.
+  await own.getByRole('button', { name: 'Прикрепить фото' }).click();
+  await own.getByRole('menuitem', { name: 'Опрос' }).click();
+  const dialog = own.getByRole('dialog');
+  await dialog.getByLabel('Вопрос').fill('Пицца или суши?');
+  await dialog.getByPlaceholder('Вариант 1').fill('Пицца');
+  await dialog.getByPlaceholder('Вариант 2').fill('Суши');
+  await dialog.getByRole('button', { name: 'Создать' }).click();
+  const poll = mem.locator('.poll', { hasText: 'Пицца или суши?' });
+  await poll.getByRole('button', { name: 'Суши' }).click();
+  await expect(poll.locator('.poll-pct').nth(1)).toHaveText('100%');
+  await expect(own.locator('.poll', { hasText: 'Пицца или суши?' }).getByText('1 голос')).toBeVisible();
+  await mem.screenshot({ path: 'test-results/poll.png' });
+});
+
+test('файл, видео и видеокружочек', async ({ browser }) => {
+  const alice = await signUp(browser, 'Алиса', `vid${run}`);
+  const { data: a } = await service.from('profiles').select('id').eq('username', `vid${run}`).single();
+  const { data: chat } = await service
+    .from('chats')
+    .insert({ type: 'saved', private_key: `saved_${a!.id}` })
+    .select('id')
+    .single();
+  await service.from('chat_members').insert({ chat_id: chat!.id, user_id: a!.id });
+  await alice.goto(`./#/c/${chat!.id}`);
+  const main = alice.getByRole('main');
+
+  // Файл — через меню скрепки.
+  await main.locator('input[type="file"]:not([accept])').setInputFiles({
+    name: 'отчёт.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4 тест'),
+  });
+  await expect(alice.locator('.msg-file', { hasText: 'отчёт.pdf' })).toBeVisible();
+  const kinds = async () =>
+    (
+      await service
+        .from('messages')
+        .select('media')
+        .eq('chat_id', chat!.id)
+        .not('media', 'is', null)
+        .order('created_at')
+    ).data!.map((m) => (m.media as { kind: string }).kind);
+  await expect.poll(kinds).toEqual(['file']);
+
+  // Видео — тем же окном, что и фото.
+  await main
+    .locator('input[type="file"][accept="image/*,video/*"]')
+    .setInputFiles('tests/e2e/fixtures/clip.mp4');
+  await alice.getByRole('dialog').getByRole('button', { name: 'Отправить' }).click();
+  await expect(alice.locator('.msg-video video')).toBeVisible();
+  await expect.poll(kinds, { timeout: 15_000 }).toEqual(['file', 'video']);
+
+  // Кружок с фейковой камеры.
+  await alice.getByRole('button', { name: 'Записать видеосообщение' }).click();
+  await expect(alice.locator('.note-capture video')).toBeVisible();
+  await alice.waitForTimeout(1500);
+  await alice.locator('.note-capture').getByRole('button', { name: 'Отправить' }).click();
+  await expect(alice.locator('.video-note video')).toBeVisible();
+  await expect.poll(kinds, { timeout: 15_000 }).toEqual(['file', 'video', 'video_note']);
+  await alice.screenshot({ path: 'test-results/media-kinds.png' });
+});
+
+test('поиск по сообщениям, папки, отложенное, автоудаление', async ({ browser }) => {
+  const alice = await signUp(browser, 'Алиса', `srch${run}`);
+  const bob = await signUp(browser, 'Боб', `srchb${run}`);
+  await alice.getByPlaceholder('Поиск по @имени или чатам').fill(`@srchb${run}`);
+  await alice.locator('.list-item', { hasText: 'Боб' }).first().click();
+  const input = alice.getByPlaceholder('Сообщение');
+  await input.fill(`ключевое слово ${run}`);
+  await input.press('Enter');
+  for (let i = 0; i < 3; i++) {
+    await input.fill(`просто сообщение ${i}`);
+    await input.press('Enter');
+  }
+
+  // Глобальный поиск находит сообщение, клик — переход к нему.
+  await bob.getByPlaceholder('Поиск по @имени или чатам').fill(`слово ${run}`);
+  const hit = bob.locator('.search-hit', { hasText: `ключевое слово ${run}` });
+  await expect(hit).toBeVisible();
+  await hit.click();
+  await expect(bob.locator('.msg-row.highlighted', { hasText: `ключевое слово ${run}` })).toBeVisible();
+
+  // Папки: «Группы» — пусто, «Личные» — есть чат.
+  await bob.goto('./');
+  await bob.getByRole('tab', { name: 'Группы' }).click();
+  await expect(bob.locator('.chat-item', { hasText: 'Алиса' })).toHaveCount(0);
+  await bob.getByRole('tab', { name: 'Личные' }).click();
+  await expect(bob.locator('.chat-item', { hasText: 'Алиса' })).toBeVisible();
+  // Своя папка.
+  await bob.getByRole('button', { name: 'Новая папка' }).click();
+  const dialog = bob.getByRole('dialog');
+  await dialog.getByLabel('Название папки').fill('Друзья');
+  await dialog.locator('.folder-chat', { hasText: 'Алиса' }).locator('input').check();
+  await dialog.getByRole('button', { name: 'Сохранить' }).click();
+  await bob.getByRole('tab', { name: 'Друзья' }).click();
+  await expect(bob.locator('.chat-item', { hasText: 'Алиса' })).toBeVisible();
+
+  // Отложенное: правый клик по «Отправить» → «Отправить позже».
+  await input.fill('напомню позже');
+  await alice.getByRole('button', { name: 'Отправить' }).click({ button: 'right' });
+  await alice.getByRole('menuitem', { name: 'Отправить позже' }).click();
+  await alice.getByRole('dialog').getByRole('button', { name: 'Через час' }).click();
+  await alice.getByRole('dialog').getByRole('button', { name: 'Запланировать' }).click();
+  await expect(alice.locator('.toast', { hasText: 'Сообщение уйдёт' })).toBeVisible();
+  await service
+    .from('scheduled_messages')
+    .update({ send_at: new Date(Date.now() - 1000).toISOString() })
+    .neq('text', '');
+  await service.rpc('run_scheduled_jobs');
+  await expect(alice.locator('.bubble', { hasText: 'напомню позже' })).toBeVisible();
+
+  // Автоудаление в личке.
+  await alice.locator('.chat-header').getByRole('button', { name: 'more' }).click();
+  await alice.getByRole('menuitem', { name: 'Автоудаление' }).click();
+  await alice.getByRole('menuitem', { name: '1 день' }).click();
+  await expect(
+    alice.locator('.msg-row.system', { hasText: 'включил(а) автоудаление: 1 день' }),
+  ).toBeVisible();
+});
+
+test('комментарии к постам и голосовой чат в группе', async ({ browser }) => {
+  const own = await signUp(browser, 'Автор', `cmt${run}`);
+  const sub = await signUp(browser, 'Читатель', `cmts${run}`, true);
+  const { data: s } = await service.from('profiles').select('id').eq('username', `cmts${run}`).single();
+
+  // Канал: владелец включает комментарии, подписчик комментирует.
+  await own.goto('./#/new/channel');
+  await own.getByLabel('Название канала').fill(`Блог ${run}`);
+  await own.getByRole('button', { name: 'Создать канал' }).click();
+  await own.getByPlaceholder('Сообщение').fill('новый пост');
+  await own.keyboard.press('Enter');
+  const channelId = own.url().split('/c/')[1];
+  await service.from('chat_members').insert({ chat_id: channelId, user_id: s!.id });
+  await own.goto(`./#/c/${channelId}/info`);
+  await own.locator('.info-item', { hasText: 'Комментарии' }).getByRole('switch').click();
+  await sub.goto(`./#/c/${channelId}`);
+  await sub.locator('.comments-btn').first().click();
+  await sub.getByPlaceholder('Комментарий…').fill('отличный пост');
+  await sub.getByPlaceholder('Комментарий…').press('Enter');
+  await expect(sub.locator('.comment', { hasText: 'отличный пост' })).toBeVisible();
+  await own.goto(`./#/c/${channelId}`);
+  await expect(own.locator('.comments-btn', { hasText: '1 комментарий' })).toBeVisible();
+
+  // Группа: голосовой чат на двоих.
+  await own.goto('./#/new/group');
+  await own.getByRole('button', { name: 'Далее' }).click();
+  await own.getByLabel('Название группы').fill(`Созвон ${run}`);
+  await own.getByRole('button', { name: 'Создать группу' }).click();
+  await expect(own.getByPlaceholder('Сообщение')).toBeVisible();
+  const groupId = own.url().split('/c/')[1];
+  await service.from('chat_members').insert({ chat_id: groupId, user_id: s!.id });
+  await own.locator('.chat-header').getByRole('button', { name: 'more' }).click();
+  await own.getByRole('menuitem', { name: 'Начать голосовой чат' }).click();
+  await expect(own.locator('.gc-panel')).toBeVisible();
+  await sub.goto(`./#/c/${groupId}`);
+  await sub.locator('.gc-bar').getByRole('button', { name: 'Присоединиться' }).click();
+  await expect(sub.locator('.gc-panel')).toHaveAttribute('data-connected', '1', { timeout: 20_000 });
+  await expect(own.locator('.gc-panel')).toHaveAttribute('data-connected', '1', { timeout: 20_000 });
+  await expect(own.locator('.gc-member')).toHaveCount(2);
+  await sub.screenshot({ path: 'test-results/group-call.png' });
+  await sub.getByRole('button', { name: 'Выйти' }).click();
+  await expect(own.locator('.gc-member')).toHaveCount(1);
+  await own.getByRole('button', { name: 'Выйти' }).click();
+  await expect(own.locator('.gc-panel')).toHaveCount(0);
 });
 
 test('без сети сообщение ждёт с «часиками» и уходит, когда сеть появилась', async ({ browser }) => {
