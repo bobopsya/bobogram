@@ -72,6 +72,8 @@ body {
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
+  /* без задержки и зума от двойного тапа */
+  touch-action: manipulation;
 }
 
 body {
@@ -110,6 +112,14 @@ textarea,
 select {
   font: inherit;
   color: var(--text);
+}
+/* На телефоне поля не мельче 16px — иначе iOS увеличивает страницу при фокусе. */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
 }
 
 a {
@@ -606,8 +616,9 @@ select {
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(90px + var(--safe-bottom));
-  transform: translateX(-50%);
+  /* от видимой высоты: на iPhone с клавиатурой тост остаётся над ней */
+  top: calc(var(--app-height) - 90px - var(--safe-bottom));
+  transform: translate(-50%, -100%);
   background: rgba(0, 0, 0, 0.8);
   color: #fff;
   padding: 10px 16px;
@@ -1334,7 +1345,10 @@ select {
 /* ============ Меню ============ */
 .menu-backdrop {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--app-height);
   z-index: 100;
 }
 .menu {
@@ -1404,8 +1418,13 @@ select {
 
 /* ============ Модальные окна ============ */
 .modal-backdrop {
+  /* Высота — видимая область (--app-height): на iPhone клавиатура не уменьшает экран,
+     и окно, прижатое к низу, уходило под неё. */
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--app-height);
   z-index: 90;
   background: rgba(0, 0, 0, 0.4);
   display: grid;
@@ -1460,6 +1479,7 @@ select {
   }
   .modal {
     max-width: none;
+    max-height: calc(var(--app-height) - var(--safe-top) - 12px);
     border-radius: 16px 16px 0 0;
     padding-bottom: var(--safe-bottom);
     animation: slide-up 0.2s ease-out;
@@ -2247,7 +2267,8 @@ button.setting-row:hover {
 }
 .photo-previews img {
   max-width: 100%;
-  max-height: 50vh;
+  /* с открытой клавиатурой превью меньше, подпись и «Отправить» остаются видны */
+  max-height: min(50vh, calc(var(--app-height) * 0.35));
   border-radius: 10px;
   object-fit: contain;
 }
@@ -2258,6 +2279,7 @@ button.setting-row:hover {
 }
 .photo-previews.grid img {
   width: 100%;
+  max-height: calc(var(--app-height) * 0.18);
   aspect-ratio: 1;
   object-fit: cover;
 }

@@ -5,7 +5,7 @@ import type { Chat, Topic } from '../../supabase/types';
 import { createTopic, deleteTopic, editTopic, errorKey, fetchTopics } from '../../supabase/api';
 import { onDbEvent, onResync } from '../../supabase/realtime';
 import { useApp, useMe } from '../../app/store';
-import { displayNameOf, useProfile } from '../../app/profiles';
+import { displayNameOf, systemUids, useProfile, useProfilesLoaded } from '../../app/profiles';
 import { formatChatListTime, toDate } from '../../lib/time';
 import { Icon } from '../../ui/Icon';
 import { Menu, type MenuItem } from '../../ui/Menu';
@@ -87,6 +87,7 @@ function TopicRow({
   const last = topic.lastMessage;
   const sender = useProfile(last && !last.system && last.senderId !== me ? last.senderId : null);
   const longPress = useLongPress((x, y) => onMenu?.(x, y));
+  useProfilesLoaded(last?.system ? systemUids(last.system, last.senderId) : []);
 
   let preview = '';
   if (last) {

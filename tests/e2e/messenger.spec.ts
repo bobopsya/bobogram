@@ -501,6 +501,49 @@ test('сторис из списка чатов открывается на ве
   await expect(alice.locator('.bubble', { hasText: 'смотри сторис' })).toBeVisible();
 });
 
+test('iPhone: окно фото с подписью остаётся над клавиатурой', async ({ browser }) => {
+  const alice = await signUp(browser, 'Алиса', `kbd${run}`, true);
+  const { data: a } = await service.from('profiles').select('id').eq('username', `kbd${run}`).single();
+  const { data: chat } = await service
+    .from('chats')
+    .insert({ type: 'saved', private_key: `saved_${a!.id}` })
+    .select('id')
+    .single();
+  await service.from('chat_members').insert({ chat_id: chat!.id, user_id: a!.id });
+  await alice.goto(`./#/c/${chat!.id}`);
+  const png = await alice.evaluate(() => {
+    const c = document.createElement('canvas');
+    c.width = 900;
+    c.height = 1600;
+    c.getContext('2d')!.fillRect(0, 0, 900, 1600);
+    return c.toDataURL('image/png').split(',')[1];
+  });
+  await alice
+    .getByRole('main')
+    .locator('input[type="file"]')
+    .setInputFiles({
+      name: 'tall.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(png, 'base64'),
+    });
+  const caption = alice.getByPlaceholder('Подпись');
+  await caption.click();
+  // Клавиатура iPhone: видимая часть экрана — 420px из 844 (так её сообщает visualViewport).
+  await alice.evaluate(() => document.documentElement.style.setProperty('--app-height', '420px'));
+  await alice.waitForTimeout(400);
+  const send = alice.getByRole('dialog').getByRole('button', { name: 'Отправить' });
+  for (const el of [caption, send]) {
+    const box = await el.boundingBox();
+    expect(box!.y).toBeGreaterThanOrEqual(0);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(420);
+  }
+  // Превью фото тоже видно, просто меньше.
+  const img = await alice.locator('.photo-previews img').boundingBox();
+  expect(img!.height).toBeGreaterThan(60);
+  expect(img!.y).toBeGreaterThanOrEqual(0);
+  await alice.screenshot({ path: 'test-results/iphone-keyboard.png' });
+});
+
 test('без сети сообщение ждёт с «часиками» и уходит, когда сеть появилась', async ({ browser }) => {
   const alice = await signUp(browser, 'Алиса', `aliceo${run}`);
   const bob = await signUp(browser, 'Боб', `bobo${run}`);

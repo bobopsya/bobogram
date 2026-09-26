@@ -81,6 +81,45 @@ export function useProfile(uid: string | null | undefined): UserProfile | null |
   );
 }
 
+/**
+ * Подписка на несколько профилей сразу — для текстов вроде «Аня добавила Борю», которые
+ * читают кэш через peekProfile: без неё имя оставалось «…», пока что-то не перерисует экран.
+ */
+export function useProfilesLoaded(uids: string[]): void {
+  const key = uids.join(',');
+  useEffect(() => {
+    if (key) key.split(',').forEach(request);
+  }, [key]);
+  useSyncExternalStore(
+    (l) => {
+      if (!key) return () => undefined;
+      const sets = key.split(',').map((uid) => {
+        let set = listeners.get(uid);
+        if (!set) listeners.set(uid, (set = new Set()));
+        set.add(l);
+        return set;
+      });
+      return () => sets.forEach((set) => set.delete(l));
+    },
+    () =>
+      key
+        ? key
+            .split(',')
+            .map((uid) => (cache.has(uid) ? (cache.get(uid)?.displayName ?? '-') : '?'))
+            .join('|')
+        : '',
+  );
+}
+
+/** Все пользователи, упомянутые в системном событии (кто сделал и кого добавили/удалили). */
+export function systemUids(
+  ev: { kind: string; uids?: string[]; uid?: string } | null | undefined,
+  senderId: string,
+): string[] {
+  if (!ev) return [];
+  return [senderId, ...(ev.uids ?? []), ...(ev.uid ? [ev.uid] : [])];
+}
+
 export function peekProfile(uid: string): UserProfile | null | undefined {
   if (!cache.has(uid)) request(uid);
   return cache.get(uid);
