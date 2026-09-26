@@ -170,7 +170,7 @@ test('фото с подписью и голосовое доходят до с�
     ctx.fillRect(0, 0, 400, 300);
     return c.toDataURL('image/png').split(',')[1];
   });
-  await alice.locator('input[type="file"]').setInputFiles({
+  await alice.getByRole('main').locator('input[type="file"]').setInputFiles({
     name: 'pic.png',
     mimeType: 'image/png',
     buffer: Buffer.from(png, 'base64'),

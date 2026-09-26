@@ -113,17 +113,17 @@ export function EditProfileScreen() {
                 e.target.value = '';
               }}
             />
-          <div className="row gap">
-            <button className="btn btn-text" onClick={() => fileRef.current?.click()}>
-              {t('profile.changeAvatar')}
-            </button>
-            {avatar && (
-                <button className="btn btn-text danger" onClick={() => setAvatar(null)}>
-                {t('profile.removeAvatar')}
+            <div className="row gap">
+              <button className="btn btn-text" onClick={() => fileRef.current?.click()}>
+                {t('profile.changeAvatar')}
               </button>
-            )}
+              {avatar && (
+                <button className="btn btn-text danger" onClick={() => setAvatar(null)}>
+                  {t('profile.removeAvatar')}
+                </button>
+              )}
+            </div>
           </div>
-        </div>
 
           <label className="field">
             <span className="field-label">{t('auth.displayName')}</span>
@@ -157,7 +157,11 @@ export function EditProfileScreen() {
           </button>
         )}
         {error && <p className="form-error">{error}</p>}
-        <button className="btn btn-primary btn-block" onClick={save} disabled={busy || (locked ? !styleChanged : !canSave)}>
+        <button
+          className="btn btn-primary btn-block"
+          onClick={save}
+          disabled={busy || (locked ? !styleChanged : !canSave)}
+        >
           {t('common.save')}
         </button>
       </div>
