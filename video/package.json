@@ -9,7 +9,9 @@
     "capture": "node scripts/capture.mjs",
     "stills": "node scripts/stills.mjs",
     "render": "node scripts/render.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "stills:billboard": "node scripts/stills.mjs 1,7,14 --id Billboard",
+    "render:billboard": "node scripts/render.mjs --id Billboard"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",

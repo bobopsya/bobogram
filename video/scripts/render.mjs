@@ -1,4 +1,6 @@
-// Полный рендер: node scripts/render.mjs → out/bobogram-promo.mp4
+// Полный рендер: node scripts/render.mjs [--id Promo|Billboard]
+//   Promo     → out/bobogram-promo.mp4      (15 с, 30 fps)
+//   Billboard → out/bobogram-billboard.mp4  (15 с, 60 fps, петля)
 // Remotion (H.264, CRF 16, yuv420p) → ffmpeg +faststart → проверка ffprobe.
 import { execFileSync } from 'node:child_process';
 import { mkdir, rm } from 'node:fs/promises';
@@ -8,9 +10,12 @@ import { bundle } from '@remotion/bundler';
 import { renderMedia, selectComposition } from '@remotion/renderer';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const idAt = process.argv.indexOf('--id');
+const id = idAt >= 0 ? process.argv[idAt + 1] : 'Promo';
 const outDir = join(root, 'out');
-const raw = join(outDir, 'bobogram-promo.raw.mp4');
-const final = join(outDir, 'bobogram-promo.mp4');
+const name = `bobogram-${id.toLowerCase()}`;
+const raw = join(outDir, `${name}.raw.mp4`);
+const final = join(outDir, `${name}.mp4`);
 
 /** Системный ffmpeg/ffprobe, а если его нет — тот, что идёт с Remotion. */
 function tool(name, args) {
@@ -25,7 +30,7 @@ function tool(name, args) {
 await mkdir(outDir, { recursive: true });
 console.log('Сборка…');
 const serveUrl = await bundle({ entryPoint: join(root, 'src/index.ts') });
-const composition = await selectComposition({ serveUrl, id: 'Promo' });
+const composition = await selectComposition({ serveUrl, id });
 
 let last = -1;
 await renderMedia({
@@ -64,15 +69,22 @@ const report = {
   audio: info.streams.some((s) => s.codec_type === 'audio'),
 };
 console.log(report);
+// Ожидания берём из самой композиции: размер, fps и число кадров.
+const want = {
+  size: `${composition.width}x${composition.height}`,
+  fps: `${composition.fps}/1`,
+  frames: composition.durationInFrames,
+  duration: composition.durationInFrames / composition.fps,
+};
 const ok =
   report.codec === 'h264' &&
   report.pix_fmt === 'yuv420p' &&
-  report.size === '1920x1080' &&
-  fps === '30/1' &&
-  report.frames === 450 &&
-  Math.abs(report.duration - 15) < 0.05;
+  report.size === want.size &&
+  fps === want.fps &&
+  report.frames === want.frames &&
+  Math.abs(report.duration - want.duration) < 0.05;
 if (!ok) {
-  console.error('Параметры не совпали с ТЗ (1920×1080, 30 fps, 450 кадров, 15,0 с, H.264 yuv420p)');
+  console.error('Параметры не совпали с композицией:', want);
   process.exit(1);
 }
 console.log('Готово ✓');

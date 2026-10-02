@@ -176,15 +176,33 @@ async function resetDemoUsers() {
   }
 }
 
+/**
+ * Цвет имени отправителя в группах и запасной цвет аватара приложение выбирает по хешу id
+ * (src/ui/Avatar.tsx, MessageBubble.tsx): 7 цветов, пятый — синий #65aadd. Подбираем id под него.
+ */
+function blueId() {
+  for (;;) {
+    const id = crypto.randomUUID();
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+    if (Math.abs(h) % 7 === 5) return id;
+  }
+}
+
 async function signUp(key) {
   const { username, name } = USERS[key];
-  const client = anonClient();
-  const { data, error } = await client.auth.signUp({
-    email: `${username}-${Date.now()}@demo.bobogram.app`,
+  const email = `${username}-${Date.now()}@demo.bobogram.app`;
+  // Как обычная регистрация (тот же триггер создаёт профиль), только с выбранным id.
+  const { data, error } = await service.auth.admin.createUser({
+    id: blueId(),
+    email,
     password: PASSWORD,
-    options: { data: { username, display_name: name } },
+    email_confirm: true,
+    user_metadata: { username, display_name: name },
   });
   if (error) throw new Error(`${username}: ${error.message}`);
+  const client = anonClient();
+  check(await client.auth.signInWithPassword({ email, password: PASSWORD }));
   return { client, id: data.user.id };
 }
 
@@ -236,7 +254,11 @@ async function seedBase(avatars) {
   await send(u.sam, books, 'Next book: The Martian');
   const tips = await createChat(u.sam, 'channel', 'Bobogram Tips', '', avatars.tips, [u.alex.id]);
   await send(u.sam, tips, 'Tip: share your QR code to add friends fast');
-  const weekend = await createChat(u.sam, 'group', 'Weekend Crew', '', avatars.weekend, [u.alex.id]);
+  // Mia тоже в группе: в билборде она отвечает там голосовым и голосует в опросе.
+  const weekend = await createChat(u.sam, 'group', 'Weekend Crew', '', avatars.weekend, [
+    u.alex.id,
+    u.mia.id,
+  ]);
   await send(u.sam, weekend, 'Hike at 9 on Saturday ⛰️');
   const dm = check(await u.sam.client.rpc('get_or_create_private_chat', { p_other: u.alex.id }));
   await send(u.sam, dm, 'Movie night on Friday? 🍿');
@@ -244,6 +266,7 @@ async function seedBase(avatars) {
   await send(u.sam, dm, 'Great, I’ll bring popcorn');
   // Всё прочитано: зелёный бейдж непрочитанного выбивается из синей палитры ролика.
   for (const c of [books, tips, weekend, dm]) check(await u.alex.client.rpc('mark_read', { p_chat: c }));
+  u.weekendId = weekend;
   return u;
 }
 
@@ -272,7 +295,7 @@ const appearance = (dark) => ({
   fontSize: 16,
 });
 
-async function newContext(browser, { dark, desktop, css }) {
+async function newContext(browser, { dark, desktop, css, look = appearance(dark) }) {
   const context = await browser.newContext(
     desktop
       ? { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 }
@@ -289,7 +312,7 @@ async function newContext(browser, { dark, desktop, css }) {
         document.head.appendChild(style);
       });
     },
-    { dark, appearance: appearance(dark), css },
+    { dark, appearance: look, css },
   );
   await context.grantPermissions([], { origin: APP_URL });
   const page = await context.newPage();
@@ -490,6 +513,344 @@ async function captureDesktop(browser, theme, css, layout) {
   await page.context().close();
 }
 
+// ---------- билборд: сторис, опрос, голосовое, оформление ----------
+const bb = (name) => join('billboard', name);
+
+/** Картинка для сторис Mia: рисуем сами (синее небо и горы), без стоковых фото. */
+async function makeStoryImage(browser, fonts) {
+  const page = await browser.newPage();
+  await page.setContent(`<style>${fonts}</style><span style="font-family:Inter;font-weight:700">A</span>`);
+  await page.evaluate(() => document.fonts.ready);
+  const b64 = await page.evaluate(() => {
+    // Пропорции экрана телефона 390×844: сторис заполняет его без чёрных полей.
+    const W = 1080;
+    const H = 2338;
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const ctx = c.getContext('2d');
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, '#dff1ff');
+    sky.addColorStop(0.45, '#8fd0ff');
+    sky.addColorStop(1, '#3390ec');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+    const sun = ctx.createRadialGradient(760, 520, 0, 760, 520, 420);
+    sun.addColorStop(0, 'rgba(255,255,255,0.95)');
+    sun.addColorStop(0.25, 'rgba(255,255,255,0.6)');
+    sun.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = sun;
+    ctx.fillRect(0, 0, W, H);
+    const ridge = (points, color) => {
+      ctx.beginPath();
+      ctx.moveTo(0, H);
+      for (const [x, y] of points) ctx.lineTo(x, y);
+      ctx.lineTo(W, H);
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+    };
+    ridge(
+      [
+        [0, 1300],
+        [220, 1100],
+        [380, 1210],
+        [600, 960],
+        [820, 1180],
+        [1080, 1060],
+      ],
+      '#5aa6e8',
+    );
+    ridge(
+      [
+        [0, 1500],
+        [260, 1280],
+        [470, 1430],
+        [700, 1210],
+        [920, 1400],
+        [1080, 1320],
+      ],
+      '#1d5fc2',
+    );
+    ridge(
+      [
+        [0, 1760],
+        [300, 1570],
+        [560, 1710],
+        [820, 1540],
+        [1080, 1660],
+      ],
+      '#0b2a5b',
+    );
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.font = '700 120px Inter';
+    ctx.fillText('Weekend hike', W / 2, 2020);
+    return c.toDataURL('image/jpeg', 0.92).split(',')[1];
+  });
+  await page.close();
+  return Buffer.from(b64, 'base64');
+}
+
+/** Голосовое: синтезированный WAV (без чужих записей) и полоски громкости 0..31, как считает приложение. */
+function makeVoice() {
+  const rate = 16000;
+  const seconds = 7;
+  const n = rate * seconds;
+  const env = (t) => {
+    // «Слоги»: несколько всплесков громкости, как у речи.
+    const syll = Math.max(0, Math.sin(t * Math.PI * 2.6)) ** 0.6;
+    const phrase = 0.55 + 0.45 * Math.sin(t * 1.3 + 0.6);
+    const fade = Math.min(1, t * 4, (seconds - t) * 4);
+    return syll * phrase * fade;
+  };
+  const data = Buffer.alloc(44 + n * 2);
+  data.write('RIFF', 0);
+  data.writeUInt32LE(36 + n * 2, 4);
+  data.write('WAVEfmt ', 8);
+  data.writeUInt32LE(16, 16);
+  data.writeUInt16LE(1, 20);
+  data.writeUInt16LE(1, 22);
+  data.writeUInt32LE(rate, 24);
+  data.writeUInt32LE(rate * 2, 28);
+  data.writeUInt16LE(2, 32);
+  data.writeUInt16LE(16, 34);
+  data.write('data', 36);
+  data.writeUInt32LE(n * 2, 40);
+  for (let i = 0; i < n; i++) {
+    const t = i / rate;
+    const v = env(t) * (0.6 * Math.sin(2 * Math.PI * 180 * t) + 0.3 * Math.sin(2 * Math.PI * 360 * t));
+    data.writeInt16LE(Math.round(v * 0.35 * 32767), 44 + i * 2);
+  }
+  const bars = 48;
+  const waveform = Array.from({ length: bars }, (_, i) =>
+    Math.max(2, Math.round(env(((i + 0.5) / bars) * seconds) * 31)),
+  );
+  return { wav: data, duration: seconds, waveform };
+}
+
+async function seedBillboard(browser, fonts, u) {
+  // Сторис Mia.
+  const story = await makeStoryImage(browser, fonts);
+  const storyPath = `${u.mia.id}/story-${crypto.randomUUID()}.jpg`;
+  check(await u.mia.client.storage.from('media').upload(storyPath, story, { contentType: 'image/jpeg' }));
+  check(
+    await u.mia.client
+      .from('stories')
+      .insert({ media_path: storyPath, mime: 'image/jpeg', size: story.length, width: 1080, height: 2338 }),
+  );
+
+  // Опрос в Weekend Crew: Sam и Mia уже проголосовали, Alex голосует в ролике.
+  const pollId = crypto.randomUUID();
+  check(
+    await u.sam.client.rpc('create_poll', {
+      p_id: pollId,
+      p_chat: u.weekendId,
+      p_question: 'Where to hike?',
+      p_options: ['Blue Lake', 'Sky Ridge', 'Pine Trail'],
+      p_anonymous: false,
+      p_multiple: false,
+      p_topic: null,
+    }),
+  );
+  check(await u.sam.client.rpc('vote_poll', { p_message: pollId, p_options: [1] }));
+  check(await u.mia.client.rpc('vote_poll', { p_message: pollId, p_options: [1] }));
+  await new Promise((r) => setTimeout(r, 1100));
+
+  // Голосовое от Mia.
+  const voice = makeVoice();
+  const voicePath = `${u.mia.id}/${crypto.randomUUID()}.wav`;
+  check(await u.mia.client.storage.from('media').upload(voicePath, voice.wav, { contentType: 'audio/wav' }));
+  check(
+    await u.mia.client.rpc('send_message', {
+      p_id: crypto.randomUUID(),
+      p_chat: u.weekendId,
+      p_text: '',
+      p_reply_to: null,
+      p_forwarded_from: null,
+      p_call: null,
+      p_media: {
+        kind: 'voice',
+        path: voicePath,
+        mime: 'audio/wav',
+        size: voice.wav.length,
+        duration: voice.duration,
+        waveform: voice.waveform,
+      },
+      p_topic: null,
+    }),
+  );
+  await new Promise((r) => setTimeout(r, 1100));
+
+  // Mia отвечает в личке последней: в списке чатов нет зелёной галочки «отправлено».
+  const dm = check(await u.alex.client.rpc('get_or_create_private_chat', { p_other: u.mia.id }));
+  await send(u.mia, dm, 'See you there! 🙌');
+  // Всё прочитано: зелёный бейдж непрочитанного выбивается из синей палитры.
+  for (const c of [u.weekendId, dm]) check(await u.alex.client.rpc('mark_read', { p_chat: c }));
+}
+
+const measure = (page, selector) =>
+  page.evaluate((selector) => {
+    const el = document.querySelector(selector);
+    if (!el) return null;
+    const b = el.getBoundingClientRect();
+    return { x: +b.x.toFixed(2), y: +b.y.toFixed(2), w: +b.width.toFixed(2), h: +b.height.toFixed(2) };
+  }, selector);
+
+async function openChatList(page) {
+  await page.goto(APP_URL);
+  await page.getByPlaceholder('Search @username or chats').waitFor();
+  await page.locator('.chat-item', { hasText: 'Weekend Crew' }).waitFor();
+}
+
+async function openGroup(page) {
+  await page.locator('.chat-item', { hasText: 'Weekend Crew' }).first().click();
+  await page.locator('.poll').waitFor();
+  await page.locator('.voice').waitFor();
+  // Ждём, пока голосовое получит ссылку на файл (кнопка станет активной).
+  await page.locator('.voice-play:not([disabled])').waitFor();
+}
+
+async function captureBillboard(browser, pages, users) {
+  await mkdir(join(outDir, 'billboard'), { recursive: true });
+  const fonts = await fontCss();
+  await seedBillboard(browser, fonts, users);
+  const out = { light: {}, dark: {} };
+
+  // 1. Список чатов с кольцом сторис у Mia — в обеих темах, пока сторис не просмотрена.
+  for (const theme of ['light', 'dark']) {
+    const page = pages[theme];
+    await openChatList(page);
+    const bubble = page.locator('.stories-bar .story-bubble', { hasText: 'Mia' });
+    await bubble.waitFor();
+    await shot(page, bb(`chats-${theme}.png`));
+    out[theme].chats = {
+      storyBubble: await rect(bubble),
+      storyAvatar: await rect(bubble.locator('.avatar')),
+      group: await rect(page.locator('.chat-item', { hasText: 'Weekend Crew' })),
+    };
+  }
+
+  // 2. Сторис на весь экран. Прогресс идёт по таймеру — обнуляем его, полоску рисует ролик.
+  for (const theme of ['light', 'dark']) {
+    const page = pages[theme];
+    await page.locator('.stories-bar .story-bubble', { hasText: 'Mia' }).click();
+    await page.locator('.story-photo').waitFor();
+    await page.evaluate(() => {
+      const s = document.createElement('style');
+      s.textContent = '.story-progress i { width: 0 !important; }';
+      document.head.appendChild(s);
+    });
+    await page.evaluate(() => document.querySelector('.story-photo')?.decode());
+    await shot(page, bb(`story-${theme}.png`));
+    out[theme].story = { progress: await measure(page, '.story-progress span') };
+    await page.keyboard.press('Escape');
+    await page.locator('.story-viewer').waitFor({ state: 'detached' });
+  }
+
+  // 3. Группа: опрос до голоса и голосовое.
+  for (const theme of ['light', 'dark']) {
+    const page = pages[theme];
+    await openGroup(page);
+    await shot(page, bb(`group-${theme}.png`));
+    out[theme].group = {
+      poll: await measure(page, '.msg-row:has(.poll) .bubble'),
+      voice: await measure(page, '.msg-row:has(.voice) .bubble'),
+      wave: await measure(page, '.voice-wave'),
+      play: await measure(page, '.voice-play'),
+      options: await page.evaluate(() =>
+        [...document.querySelectorAll('.poll-option')].map((el) => {
+          const b = el.getBoundingClientRect();
+          return { x: b.x, y: b.y, w: b.width, h: b.height };
+        }),
+      ),
+    };
+  }
+
+  // 4. Alex голосует (по-настоящему, кликом), снимаем итоги без полос — полосы растут в ролике.
+  await pages.light.locator('.poll-option', { hasText: 'Blue Lake' }).click();
+  await pages.light.locator('.poll-pct').first().waitFor();
+  for (const theme of ['light', 'dark']) {
+    const page = pages[theme];
+    if (theme === 'dark') {
+      // Страница уже открыта в группе — просто перечитываем её с новыми итогами.
+      await page.reload();
+      await page.locator('.poll-pct').first().waitFor();
+      await page.locator('.voice-play:not([disabled])').waitFor();
+    }
+    await page.mouse.move(195, 700);
+    // Полоса голоса Alex появляется после ответа сервера — ждём её, иначе замер будет нулевым.
+    await page.waitForFunction(
+      () => (document.querySelector('.poll-bar')?.getBoundingClientRect().width ?? 0) > 0,
+    );
+    const bars = await page.evaluate(() =>
+      [...document.querySelectorAll('.poll-bar')].map((el) => {
+        const b = el.getBoundingClientRect();
+        return {
+          x: b.x,
+          y: b.y,
+          w: b.width,
+          h: b.height,
+          color: getComputedStyle(el).backgroundColor,
+          radius: getComputedStyle(el.parentElement).borderRadius,
+        };
+      }),
+    );
+    await page.evaluate(() => {
+      const s = document.createElement('style');
+      s.id = 'bb-hide-bars';
+      s.textContent = '.poll-bar { visibility: hidden !important; }';
+      document.head.appendChild(s);
+    });
+    await shot(page, bb(`group-voted-${theme}.png`));
+    // «Проигранное» голосовое: все полоски яркие, на кнопке пауза.
+    await page.evaluate(() => {
+      for (const s of document.querySelectorAll('.voice-wave span')) s.classList.add('on');
+      const svg = document.querySelector('.voice-play svg');
+      if (svg) svg.innerHTML = '<path d="M8 5v14M16 5v14" stroke-width="3.2" />';
+    });
+    await shot(page, bb(`group-played-${theme}.png`));
+    out[theme].voted = { bars };
+  }
+
+  // 5. Оформление: тот же чат с Mia в разных темах, фонах и пузырях (только синие варианты).
+  const variants = [
+    {
+      dark: false,
+      appearance: { theme: 'classic', background: 'sky', bubbleColor: '#3390ec', radius: 15, fontSize: 16 },
+    },
+    {
+      dark: false,
+      appearance: { theme: 'midnight', background: 'dots', bubbleColor: '#dcecff', radius: 20, fontSize: 16 },
+    },
+    {
+      dark: true,
+      appearance: { theme: 'midnight', background: 'sky', bubbleColor: '#3390ec', radius: 15, fontSize: 16 },
+    },
+    {
+      dark: true,
+      appearance: { theme: 'midnight', background: 'plain', bubbleColor: null, radius: 8, fontSize: 16 },
+    },
+  ];
+  out.themes = [];
+  for (const [i, v] of variants.entries()) {
+    // Своя вкладка на каждый вариант: оформление хранится в localStorage и читается при загрузке.
+    const page = await newContext(browser, {
+      dark: v.dark,
+      desktop: false,
+      css: pageCss(fonts),
+      look: v.appearance,
+    });
+    await login(page);
+    await page.locator('.chat-item', { hasText: 'See you there' }).first().click();
+    await page.locator('.msg-reply-text', { hasText: 'Pizza' }).waitFor();
+    await shot(page, bb(`theme-${i + 1}.png`));
+    out.themes.push({ dark: v.dark, ...v.appearance });
+    await page.context().close();
+  }
+  return out;
+}
+
 async function main() {
   await mkdir(outDir, { recursive: true });
   const vite = await ensureApp();
@@ -531,6 +892,8 @@ async function main() {
     }
     console.log('Офлайн: сообщение в очереди и отправка');
     await captureOffline(pages, layout);
+    console.log('Билборд: сторис, опрос, голосовое, оформление');
+    layout.billboard = await captureBillboard(browser, pages, users);
     await writeFile(join(outDir, 'layout.json'), JSON.stringify(layout, null, 2) + '\n');
     console.log('Готово:', outDir);
   } finally {

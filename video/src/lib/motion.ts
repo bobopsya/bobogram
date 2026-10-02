@@ -4,14 +4,17 @@ import { FPS } from './timing';
 // Одна пружина на весь ролик: лёгкий overshoot, без дёрганий.
 export const SPRING = { damping: 17, stiffness: 140, mass: 1 } as const;
 
-/** Вход: 0 → 1 (с небольшим перелётом) начиная с кадра start. */
-export function rise(frame: number, start: number, durationInFrames?: number): number {
-  return spring({ frame: frame - start, fps: FPS, config: SPRING, durationInFrames });
+/**
+ * Вход: 0 → 1 (с небольшим перелётом) начиная с кадра start.
+ * fps — частота композиции: при 60 fps та же пружина идёт столько же секунд, просто плавнее.
+ */
+export function rise(frame: number, start: number, durationInFrames?: number, fps: number = FPS): number {
+  return spring({ frame: frame - start, fps, config: SPRING, durationInFrames });
 }
 
-/** Выход быстрее входа: та же пружина, сжатая до 8 кадров. */
-export function fall(frame: number, start: number): number {
-  return spring({ frame: frame - start, fps: FPS, config: SPRING, durationInFrames: 8 });
+/** Выход быстрее входа: та же пружина, сжатая до 8 кадров (при 30 fps). */
+export function fall(frame: number, start: number, fps: number = FPS): number {
+  return spring({ frame: frame - start, fps, config: SPRING, durationInFrames: Math.round((8 * fps) / FPS) });
 }
 
 /** 0 → 1, обрезанное до [0, 1] — для прозрачности. */
@@ -25,11 +28,12 @@ export function track(
   frame: number,
   initial: number,
   keys: ReadonlyArray<readonly [number, number]>,
+  fps: number = FPS,
 ): number {
   let value = initial;
   let prev = initial;
   for (const [at, v] of keys) {
-    value += (v - prev) * rise(frame, at);
+    value += (v - prev) * rise(frame, at, undefined, fps);
     prev = v;
   }
   return value;
@@ -40,12 +44,14 @@ export function trackScale(
   frame: number,
   initial: number,
   keys: ReadonlyArray<readonly [number, number]>,
+  fps: number = FPS,
 ): number {
   return Math.exp(
     track(
       frame,
       Math.log(initial),
       keys.map(([at, v]) => [at, Math.log(v)] as const),
+      fps,
     ),
   );
 }
