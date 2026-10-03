@@ -1,0 +1,729 @@
+{
+  "chats": {
+    "storyAvatar": {
+      "x": 96,
+      "y": 64,
+      "w": 56,
+      "h": 56
+    },
+    "mia": {
+      "x": 8,
+      "y": 195.98,
+      "w": 374,
+      "h": 70
+    },
+    "friends": {
+      "x": 8,
+      "y": 265.98,
+      "w": 374,
+      "h": 70
+    }
+  },
+  "story": {
+    "progress": {
+      "x": 8,
+      "y": 8,
+      "w": 374,
+      "h": 2.5
+    }
+  },
+  "mia": {
+    "composer": {
+      "x": 50,
+      "y": 798,
+      "w": 202,
+      "h": 40,
+      "paddingLeft": 14,
+      "font": 16,
+      "color": "rgb(15, 15, 15)",
+      "bg": "rgb(244, 244, 245)"
+    }
+  },
+  "miaSent": {
+    "rows": [
+      {
+        "own": false,
+        "system": true,
+        "last": false,
+        "row": {
+          "x": 8,
+          "y": 553.86,
+          "w": 374,
+          "h": 26.34
+        },
+        "bubble": {
+          "x": 156.88,
+          "y": 553.86,
+          "w": 76.25,
+          "h": 26.34
+        },
+        "text": "Сегодня",
+        "textRect": null,
+        "meta": "",
+        "metaRect": null,
+        "reply": null,
+        "reactions": null,
+        "reaction": null,
+        "tick": null,
+        "style": null
+      },
+      {
+        "own": false,
+        "system": false,
+        "last": true,
+        "row": {
+          "x": 8,
+          "y": 590.2,
+          "w": 374,
+          "h": 33.59
+        },
+        "bubble": {
+          "x": 12,
+          "y": 590.2,
+          "w": 295.52,
+          "h": 33.59
+        },
+        "text": "Нашла тебя по @username 👋22:20",
+        "textRect": {
+          "x": 22,
+          "y": 596.2,
+          "w": 276.52,
+          "h": 21.59
+        },
+        "meta": "22:20",
+        "metaRect": {
+          "x": 266.86,
+          "y": 602.2,
+          "w": 31.66,
+          "h": 18.42
+        },
+        "reply": null,
+        "reactions": null,
+        "reaction": null,
+        "tick": null,
+        "style": {
+          "padding": "6px 9px 6px 10px",
+          "radius": "15px 15px 15px 4px",
+          "font": "16px",
+          "lineHeight": "21.6px",
+          "bg": "rgb(255, 255, 255)",
+          "color": "rgb(15, 15, 15)",
+          "shadow": "rgba(0, 0, 0, 0.12) 0px 1px 1px 0px"
+        }
+      },
+      {
+        "own": true,
+        "system": false,
+        "last": true,
+        "row": {
+          "x": 8,
+          "y": 633.8,
+          "w": 374,
+          "h": 33.59
+        },
+        "bubble": {
+          "x": 130.59,
+          "y": 633.8,
+          "w": 247.41,
+          "h": 33.59
+        },
+        "text": "Привет! Как дела? 😊22:20",
+        "textRect": {
+          "x": 140.59,
+          "y": 639.8,
+          "w": 228.41,
+          "h": 21.59
+        },
+        "meta": "22:20",
+        "metaRect": {
+          "x": 319.34,
+          "y": 645.8,
+          "w": 49.66,
+          "h": 18.42
+        },
+        "reply": null,
+        "reactions": null,
+        "reaction": null,
+        "tick": {
+          "x": 354,
+          "y": 647.5,
+          "w": 15,
+          "h": 15
+        },
+        "style": {
+          "padding": "6px 9px 6px 10px",
+          "radius": "15px 15px 4px",
+          "font": "16px",
+          "lineHeight": "21.6px",
+          "bg": "rgb(51, 144, 236)",
+          "color": "rgb(255, 255, 255)",
+          "shadow": "rgba(0, 0, 0, 0.12) 0px 1px 1px 0px"
+        }
+      },
+      {
+        "own": false,
+        "system": false,
+        "last": true,
+        "row": {
+          "x": 8,
+          "y": 677.39,
+          "w": 374,
+          "h": 54.02
+        },
+        "bubble": {
+          "x": 12,
+          "y": 677.39,
+          "w": 300.11,
+          "h": 54.02
+        },
+        "text": "Отлично! Увидимся в субботу?22:20",
+        "textRect": {
+          "x": 22,
+          "y": 683.39,
+          "w": 281.11,
+          "h": 21.59
+        },
+        "meta": "22:20",
+        "metaRect": {
+          "x": 271.45,
+          "y": 710.98,
+          "w": 31.66,
+          "h": 18.42
+        },
+        "reply": null,
+        "reactions": null,
+        "reaction": null,
+        "tick": null,
+        "style": {
+          "padding": "6px 9px 6px 10px",
+          "radius": "15px 15px 15px 4px",
+          "font": "16px",
+          "lineHeight": "21.6px",
+          "bg": "rgb(255, 255, 255)",
+          "color": "rgb(15, 15, 15)",
+          "shadow": "rgba(0, 0, 0, 0.12) 0px 1px 1px 0px"
+        }
+      },
+      {
+        "own": true,
+        "system": false,
+        "last": true,
+        "row": {
+          "x": 8,
+          "y": 741.41,
+          "w": 374,
+          "h": 33.59
+        },
+        "bubble": {
+          "x": 88.5,
+          "y": 741.41,
+          "w": 289.5,
+          "h": 33.59
+        },
+        "text": "Друзья всегда на связи 💙22:20",
+        "textRect": {
+          "x": 98.5,
+          "y": 747.41,
+          "w": 270.5,
+          "h": 21.59
+        },
+        "meta": "22:20",
+        "metaRect": {
+          "x": 319.34,
+          "y": 753.41,
+          "w": 49.66,
+          "h": 18.42
+        },
+        "reply": null,
+        "reactions": null,
+        "reaction": null,
+        "tick": {
+          "x": 354,
+          "y": 755.11,
+          "w": 15,
+          "h": 15
+        },
+        "style": {
+          "padding": "6px 9px 6px 10px",
+          "radius": "15px 15px 4px",
+          "font": "16px",
+          "lineHeight": "21.6px",
+          "bg": "rgb(51, 144, 236)",
+          "color": "rgb(255, 255, 255)",
+          "shadow": "rgba(0, 0, 0, 0.12) 0px 1px 1px 0px"
+        }
+      }
+    ]
+  },
+  "group": {
+    "options": [
+      {
+        "x": 62,
+        "y": 590.578125,
+        "w": 263.921875,
+        "h": 36
+      },
+      {
+        "x": 62,
+        "y": 632.578125,
+        "w": 263.921875,
+        "h": 36
+      },
+      {
+        "x": 62,
+        "y": 674.578125,
+        "w": 263.921875,
+        "h": 36
+      }
+    ],
+    "bars": [
+      {
+        "x": 62,
+        "y": 552.578125,
+        "w": 188.328125,
+        "h": 36,
+        "color": "rgba(51, 144, 236, 0.12)"
+      },
+      {
+        "x": 62,
+        "y": 594.578125,
+        "w": 92.765625,
+        "h": 36,
+        "color": "rgba(51, 144, 236, 0.12)"
+      },
+      {
+        "x": 62,
+        "y": 636.578125,
+        "w": 0,
+        "h": 36,
+        "color": "rgba(51, 144, 236, 0.12)"
+      }
+    ]
+  },
+  "groupQ": {
+    "rows": [
+      {
+        "own": false,
+        "system": true,
+        "last": false,
+        "row": {
+          "x": 8,
+          "y": 316.33,
+          "w": 374,
+          "h": 26.34
+        },
+        "bubble": {
+          "x": 156.88,
+          "y": 316.33,
+          "w": 76.25,
+          "h": 26.34
+        },
+        "text": "Сегодня",
+        "textRect": null,
+        "meta": "",
+        "metaRect": null,
+        "reply": null,
+        "reactions": null,
+        "reaction": null,
+        "tick": null,
+        "style": null
+      },
+      {
+        "own": false,
+        "system": true,
+        "last": false,
+        "row": {
+          "x": 8,
+          "y": 358.67,
+          "w": 374,
+          "h": 26.34
+        },
+        "bubble": {
+          "x": 75.56,
+          "y": 358.67,
+          "w": 238.88,
+          "h": 26.34
+        },
+        "text": "Сэм Ривера создал(а) «Друзья»",
+        "textRect": null,
+        "meta": "",
+        "metaRect": null,
+        "reply": null,
+        "reactions": null,
+        "reaction": null,
+        "tick": null,
+        "style": null
+      },
+      {
+        "own": false,
+        "system": false,
+        "last": false,
+        "row": {
+          "x": 8,
+          "y": 395.02,
+          "w": 374,
+          "h": 56.03
+        },
+        "bubble": {
+          "x": 52,
+          "y": 395.02,
+          "w": 292.47,
+          "h": 56.03
+        },
+        "text": "Скоро мой день рождения 🎉22:19",
+        "textRect": {
+          "x": 62,
+          "y": 423.45,
+          "w": 273.47,
+          "h": 21.59
+        },
+        "meta": "22:19",
+        "metaRect": {
+          "x": 306.27,
+          "y": 429.45,
+          "w": 29.2,
+          "h": 18.42
+        },
+        "reply": null,
+        "reactions": null,
+        "reaction": null,
+        "tick": null,
+        "style": {
+          "padding": "6px 9px 6px 10px",
+          "radius": "15px",
+          "font": "16px",
+          "lineHeight": "21.6px",
+          "bg": "rgb(255, 255, 255)",
+          "color": "rgb(15, 15, 15)",
+          "shadow": "rgba(0, 0, 0, 0.12) 0px 1px 1px 0px"
+        }
+      },
+      {
+        "own": false,
+        "system": false,
+        "last": false,
+        "row": {
+          "x": 8,
+          "y": 455.05,
+          "w": 374,
+          "h": 276.36
+        },
+        "bubble": {
+          "x": 52,
+          "y": 455.05,
+          "w": 300.11,
+          "h": 276.36
+        },
+        "text": "Где отметим день рождения? 🎂Открытый опрос67%В любимом кафе33%В парке0%Дома у Сэма3 голосаОтменить голосКто голосовал22:20",
+        "textRect": {
+          "x": 62,
+          "y": 461.05,
+          "w": 281.11,
+          "h": 243.94
+        },
+        "meta": "22:20",
+        "metaRect": {
+          "x": 311.45,
+          "y": 710.98,
+          "w": 31.66,
+          "h": 18.42
+        },
+        "reply": null,
+        "reactions": null,
+        "reaction": null,
+        "tick": null,
+        "style": {
+          "padding": "6px 9px 6px 10px",
+          "radius": "15px",
+          "font": "16px",
+          "lineHeight": "21.6px",
+          "bg": "rgb(255, 255, 255)",
+          "color": "rgb(15, 15, 15)",
+          "shadow": "rgba(0, 0, 0, 0.12) 0px 1px 1px 0px"
+        }
+      },
+      {
+        "own": false,
+        "system": false,
+        "last": true,
+        "row": {
+          "x": 8,
+          "y": 735.41,
+          "w": 374,
+          "h": 39.59
+        },
+        "bubble": {
+          "x": 52,
+          "y": 741.41,
+          "w": 197.8,
+          "h": 33.59
+        },
+        "text": "Где собираемся?22:20",
+        "textRect": {
+          "x": 62,
+          "y": 747.41,
+          "w": 178.8,
+          "h": 21.59
+        },
+        "meta": "22:20",
+        "metaRect": {
+          "x": 209.14,
+          "y": 753.41,
+          "w": 31.66,
+          "h": 18.42
+        },
+        "reply": null,
+        "reactions": null,
+        "reaction": null,
+        "tick": null,
+        "style": {
+          "padding": "6px 9px 6px 10px",
+          "radius": "15px 15px 15px 4px",
+          "font": "16px",
+          "lineHeight": "21.6px",
+          "bg": "rgb(255, 255, 255)",
+          "color": "rgb(15, 15, 15)",
+          "shadow": "rgba(0, 0, 0, 0.12) 0px 1px 1px 0px"
+        }
+      }
+    ]
+  },
+  "groupA": {
+    "rows": [
+      {
+        "own": false,
+        "system": true,
+        "last": false,
+        "row": {
+          "x": 8,
+          "y": 250.3,
+          "w": 374,
+          "h": 26.34
+        },
+        "bubble": {
+          "x": 156.88,
+          "y": 250.3,
+          "w": 76.25,
+          "h": 26.34
+        },
+        "text": "Сегодня",
+        "textRect": null,
+        "meta": "",
+        "metaRect": null,
+        "reply": null,
+        "reactions": null,
+        "reaction": null,
+        "tick": null,
+        "style": null
+      },
+      {
+        "own": false,
+        "system": true,
+        "last": false,
+        "row": {
+          "x": 8,
+          "y": 292.64,
+          "w": 374,
+          "h": 26.34
+        },
+        "bubble": {
+          "x": 75.56,
+          "y": 292.64,
+          "w": 238.88,
+          "h": 26.34
+        },
+        "text": "Сэм Ривера создал(а) «Друзья»",
+        "textRect": null,
+        "meta": "",
+        "metaRect": null,
+        "reply": null,
+        "reactions": null,
+        "reaction": null,
+        "tick": null,
+        "style": null
+      },
+      {
+        "own": false,
+        "system": false,
+        "last": false,
+        "row": {
+          "x": 8,
+          "y": 328.98,
+          "w": 374,
+          "h": 56.03
+        },
+        "bubble": {
+          "x": 52,
+          "y": 328.98,
+          "w": 292.47,
+          "h": 56.03
+        },
+        "text": "Скоро мой день рождения 🎉22:19",
+        "textRect": {
+          "x": 62,
+          "y": 357.42,
+          "w": 273.47,
+          "h": 21.59
+        },
+        "meta": "22:19",
+        "metaRect": {
+          "x": 306.27,
+          "y": 363.42,
+          "w": 29.2,
+          "h": 18.42
+        },
+        "reply": null,
+        "reactions": null,
+        "reaction": null,
+        "tick": null,
+        "style": {
+          "padding": "6px 9px 6px 10px",
+          "radius": "15px",
+          "font": "16px",
+          "lineHeight": "21.6px",
+          "bg": "rgb(255, 255, 255)",
+          "color": "rgb(15, 15, 15)",
+          "shadow": "rgba(0, 0, 0, 0.12) 0px 1px 1px 0px"
+        }
+      },
+      {
+        "own": false,
+        "system": false,
+        "last": false,
+        "row": {
+          "x": 8,
+          "y": 389.02,
+          "w": 374,
+          "h": 276.36
+        },
+        "bubble": {
+          "x": 52,
+          "y": 389.02,
+          "w": 300.11,
+          "h": 276.36
+        },
+        "text": "Где отметим день рождения? 🎂Открытый опрос67%В любимом кафе33%В парке0%Дома у Сэма3 голосаОтменить голосКто голосовал22:20",
+        "textRect": {
+          "x": 62,
+          "y": 395.02,
+          "w": 281.11,
+          "h": 243.94
+        },
+        "meta": "22:20",
+        "metaRect": {
+          "x": 311.45,
+          "y": 644.95,
+          "w": 31.66,
+          "h": 18.42
+        },
+        "reply": null,
+        "reactions": null,
+        "reaction": null,
+        "tick": null,
+        "style": {
+          "padding": "6px 9px 6px 10px",
+          "radius": "15px",
+          "font": "16px",
+          "lineHeight": "21.6px",
+          "bg": "rgb(255, 255, 255)",
+          "color": "rgb(15, 15, 15)",
+          "shadow": "rgba(0, 0, 0, 0.12) 0px 1px 1px 0px"
+        }
+      },
+      {
+        "own": false,
+        "system": false,
+        "last": true,
+        "row": {
+          "x": 8,
+          "y": 669.38,
+          "w": 374,
+          "h": 39.59
+        },
+        "bubble": {
+          "x": 52,
+          "y": 675.38,
+          "w": 197.8,
+          "h": 33.59
+        },
+        "text": "Где собираемся?22:20",
+        "textRect": {
+          "x": 62,
+          "y": 681.38,
+          "w": 178.8,
+          "h": 21.59
+        },
+        "meta": "22:20",
+        "metaRect": {
+          "x": 209.14,
+          "y": 687.38,
+          "w": 31.66,
+          "h": 18.42
+        },
+        "reply": null,
+        "reactions": null,
+        "reaction": null,
+        "tick": null,
+        "style": {
+          "padding": "6px 9px 6px 10px",
+          "radius": "15px 15px 15px 4px",
+          "font": "16px",
+          "lineHeight": "21.6px",
+          "bg": "rgb(255, 255, 255)",
+          "color": "rgb(15, 15, 15)",
+          "shadow": "rgba(0, 0, 0, 0.12) 0px 1px 1px 0px"
+        }
+      },
+      {
+        "own": false,
+        "system": false,
+        "last": true,
+        "row": {
+          "x": 8,
+          "y": 718.97,
+          "w": 374,
+          "h": 56.03
+        },
+        "bubble": {
+          "x": 52,
+          "y": 718.97,
+          "w": 280.8,
+          "h": 56.03
+        },
+        "text": "В нашем любимом кафе! ☕22:20",
+        "textRect": {
+          "x": 62,
+          "y": 747.41,
+          "w": 261.8,
+          "h": 21.59
+        },
+        "meta": "22:20",
+        "metaRect": {
+          "x": 292.14,
+          "y": 753.41,
+          "w": 31.66,
+          "h": 18.42
+        },
+        "reply": null,
+        "reactions": null,
+        "reaction": null,
+        "tick": null,
+        "style": {
+          "padding": "6px 9px 6px 10px",
+          "radius": "15px 15px 15px 4px",
+          "font": "16px",
+          "lineHeight": "21.6px",
+          "bg": "rgb(255, 255, 255)",
+          "color": "rgb(15, 15, 15)",
+          "shadow": "rgba(0, 0, 0, 0.12) 0px 1px 1px 0px"
+        }
+      }
+    ]
+  },
+  "tablet": {
+    "viewport": {
+      "w": 820,
+      "h": 1180
+    }
+  }
+}

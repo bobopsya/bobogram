@@ -10,7 +10,7 @@
 //      по ним Remotion кладёт анимированные слои ровно поверх скриншотов.
 import { spawn } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
@@ -85,15 +85,22 @@ async function fontDataUrl(file) {
   return 'data:font/woff2;base64,' + buf.toString('base64');
 }
 
-async function fontCss() {
+// Латиница и кириллица Inter — диапазоны как в @fontsource/inter.
+const RANGES = {
+  latin:
+    'U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD',
+  cyrillic: 'U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116',
+};
+
+export async function fontCss() {
   const faces = [];
-  for (const w of [400, 500, 600, 700]) {
-    faces.push(
-      `@font-face{font-family:'Inter';font-weight:${w};font-style:normal;src:url(${await fontDataUrl(
-        `inter/files/inter-latin-${w}-normal.woff2`,
-      )}) format('woff2');}`,
-    );
-  }
+  for (const w of [300, 400, 500, 600, 700])
+    for (const [subset, range] of Object.entries(RANGES)) {
+      const url = await fontDataUrl(`inter/files/inter-${subset}-${w}-normal.woff2`);
+      faces.push(
+        `@font-face{font-family:'Inter';font-weight:${w};font-style:normal;unicode-range:${range};src:url(${url}) format('woff2');}`,
+      );
+    }
   return faces.join('\n');
 }
 
@@ -104,7 +111,8 @@ function pageCss(fonts) {
 body, input, textarea, button, select { font-family: 'Inter', 'Noto Color Emoji', sans-serif !important; }
 *, *::before, *::after { transition: none !important; animation: none !important; caret-color: transparent !important; }
 /* Звонки в ролике не показываем. */
-[aria-label="Voice call"], [aria-label="Video call"] { display: none !important; }
+[aria-label="Voice call"], [aria-label="Video call"],
+[aria-label="Аудиозвонок"], [aria-label="Видеозвонок"] { display: none !important; }
 `;
 }
 
@@ -189,8 +197,8 @@ function blueId() {
   }
 }
 
-async function signUp(key) {
-  const { username, name } = USERS[key];
+async function signUp(key, name = USERS[key].name) {
+  const { username } = USERS[key];
   const email = `${username}-${Date.now()}@demo.bobogram.app`;
   // Как обычная регистрация (тот же триггер создаёт профиль), только с выбранным id.
   const { data, error } = await service.auth.admin.createUser({
@@ -295,15 +303,16 @@ const appearance = (dark) => ({
   fontSize: 16,
 });
 
-async function newContext(browser, { dark, desktop, css, look = appearance(dark) }) {
+async function newContext(browser, { dark, desktop, css, look = appearance(dark), lang = 'en', device }) {
   const context = await browser.newContext(
-    desktop
-      ? { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 }
-      : { viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
+    device ??
+      (desktop
+        ? { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 }
+        : { viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true }),
   );
   await context.addInitScript(
-    ({ dark, appearance, css }) => {
-      localStorage.setItem('bobogram.lang', 'en');
+    ({ dark, appearance, css, lang }) => {
+      localStorage.setItem('bobogram.lang', lang);
       localStorage.setItem('bobogram.theme', JSON.stringify(dark ? 'dark' : 'light'));
       localStorage.setItem('bobogram.appearance', JSON.stringify(appearance));
       document.addEventListener('DOMContentLoaded', () => {
@@ -312,7 +321,7 @@ async function newContext(browser, { dark, desktop, css, look = appearance(dark)
         document.head.appendChild(style);
       });
     },
-    { dark, appearance: look, css },
+    { dark, appearance: look, css, lang },
   );
   await context.grantPermissions([], { origin: APP_URL });
   const page = await context.newPage();
@@ -517,11 +526,13 @@ async function captureDesktop(browser, theme, css, layout) {
 const bb = (name) => join('billboard', name);
 
 /** Картинка для сторис Mia: рисуем сами (синее небо и горы), без стоковых фото. */
-async function makeStoryImage(browser, fonts) {
+async function makeStoryImage(browser, fonts, caption = 'Weekend hike') {
   const page = await browser.newPage();
   await page.setContent(`<style>${fonts}</style><span style="font-family:Inter;font-weight:700">A</span>`);
   await page.evaluate(() => document.fonts.ready);
-  const b64 = await page.evaluate(() => {
+  // Подгружаем начертания под конкретную подпись (кириллица — отдельный файл Inter).
+  await page.evaluate((c) => document.fonts.load('700 120px Inter', c), caption);
+  const b64 = await page.evaluate((caption) => {
     // Пропорции экрана телефона 390×844: сторис заполняет его без чёрных полей.
     const W = 1080;
     const H = 2338;
@@ -585,9 +596,12 @@ async function makeStoryImage(browser, fonts) {
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
     ctx.font = '700 120px Inter';
-    ctx.fillText('Weekend hike', W / 2, 2020);
+    // Длинная подпись (по-русски) уменьшается, чтобы влезть в ширину с полями.
+    const size = Math.min(120, (120 * 940) / ctx.measureText(caption).width);
+    ctx.font = `700 ${size}px Inter`;
+    ctx.fillText(caption, W / 2, 2020);
     return c.toDataURL('image/jpeg', 0.92).split(',')[1];
-  });
+  }, caption);
   await page.close();
   return Buffer.from(b64, 'base64');
 }
@@ -902,7 +916,32 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+// Общие части для других сценариев съёмки (scripts/capture-ru.mjs).
+export {
+  APP_URL,
+  CHROMIUM,
+  PASSWORD,
+  USERS,
+  check,
+  ensureApp,
+  makeAvatars,
+  makeStoryImage,
+  measure,
+  measureMessages,
+  newContext,
+  pageCss,
+  rect,
+  resetDemoUsers,
+  send,
+  service,
+  shot,
+  signUp,
+};
+
+// Запуск напрямую: node scripts/capture.mjs (при импорте ничего не снимаем).
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}

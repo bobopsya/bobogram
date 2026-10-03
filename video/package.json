@@ -11,7 +11,11 @@
     "render": "node scripts/render.mjs",
     "typecheck": "tsc --noEmit",
     "stills:billboard": "node scripts/stills.mjs 1,7,14 --id Billboard",
-    "render:billboard": "node scripts/render.mjs --id Billboard"
+    "render:billboard": "node scripts/render.mjs --id Billboard",
+    "stills:metro": "node scripts/stills.mjs 1,8,15,22,29 --id Metro",
+    "render:metro": "node scripts/render.mjs --id Metro",
+    "beats": "node scripts/beats.mjs",
+    "capture:ru": "node scripts/capture-ru.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "^5.2.8",
