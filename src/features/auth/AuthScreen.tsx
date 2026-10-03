@@ -4,6 +4,7 @@ import { errorKey, login, register } from '../../supabase/api';
 import { normalizeUsername } from '../../lib/username';
 import { UsernameField, type UsernameStatus } from './UsernameField';
 import { LanguagePicker } from '../settings/LanguagePicker';
+import { useServiceStatus } from '../../app/serviceStatus';
 
 type Mode = 'login' | 'register' | 'forgot';
 
@@ -15,6 +16,8 @@ export function AuthScreen() {
   const [password, setPassword] = useState('');
   const [password2, setPassword2] = useState('');
   const [name, setName] = useState('');
+  const [invite, setInvite] = useState('');
+  const { signups } = useServiceStatus();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +36,7 @@ export function AuthScreen() {
     setBusy(true);
     try {
       if (mode === 'login') await login(username, password);
-      else await register(username, name, password);
+      else await register(username, name, password, invite);
     } catch (err) {
       setError(t(errorKey(err)));
     } finally {
@@ -103,6 +106,21 @@ export function AuthScreen() {
           />
           {mode === 'register' && <span className="field-hint">{t('auth.passwordHint')}</span>}
         </label>
+        {mode === 'register' && signups === 'closed' && <p className="form-error">{t('auth.signup_closed')}</p>}
+        {mode === 'register' && signups === 'invite' && (
+          <label className="field">
+            <span className="field-label">{t('auth.inviteCode')}</span>
+            <input
+              value={invite}
+              onChange={(e) => setInvite(e.target.value)}
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              required
+            />
+            <span className="field-hint">{t('auth.inviteHint')}</span>
+          </label>
+        )}
         {mode === 'register' && (
           <label className="field">
             <span className="field-label">{t('auth.password2')}</span>

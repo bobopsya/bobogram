@@ -67,6 +67,53 @@ export function BannedScreen() {
   return <Screen emoji="⛔" title={t('auth.bannedTitle')} text={t('auth.bannedText')} extra={extra} withLogout />;
 }
 
+/** Идут работы: всем, кроме админов. Админ входит по ссылке внизу. */
+export function MaintenanceScreen({
+  message,
+  until,
+  onAdmin,
+  withLogout,
+}: {
+  message: string | null;
+  until: number | null;
+  onAdmin?: () => void;
+  withLogout?: boolean;
+}) {
+  const { t, i18n } = useTranslation();
+  const extra = [
+    message ?? '',
+    until
+      ? t('maintenance.until', {
+          date: new Date(until).toLocaleString(i18n.language, { dateStyle: 'short', timeStyle: 'short' }),
+        })
+      : '',
+  ].filter(Boolean);
+  return (
+    <div className="auth-screen">
+      <div className="auth-card">
+        <div className="auth-emoji">🛠️</div>
+        <h2>{t('maintenance.title')}</h2>
+        <p className="muted">{t('maintenance.text')}</p>
+        {extra.map((line) => (
+          <p key={line} className="muted">
+            {line}
+          </p>
+        ))}
+        {withLogout && (
+          <button className="btn btn-block" onClick={() => void logout()}>
+            {t('auth.logout')}
+          </button>
+        )}
+        {onAdmin && (
+          <button type="button" className="link" onClick={onAdmin}>
+            {t('maintenance.admin')}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function NoProfileScreen() {
   const { t } = useTranslation();
   return <Screen emoji="🤔" title={t('profile.notFound')} text={t('errors.generic')} withLogout />;

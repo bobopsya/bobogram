@@ -1476,3 +1476,144 @@ describe('комментарии и голосовые чаты', () => {
     expect(await rpc<string>(a, 'join_group_call', { p_chat: g })).not.toBe(call);
   });
 });
+
+describe('bobodev: техобслуживание, регистрация по приглашениям, щит, файл консоли', () => {
+  const status = async () =>
+    (await createClient(URL, ANON).rpc('get_service_status')).data as {
+      maintenance: { on: boolean; message: string | null };
+      signups: string;
+    };
+  const signUp = async (name: string, invite?: string) =>
+    createClient(URL, ANON, { auth: { persistSession: false } }).auth.signUp({
+      email: `${crypto.randomUUID()}@users.bobogram.app`,
+      password: 'secret123',
+      options: { data: { username: `${name}${run}`, display_name: name, ...(invite ? { invite } : {}) } },
+    });
+
+  it('консоль и режимы — только у владельца и основателей', async () => {
+    const dev = await user('devfnd');
+    const adm = await user('devadm');
+    const peer = await user('devpeer');
+    await admin.from('profiles').update({ founder: true, role: 'admin' }).eq('id', dev.id);
+    await admin.from('profiles').update({ role: 'admin' }).eq('id', adm.id);
+    for (const who of [adm, peer]) {
+      await fails(rpc(who, 'dev_status'));
+      await fails(rpc(who, 'dev_set_maintenance', { p_on: true }));
+      await fails(rpc(who, 'dev_set_shield', { p_on: true }));
+      await fails(rpc(who, 'dev_set_signups', { p_mode: 'closed' }));
+      await fails(rpc(who, 'dev_invite_create'));
+      await fails(rpc(who, 'dev_broadcast', { p_text: 'x' }));
+      await fails(rpc(who, 'dev_file', { p_name: 'probe.py' }));
+    }
+    expect((await createClient(URL, ANON).rpc('dev_status')).error).toBeTruthy();
+    const s = await rpc<Record<string, unknown>>(dev, 'dev_status');
+    expect(s).toMatchObject({ shield: false, signups: 'open', maintenance: { on: false } });
+    expect(typeof s.users).toBe('number');
+    await fails(rpc(dev, 'dev_set_signups', { p_mode: 'nope' }));
+
+    // Файл консоли кладёт деплой; отдаётся только владельцу и основателям.
+    await admin.rpc('set_config_if_absent', { p_key: 'dev_file:probe.py', p_value: 'print("bobodev")' });
+    expect(await rpc<string>(dev, 'dev_file', { p_name: 'probe.py' })).toContain('bobodev');
+    await fails(rpc(dev, 'dev_file', { p_name: '../etc' }));
+  });
+
+  it('техобслуживание: обычным действия закрыты, админам нет; видно всем без входа', async () => {
+    const dev = await user('mntfnd');
+    const peer = await user('mntpeer');
+    const other = await user('mntother');
+    await admin.from('profiles').update({ founder: true, role: 'admin' }).eq('id', dev.id);
+    try {
+      await rpc(dev, 'dev_set_maintenance', { p_on: true, p_message: 'Обновляем базу', p_until: null });
+      expect((await status()).maintenance).toMatchObject({ on: true, message: 'Обновляем базу' });
+      await expect(rpc(peer, 'get_or_create_private_chat', { p_other: other.id })).rejects.toThrow(
+        /maintenance/,
+      );
+      await rpc(dev, 'get_or_create_private_chat', { p_other: other.id });
+      // Новые аккаунты тоже не регистрируем.
+      expect((await createClient(URL, ANON).rpc('signup_check', { p_invite: null })).data).toBe(
+        'maintenance',
+      );
+    } finally {
+      await rpc(dev, 'dev_set_maintenance', { p_on: false });
+    }
+    expect((await status()).maintenance.on).toBe(false);
+    await rpc(peer, 'get_or_create_private_chat', { p_other: other.id });
+  });
+
+  it('регистрация: по приглашению (код расходуется), закрытая и открытая', async () => {
+    const dev = await user('sgnfnd');
+    await admin.from('profiles').update({ founder: true, role: 'admin' }).eq('id', dev.id);
+    try {
+      await rpc(dev, 'dev_set_signups', { p_mode: 'invite' });
+      expect((await status()).signups).toBe('invite');
+      const anon = createClient(URL, ANON);
+      expect((await anon.rpc('signup_check', { p_invite: null })).data).toBe('invite_required');
+      expect((await anon.rpc('signup_check', { p_invite: 'нет-такого' })).data).toBe('invite_bad');
+      expect((await signUp('sgnno')).error).toBeTruthy();
+
+      const code = await rpc<string>(dev, 'dev_invite_create', { p_uses: 1, p_days: 1 });
+      expect(
+        (await rpc<{ code: string; uses_left: number }[]>(dev, 'dev_invite_list')).map((i) => i.code),
+      ).toContain(code);
+      expect((await anon.rpc('signup_check', { p_invite: code.toUpperCase() })).data).toBe('ok');
+      expect((await signUp('sgnok', code)).error).toBeNull();
+      // Код был на одно использование.
+      expect((await signUp('sgnagain', code)).error).toBeTruthy();
+      expect((await anon.rpc('signup_check', { p_invite: code })).data).toBe('invite_bad');
+
+      const revoked = await rpc<string>(dev, 'dev_invite_create', { p_uses: 5, p_days: 1 });
+      await rpc(dev, 'dev_invite_revoke', { p_code: revoked });
+      expect((await anon.rpc('signup_check', { p_invite: revoked })).data).toBe('invite_bad');
+
+      await rpc(dev, 'dev_set_signups', { p_mode: 'closed' });
+      expect((await anon.rpc('signup_check', { p_invite: code })).data).toBe('closed');
+      expect((await signUp('sgnclosed')).error).toBeTruthy();
+    } finally {
+      await rpc(dev, 'dev_set_signups', { p_mode: 'open' });
+    }
+    expect((await signUp('sgnopen')).error).toBeNull();
+  });
+
+  it('щит: лимит сообщений и автоблокировка IP при всплеске регистраций', async () => {
+    const dev = await user('shdfnd');
+    const a = await user('shda');
+    const b = await user('shdb');
+    await admin.from('profiles').update({ founder: true, role: 'admin' }).eq('id', dev.id);
+    const chat = await rpc<string>(a, 'get_or_create_private_chat', { p_other: b.id });
+    // Устройства свежих аккаунтов с этого IP — до включения щита.
+    const crowd = [await user('shdc1'), await user('shdc2'), await user('shdc3'), await user('shdc4')];
+    for (const [i, u] of crowd.entries())
+      await rpc(u, 'report_device', { p_device: `device-shd-crowd${i}`, p_info: {} });
+    // При включённом щите регистраций не больше 30 за 10 минут — этот аккаунт заводим заранее.
+    const fifth = await user('shdc5');
+    try {
+      await rpc(dev, 'dev_set_shield', { p_on: true });
+      let sent = 0;
+      let blocked = false;
+      for (let i = 0; i < 25 && !blocked; i++) {
+        try {
+          await send(a, chat, `m${i}`);
+          sent++;
+        } catch (e) {
+          blocked = /rate limit/.test((e as Error).message);
+          if (!blocked) throw e;
+        }
+      }
+      expect(blocked).toBe(true);
+      expect(sent).toBe(20);
+      // Админ под лимит не попадает.
+      await rpc(dev, 'get_or_create_private_chat', { p_other: b.id });
+
+      // Пятый новый аккаунт с того же IP за 10 минут: IP блокируется на час, аккаунт банится.
+      await rpc(fifth, 'report_device', { p_device: 'device-shd-fifth01', p_info: {} });
+      const { data: p } = await admin.from('profiles').select('banned').eq('id', fifth.id).single();
+      expect(p!.banned).toBe(true);
+      const { data: bans } = await admin.from('device_bans').select('reason, until').eq('kind', 'ip');
+      expect(bans!.some((x) => x.reason?.startsWith('Автоблокировка') && x.until)).toBe(true);
+    } finally {
+      await admin.from('device_bans').delete().like('reason', 'Автоблокировка%');
+      await rpc(dev, 'dev_set_shield', { p_on: false });
+    }
+    await send(a, chat, 'после щита');
+  });
+});
