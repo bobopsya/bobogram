@@ -5,12 +5,14 @@ import {
   adminListReports,
   adminResolveReport,
   adminStats,
+  downloadDevFile,
   errorKey,
+  getOwnerId,
   type ReportRow,
 } from '../../supabase/api';
 import { getOnline, onOnlineChange } from '../../supabase/realtime';
 import { displayNameOf, useProfile } from '../../app/profiles';
-import { useApp } from '../../app/store';
+import { useApp, useMe } from '../../app/store';
 import { formatTime, toDate } from '../../lib/time';
 import { Spinner } from '../../ui/misc';
 
@@ -88,6 +90,42 @@ export function ReportsTab() {
   );
 }
 
+/** Консоль bobodev: скачать может только владелец и основатели (сервер отдаёт файл только им). */
+function DevToolsCard() {
+  const { t } = useTranslation();
+  const showToast = useApp((s) => s.showToast);
+  const founder = useApp((s) => !!s.profile?.founder);
+  const me = useMe();
+  const [ownerId, setOwnerId] = useState<string | null>(null);
+  useEffect(() => {
+    void getOwnerId().then(setOwnerId, () => undefined);
+  }, []);
+  if (!founder && !(ownerId && ownerId === me)) return null;
+
+  const download = () =>
+    void downloadDevFile('bobodev.py')
+      .then((text) => {
+        if (!text) return showToast(t('dev.notReady'));
+        const url = URL.createObjectURL(new Blob([text], { type: 'text/x-python' }));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'bobodev.py';
+        a.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      })
+      .catch((e: unknown) => showToast(t(errorKey(e))));
+
+  return (
+    <section className="info-card dev-card">
+      <div className="info-card-title">bobodev</div>
+      <p className="muted small">{t('dev.text')}</p>
+      <button className="btn btn-primary" onClick={download}>
+        {t('dev.download')}
+      </button>
+    </section>
+  );
+}
+
 /** Сводка по сервису; «в сети сейчас» — по каналу присутствия. */
 export function StatsTab() {
   const { t } = useTranslation();
@@ -124,13 +162,18 @@ export function StatsTab() {
     [t('stats.reportsOpen'), s.reports_open],
   ];
   return (
-    <div className="stats-grid pad-x">
-      {rows.map(([label, value]) => (
-        <div key={label} className="stat-tile">
-          <div className="stat-value">{value}</div>
-          <div className="stat-label">{label}</div>
-        </div>
-      ))}
-    </div>
+    <>
+      <div className="pad-x">
+        <DevToolsCard />
+      </div>
+      <div className="stats-grid pad-x">
+        {rows.map(([label, value]) => (
+          <div key={label} className="stat-tile">
+            <div className="stat-value">{value}</div>
+            <div className="stat-label">{label}</div>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }

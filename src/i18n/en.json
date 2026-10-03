@@ -50,7 +50,14 @@
     "forgotTitle": "Forgot password?",
     "forgotText": "Ask the Bobogram administrator — they can set a new password for you in the admin panel. You can change it later in settings.",
     "bannedReason": "Reason: {{reason}}",
-    "bannedUntil": "The ban lasts until {{date}}"
+    "bannedUntil": "The ban lasts until {{date}}",
+    "inviteCode": "Invite code",
+    "inviteHint": "Sign-up is invitation-only right now — ask an admin for a code.",
+    "signup_closed": "Sign-up is temporarily closed. Please check back later.",
+    "signup_invite_required": "Sign-up is invitation-only right now — enter a code.",
+    "signup_invite_bad": "This invite code is invalid or already used.",
+    "signup_limited": "Too many sign-ups right now. Try again in a few minutes.",
+    "signup_maintenance": "Maintenance in progress. Sign-up will open later."
   },
   "username": {
     "short": "Too short — at least 4 characters",
@@ -75,7 +82,9 @@
     "profileLocked": "An admin has locked your profile",
     "protectedUser": "Only the owner can change this user",
     "verifiedOnly": "Only verified users can message this person",
-    "bannedIp": "Access from this IP address is blocked"
+    "bannedIp": "Access from this IP address is blocked",
+    "maintenance": "Maintenance in progress — this action is temporarily unavailable",
+    "rateLimit": "Too fast. Please wait a moment"
   },
   "chats": {
     "title": "Chats",
@@ -663,5 +672,16 @@
     "count_other": "{{count}} comments",
     "toggle": "Comments",
     "toggleHint": "Subscribers can discuss posts"
+  },
+  "maintenance": {
+    "title": "Maintenance in progress",
+    "text": "We will be back soon — Bobogram is updating. Your messages and chats are safe.",
+    "until": "Expected until {{date}}",
+    "admin": "Admin sign-in"
+  },
+  "dev": {
+    "text": "Python console for debugging: status, maintenance, attack shield, bans, log. Available to the owner and founders only.",
+    "download": "Download bobodev",
+    "notReady": "The console file is not on the server yet — it appears after the next deploy"
   }
 }

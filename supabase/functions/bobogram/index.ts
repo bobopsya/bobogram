@@ -123,6 +123,15 @@ function stripMarkup(text: string): string {
     .replace(/^> ?/gm, '');
 }
 
+/** Идут технические работы — пуши не шлём (админы видят всё в самом приложении). */
+async function inMaintenance(): Promise<boolean> {
+  try {
+    return JSON.parse((await config('maintenance')) ?? '{}').on === true;
+  } catch {
+    return false;
+  }
+}
+
 async function pushMessage(id: string) {
   const { data: msg } = await admin
     .from('messages')
@@ -130,7 +139,7 @@ async function pushMessage(id: string) {
     .eq('id', id)
     .single();
   const none: SendResult = { sent: 0, errors: [] };
-  if (!msg || msg.system || msg.silent) return none;
+  if (!msg || msg.system || msg.silent || (await inMaintenance())) return none;
   const [{ data: chat }, { data: sender }, { data: members }] = await Promise.all([
     admin.from('chats').select('type, title').eq('id', msg.chat_id).single(),
     admin.from('profiles').select('display_name, username').eq('id', msg.sender_id).single(),
@@ -182,7 +191,7 @@ async function pushCall(id: string) {
     .select('caller_id, callee_id, chat_id, video, status')
     .eq('id', id)
     .single();
-  if (!call || call.status !== 'ringing') return { sent: 0, errors: [] };
+  if (!call || call.status !== 'ringing' || (await inMaintenance())) return { sent: 0, errors: [] };
   const { data: caller } = await admin
     .from('profiles')
     .select('display_name, username')

@@ -116,6 +116,16 @@ await query(`
   on conflict (key) do update set value = excluded.value;
 `);
 
+// Консоль bobodev (tools/bobodev): кладём файл на сервер — скачать его может только владелец и основатели
+// (функция dev_file). Адрес и ключ подставляет сайт при скачивании.
+const devFile = readFileSync('tools/bobodev/bobodev.py', 'utf8');
+if (devFile.includes('$bobodev_src$')) fail('В tools/bobodev/bobodev.py не должно быть строки $bobodev_src$.');
+await query(`
+  insert into private.config (key, value) values ('dev_file:bobodev.py', $bobodev_src$${devFile}$bobodev_src$)
+  on conflict (key) do update set value = excluded.value;
+`);
+console.log('Консоль bobodev обновлена на сервере.');
+
 // Свой TURN-сервер для звонков (scripts/turn-setup.sh на VPS): секрет и адрес.
 const turnSecret = process.env.TURN_SECRET?.trim();
 const turnHost = process.env.TURN_HOST?.trim();

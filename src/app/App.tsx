@@ -1,11 +1,12 @@
-import { lazy, useEffect } from 'react';
+import { lazy, useEffect, useState } from 'react';
 import { HashRouter, Navigate, Route, Routes } from 'react-router';
 import { isConfigured } from '../supabase/client';
 import { useApp } from './store';
 import { useSessionBootstrap } from './session';
+import { useServiceStatus } from './serviceStatus';
 import { useThemeEffect, useViewportHeight } from './effects';
 import { AuthScreen } from '../features/auth/AuthScreen';
-import { BannedScreen, NoProfileScreen, SetupNeededScreen } from '../features/auth/Gates';
+import { BannedScreen, MaintenanceScreen, NoProfileScreen, SetupNeededScreen } from '../features/auth/Gates';
 import { Layout } from './Layout';
 import { ErrorBoundary } from './ErrorBoundary';
 import { ChatScreen } from '../features/chat/ChatScreen';
@@ -37,8 +38,24 @@ const JoinScreen = lazy(() => import('../features/groups/Join').then((m) => ({ d
 
 function Gate() {
   const { authReady, userId, profile } = useApp();
+  const { maintenance } = useServiceStatus();
+  const [adminLogin, setAdminLogin] = useState(false);
   if (!isConfigured) return <SetupNeededScreen />;
   if (!authReady) return <FullScreenSpinner />;
+  if (maintenance.on) {
+    // Идут работы: пускаем только админов (войти можно по ссылке на экране).
+    if (!userId) {
+      return adminLogin ? (
+        <AuthScreen />
+      ) : (
+        <MaintenanceScreen message={maintenance.message} until={maintenance.until} onAdmin={() => setAdminLogin(true)} />
+      );
+    }
+    if (profile === undefined) return <FullScreenSpinner />;
+    if (profile?.role !== 'admin') {
+      return <MaintenanceScreen message={maintenance.message} until={maintenance.until} withLogout />;
+    }
+  }
   if (!userId) return <AuthScreen />;
   if (profile === undefined) return <FullScreenSpinner />;
   if (profile === null) return <NoProfileScreen />;

@@ -202,12 +202,42 @@ export async function isUsernameFree(name: string): Promise<boolean> {
   return check(await supabase.rpc('username_available', { p_username: normalizeUsername(name) })) === true;
 }
 
-export async function register(username: string, displayName: string, password: string): Promise<void> {
+/** Состояние сервиса, видное всем (даже без входа): техобслуживание и режим регистрации. */
+export interface ServiceStatus {
+  maintenance: { on: boolean; message: string | null; until: number | null };
+  signups: 'open' | 'invite' | 'closed';
+}
+
+export async function getServiceStatus(): Promise<ServiceStatus> {
+  const d = check(await supabase.rpc('get_service_status')) as {
+    maintenance?: { on?: boolean; message?: string | null; until?: string | null };
+    signups?: string;
+  } | null;
+  return {
+    maintenance: {
+      on: d?.maintenance?.on === true,
+      message: d?.maintenance?.message ?? null,
+      until: msOrNull(d?.maintenance?.until),
+    },
+    signups: d?.signups === 'invite' || d?.signups === 'closed' ? d.signups : 'open',
+  };
+}
+
+export async function register(
+  username: string,
+  displayName: string,
+  password: string,
+  invite = '',
+): Promise<void> {
   const name = normalizeUsername(username);
+  const code = invite.trim().toLowerCase();
+  // Понятный отказ до создания аккаунта (сервер всё равно проверит сам).
+  const { data: problem } = await supabase.rpc('signup_check', { p_invite: code || null });
+  if (typeof problem === 'string' && problem !== 'ok') throw new ApiError(`signup_${problem}`, problem);
   const { error } = await supabase.auth.signUp({
     email: accountEmail(),
     password,
-    options: { data: { username: name, display_name: displayName.trim() } },
+    options: { data: { username: name, display_name: displayName.trim(), ...(code ? { invite: code } : {}) } },
   });
   if (error) {
     // Триггер не смог создать профиль — почти всегда это занятый юзернейм.
@@ -237,17 +267,20 @@ export async function changePassword(password: string): Promise<void> {
 export function errorKey(err: unknown): string {
   const code = (err as { code?: string })?.code ?? '';
   const msg = (err as { message?: string })?.message ?? '';
+  if (code.startsWith('signup_')) return `auth.${code}`;
   if (code === 'username_taken' || code === '23505') return 'auth.usernameTaken';
   if (code === 'invalid_credentials') return 'errors.wrongCredentials';
   if (code === 'weak_password') return 'errors.weakPassword';
   if (code === 'over_request_rate_limit' || code === 'over_email_send_rate_limit')
     return 'errors.tooManyRequests';
   if (msg.includes('protected user')) return 'errors.protectedUser';
+  if (msg.includes('maintenance')) return 'errors.maintenance';
+  if (msg.includes('banned ip')) return 'errors.bannedIp';
   if (code === '42501') return /blocked/.test(msg) ? 'chat.blockedByThem' : 'errors.permission';
   if (msg.includes('spamblock')) return 'errors.spamblock';
   if (msg.includes('profile locked')) return 'errors.profileLocked';
   if (msg.includes('verified only')) return 'errors.verifiedOnly';
-  if (msg.includes('banned ip')) return 'errors.bannedIp';
+  if (msg.includes('rate limit')) return 'errors.rateLimit';
   if (msg.includes('call full')) return 'groupCall.full';
   if (msg.includes('topic closed')) return 'topics.closedError';
   if (msg.includes('too many topics')) return 'topics.tooMany';
@@ -1253,4 +1286,15 @@ export async function setChannelComments(chatId: string, on: boolean): Promise<v
 export async function fetchChatFlags(chatId: string): Promise<{ comments: boolean; ttl: number | null }> {
   const rows = check(await supabase.from('chats').select('comments_enabled, ttl_seconds').eq('id', chatId)) as Row[];
   return { comments: rows[0]?.comments_enabled === true, ttl: (rows[0]?.ttl_seconds as number | null) ?? null };
+}
+
+// ---------- bobodev: консоль владельца ----------
+/** Файл консоли для скачивания (отдаётся только владельцу и основателям); адрес и ключ подставляем свои. */
+export async function downloadDevFile(name: string): Promise<string | null> {
+  const text = check(await supabase.rpc('dev_file', { p_name: name })) as string | null;
+  if (!text) return null;
+  const env = import.meta.env;
+  return text
+    .replaceAll('__SUPABASE_URL__', String(env.VITE_SUPABASE_URL ?? ''))
+    .replaceAll('__SUPABASE_KEY__', String(env.VITE_SUPABASE_ANON_KEY ?? ''));
 }

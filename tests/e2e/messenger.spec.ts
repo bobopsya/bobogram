@@ -707,6 +707,104 @@ test('админка: бан с причиной и сроком, причина
   await expect(target.getByPlaceholder('Поиск по @имени или чатам')).toBeVisible();
 });
 
+test('bobodev: техобслуживание — экран для обычных, админ входит; регистрация по приглашению', async ({
+  browser,
+}) => {
+  // Основатель управляет режимами через те же функции, что и консоль bobodev.
+  const dev = createClient(
+    'http://127.0.0.1:54321',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0',
+    { auth: { persistSession: false } },
+  );
+  const { data: created, error } = await dev.auth.signUp({
+    email: `${crypto.randomUUID()}@users.bobogram.app`,
+    password: 'secret123',
+    options: { data: { username: `bdv${run}`, display_name: 'Основатель' } },
+  });
+  expect(error).toBeNull();
+  await service.from('profiles').update({ founder: true, role: 'admin' }).eq('id', created.user!.id);
+  const regular = await signUp(browser, 'Обычный', `bdu${run}`);
+
+  try {
+    expect(
+      (await dev.rpc('dev_set_maintenance', { p_on: true, p_message: 'Обновляем базу' })).error,
+    ).toBeNull();
+    await regular.reload();
+    await expect(regular.getByRole('heading', { name: 'Идут технические работы' })).toBeVisible();
+    await expect(regular.getByText('Обновляем базу')).toBeVisible();
+    await expect(regular.getByPlaceholder('Поиск по @имени или чатам')).toHaveCount(0);
+
+    // Админ входит по ссылке на экране и работает как обычно.
+    const guest = await browser.newPage({ locale: 'ru-RU' });
+    await guest.goto('./');
+    await expect(guest.getByRole('heading', { name: 'Идут технические работы' })).toBeVisible();
+    await guest.getByRole('button', { name: 'Вход для администраторов' }).click();
+    await guest.locator('.field-prefix input').fill(`bdv${run}`);
+    await guest.locator('input[type="password"]').fill('secret123');
+    await guest.getByRole('button', { name: 'Войти', exact: true }).click();
+    await expect(guest.getByPlaceholder('Поиск по @имени или чатам')).toBeVisible();
+    await guest.close();
+
+    expect((await dev.rpc('dev_set_maintenance', { p_on: false })).error).toBeNull();
+    await regular.reload();
+    await expect(regular.getByPlaceholder('Поиск по @имени или чатам')).toBeVisible();
+
+    // Регистрация по приглашению: без кода нельзя, с кодом — можно.
+    expect((await dev.rpc('dev_set_signups', { p_mode: 'invite' })).error).toBeNull();
+    const { data: code } = await dev.rpc('dev_invite_create', { p_uses: 1, p_days: 1 });
+    const page = await browser.newPage({ locale: 'ru-RU' });
+    await page.goto('./');
+    await page.getByRole('button', { name: 'Нет аккаунта? Зарегистрируйтесь' }).click();
+    await page.getByLabel('Имя', { exact: true }).fill('Гость');
+    await page.locator('.field-prefix input').fill(`bdg${run}`);
+    await expect(page.getByText('Имя свободно')).toBeVisible();
+    const passwords = page.locator('input[type="password"]');
+    await passwords.nth(0).fill('secret123');
+    await passwords.nth(1).fill('secret123');
+    await page.getByLabel('Код приглашения').fill('неверный');
+    await page.getByRole('button', { name: 'Зарегистрироваться' }).click();
+    await expect(page.getByText('Код приглашения неверный или уже использован.')).toBeVisible();
+    await page.getByLabel('Код приглашения').fill(String(code));
+    await page.getByRole('button', { name: 'Зарегистрироваться' }).click();
+    await expect(page.getByPlaceholder('Поиск по @имени или чатам')).toBeVisible();
+    await page.close();
+  } finally {
+    await dev.rpc('dev_set_maintenance', { p_on: false });
+    await dev.rpc('dev_set_signups', { p_mode: 'open' });
+  }
+});
+
+test('bobodev: основатель скачивает консоль, обычный админ кнопки не видит', async ({ browser }) => {
+  await service.rpc('set_config_if_absent', {
+    p_key: 'dev_file:bobodev.py',
+    p_value: 'URL = "__SUPABASE_URL__"\nKEY = "__SUPABASE_KEY__"\n',
+  });
+  const founder = await signUp(browser, 'Основатель', `bdf${run}`);
+  const plain = await signUp(browser, 'Админ', `bda${run}`);
+  for (const [name, patch] of [
+    [`bdf${run}`, { founder: true, role: 'admin' }],
+    [`bda${run}`, { role: 'admin' }],
+  ] as const) {
+    await service.from('profiles').update(patch).eq('username', name);
+  }
+  for (const page of [founder, plain]) {
+    await page.goto('./#/admin');
+    await page.reload();
+    await page.getByRole('main').getByRole('button', { name: 'Статистика' }).click();
+  }
+  await expect(plain.getByRole('button', { name: 'Скачать bobodev' })).toHaveCount(0);
+  await expect(founder.getByRole('button', { name: 'Скачать bobodev' })).toBeVisible();
+  const [download] = await Promise.all([
+    founder.waitForEvent('download'),
+    founder.getByRole('button', { name: 'Скачать bobodev' }).click(),
+  ]);
+  expect(download.suggestedFilename()).toBe('bobodev.py');
+  const path = await download.path();
+  const text = (await import('node:fs')).readFileSync(path, 'utf8');
+  expect(text).toContain('http://127.0.0.1:54321');
+  expect(text).not.toContain('__SUPABASE');
+});
+
 test('группа: @упоминание с подсказкой и опрос', async ({ browser }) => {
   const own = await signUp(browser, 'Хозяин', `mnt${run}`);
   const mem = await signUp(browser, 'Участник', `mntm${run}`, true);
