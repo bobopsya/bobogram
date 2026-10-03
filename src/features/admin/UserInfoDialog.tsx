@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { UserProfile } from '../../supabase/types';
-import { adminBanDevice, adminUserDevices, errorKey, type UserDevice } from '../../supabase/api';
+import {
+  adminBanDevice,
+  adminUserDevices,
+  errorKey,
+  getPunishment,
+  type Punishment,
+  type UserDevice,
+} from '../../supabase/api';
 import { describeUserAgent } from '../../lib/device';
 import { useApp } from '../../app/store';
 import { Modal } from '../../ui/Modal';
@@ -45,6 +52,7 @@ export function UserInfoDialog({
   const { t, i18n } = useTranslation();
   const showToast = useApp((s) => s.showToast);
   const [devices, setDevices] = useState<UserDevice[] | null>(null);
+  const [pun, setPun] = useState<Punishment | null>(null);
 
   const load = () =>
     adminUserDevices(user.uid)
@@ -55,6 +63,7 @@ export function UserInfoDialog({
       });
   useEffect(() => {
     void load();
+    void getPunishment(user.uid).then(setPun, () => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.uid]);
 
@@ -80,6 +89,17 @@ export function UserInfoDialog({
             label={t('admin.infoRole')}
             value={user.role === 'admin' ? t('admin.adminRole') : t('admin.userRole')}
           />
+          {user.banned && (
+            <Row
+              label={t('admin.infoBan')}
+              value={`${pun?.banUntil ? t('admin.until', { date: when(pun.banUntil, i18n.language) }) : t('admin.forever')}${
+                pun?.banReason ? ` · «${pun.banReason}»` : ''
+              }`}
+            />
+          )}
+          {pun?.spamReason && user.spamUntil && user.spamUntil > Date.now() && (
+            <Row label={t('admin.infoSpam')} value={pun.spamReason} />
+          )}
         </section>
         <div className="field-label">{t('admin.infoDevices', { count: devices?.length ?? 0 })}</div>
         {!devices ? (

@@ -299,7 +299,10 @@ test('админ v4: правка профиля, стиль, спамблок',
     .getByRole('button', { name: 'more' })
     .click();
   await boss.getByRole('menuitem', { name: 'Спамблок…' }).click();
-  await boss.getByRole('menuitem', { name: 'Спамблок на 1 день' }).click();
+  const spamDialog = boss.getByRole('dialog');
+  await spamDialog.getByLabel('Причина').fill('рассылка в личку');
+  await spamDialog.getByLabel('1 день').check();
+  await spamDialog.getByRole('button', { name: 'Выдать спамблок' }).click();
   await boss.screenshot({ path: 'test-results/admin-menu.png' });
   await expect(boss.locator('.list-item', { hasText: `Переименован${run}` })).toContainText('спамблок');
 
@@ -671,6 +674,37 @@ test('админка: «Инфо» об устройстве и блокиров
   // Снимаем, чтобы не мешать другим тестам.
   await dialog.getByRole('button', { name: 'Разблокировать устройство' }).click();
   await expect(dialog.getByRole('button', { name: 'Заблокировать устройство' })).toBeVisible();
+});
+
+test('админка: бан с причиной и сроком, причина на экране бана, разбан', async ({ browser }) => {
+  const boss = await signUp(browser, 'Админ', `pun${run}`);
+  const target = await signUp(browser, 'Нарушитель', `punu${run}`, true);
+  await expect(target.getByPlaceholder('Поиск по @имени или чатам')).toBeVisible();
+  const { data } = await service.from('profiles').select('id').eq('username', `pun${run}`).single();
+  await service.from('profiles').update({ role: 'admin' }).eq('id', data!.id);
+  await boss.goto('./#/admin');
+  await boss.reload();
+  await boss.getByRole('main').getByPlaceholder('Поиск', { exact: true }).fill(`punu${run}`);
+  const row = boss.locator('.list-item', { hasText: `@punu${run}` });
+  await row.getByRole('button', { name: 'more' }).click();
+  await boss.getByRole('menuitem', { name: 'Забанить' }).click();
+  const dialog = boss.getByRole('dialog');
+  await dialog.getByLabel('Причина').fill('спам в тестах');
+  await dialog.getByLabel('30 дней').check();
+  // Все тесты ходят с одного IP — его не блокируем, чтобы не мешать соседним тестам.
+  await dialog.getByLabel('Заблокировать IP-адрес').uncheck();
+  await boss.screenshot({ path: 'test-results/admin-punish.png' });
+  await dialog.getByRole('button', { name: 'Забанить', exact: true }).click();
+  await expect(row).toContainText('«спам в тестах»');
+  await target.reload();
+  await expect(target.getByText('Аккаунт заблокирован')).toBeVisible();
+  await expect(target.getByText('Причина: спам в тестах')).toBeVisible();
+  await expect(target.getByText(/Бан действует до/)).toBeVisible();
+  await row.getByRole('button', { name: 'more' }).click();
+  await boss.getByRole('menuitem', { name: 'Разбанить' }).click();
+  await expect(row).not.toContainText('«спам в тестах»');
+  await target.reload();
+  await expect(target.getByPlaceholder('Поиск по @имени или чатам')).toBeVisible();
 });
 
 test('группа: @упоминание с подсказкой и опрос', async ({ browser }) => {

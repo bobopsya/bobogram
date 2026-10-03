@@ -633,6 +633,47 @@ export async function setBanned(uid: string, banned: boolean) {
   check(await supabase.rpc('set_banned', { p_user: uid, p_banned: banned }));
 }
 
+/** Бан с причиной и сроком (until: null — навсегда); заодно блокирует известные IP и устройства. */
+export async function adminBanUser(
+  uid: string,
+  p: { reason: string; until: string | null; ip: boolean; device: boolean },
+): Promise<void> {
+  check(
+    await supabase.rpc('admin_ban_user', {
+      p_user: uid,
+      p_reason: p.reason,
+      p_until: p.until,
+      p_ip: p.ip,
+      p_device: p.device,
+    }),
+  );
+}
+
+/** Причины и срок наказаний: свои видит каждый, чужие — админы. */
+export interface Punishment {
+  banReason: string | null;
+  banUntil: number | null;
+  spamReason: string | null;
+}
+
+function toPunishment(r: Row): Punishment {
+  return {
+    banReason: (r.ban_reason as string | null) ?? null,
+    banUntil: msOrNull(r.ban_until),
+    spamReason: (r.spam_reason as string | null) ?? null,
+  };
+}
+
+export async function getPunishment(uid: string): Promise<Punishment | null> {
+  const row = check(await supabase.from('punishments').select('*').eq('user_id', uid).maybeSingle());
+  return row ? toPunishment(row as Row) : null;
+}
+
+export async function listPunishments(): Promise<Map<string, Punishment>> {
+  const rows = check(await supabase.from('punishments').select('*').limit(1000)) as Row[];
+  return new Map(rows.map((r) => [String(r.user_id), toPunishment(r)]));
+}
+
 export async function adminListChats() {
   const rows = check(await supabase.rpc('admin_list_chats')) as Row[];
   return rows.map((r) => ({
@@ -706,8 +747,8 @@ export async function adminSetRole(uid: string, admin: boolean): Promise<void> {
   check(await supabase.rpc('admin_set_role', { p_user: uid, p_admin: admin }));
 }
 
-export async function adminSetSpamblock(uid: string, until: string | null): Promise<void> {
-  check(await supabase.rpc('admin_set_spamblock', { p_user: uid, p_until: until }));
+export async function adminSetSpamblock(uid: string, until: string | null, reason = ''): Promise<void> {
+  check(await supabase.rpc('admin_set_spamblock', { p_user: uid, p_until: until, p_reason: reason }));
 }
 
 export async function adminSetProfileLock(uid: string, locked: boolean): Promise<void> {
