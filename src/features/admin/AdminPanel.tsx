@@ -22,6 +22,8 @@ import {
   listUsers,
   PREMIUM_FOREVER,
   setBanned,
+  listPunishments,
+  type Punishment,
   type PremiumRequest,
 } from '../../supabase/api';
 import { isPremium, isSpamblocked, type UserProfile } from '../../supabase/types';
@@ -39,6 +41,7 @@ import { ChannelBoostDialog } from './ChannelBoostDialog';
 import { nameColorStyle } from '../../app/themes';
 import { UserInfoDialog } from './UserInfoDialog';
 import { AdminEditProfileDialog } from './AdminEditProfileDialog';
+import { PunishDialog } from './PunishDialog';
 
 type AdminChat = Awaited<ReturnType<typeof adminListChats>>[number];
 type Tab = 'users' | 'chats' | 'requests' | 'reports' | 'stats';
@@ -115,12 +118,21 @@ function UsersTab({ q }: { q: string }) {
   const [nftFor, setNftFor] = useState<UserProfile | null>(null);
   const [editFor, setEditFor] = useState<UserProfile | null>(null);
   const [infoFor, setInfoFor] = useState<UserProfile | null>(null);
+  const [punishFor, setPunishFor] = useState<{ user: UserProfile; kind: 'ban' | 'spam' } | null>(null);
+  const [punishments, setPunishments] = useState<Map<string, Punishment>>(new Map());
   const [subMenu, setSubMenu] = useState<{ items: MenuItem[]; x: number; y: number } | null>(null);
   const lastMenuPos = useRef<{ x: number; y: number } | null>(null);
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [password, setPassword] = useState('');
 
-  const load = () => void listUsers().then(setUsers).catch(fail);
+  const loadPunishments = () =>
+    void listPunishments()
+      .then(setPunishments)
+      .catch(() => undefined);
+  const load = () => {
+    void listUsers().then(setUsers).catch(fail);
+    loadPunishments();
+  };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(load, []);
   useEffect(
@@ -150,6 +162,16 @@ function UsersTab({ q }: { q: string }) {
   const openSub = (subItems: MenuItem[]) => {
     const at = menu ?? lastMenuPos.current;
     if (at) setSubMenu({ items: subItems, x: at.x, y: at.y });
+  };
+
+  /** «забанен до 12.10.2026 · «спам»» — срок и причина из таблицы наказаний. */
+  const banLine = (uid: string) => {
+    const p = punishments.get(uid);
+    const until = p?.banUntil
+      ? ` ${t('admin.until', { date: new Date(p.banUntil).toLocaleDateString(i18n.language) })}`
+      : '';
+    const reason = p?.banReason ? ` · «${p.banReason.length > 40 ? p.banReason.slice(0, 40) + '…' : p.banReason}»` : '';
+    return `${t('admin.banned')}${until}${reason}`;
   };
 
   const ownerLike = (u: UserProfile) => u.uid === ownerId || !!u.founder;
@@ -243,35 +265,20 @@ function UsersTab({ q }: { q: string }) {
           act(adminSetRole(u.uid, role === 'admin'), u.uid, { role });
         },
       });
-      if (isSpamblocked(u)) {
-        list.push({
-          icon: 'close',
-          label: t('admin.spamblockRemove'),
-          onClick: () => act(adminSetSpamblock(u.uid, null), u.uid, { spamUntil: null }),
-        });
-      } else {
-        const spamItems: MenuItem[] = (
-          [
-            [t('admin.spamblock1'), 1],
-            [t('admin.spamblock7'), 7],
-            [t('admin.spamblockForever'), null],
-          ] as const
-        ).map(([label, days]) => ({
-          icon: 'ban',
-          label,
-          danger: true,
-          onClick: () => {
-            const until = untilIso(days);
-            act(adminSetSpamblock(u.uid, until), u.uid, { spamUntil: Date.parse(until) });
-          },
-        }));
-        list.push({
-          icon: 'ban',
-          label: t('admin.spamblockMenu'),
-          danger: true,
-          onClick: () => openSub(spamItems),
-        });
-      }
+      list.push(
+        isSpamblocked(u)
+          ? {
+              icon: 'close',
+              label: t('admin.spamblockRemove'),
+              onClick: () => act(adminSetSpamblock(u.uid, null), u.uid, { spamUntil: null }),
+            }
+          : {
+              icon: 'ban',
+              label: t('admin.spamblockMenu'),
+              danger: true,
+              onClick: () => setPunishFor({ user: u, kind: 'spam' }),
+            },
+      );
     }
     if (u.uid !== me && !isOwner) {
       list.push({
@@ -286,7 +293,15 @@ function UsersTab({ q }: { q: string }) {
         icon: 'ban',
         label: u.banned ? t('admin.unban') : t('admin.ban'),
         danger: !u.banned,
-        onClick: () => act(setBanned(u.uid, !u.banned), u.uid, { banned: !u.banned }),
+        onClick: () =>
+          u.banned
+            ? void setBanned(u.uid, false)
+                .then(() => {
+                  patch(u.uid, { banned: false });
+                  loadPunishments();
+                })
+                .catch(fail)
+            : setPunishFor({ user: u, kind: 'ban' }),
       });
     }
     return list;
@@ -331,7 +346,7 @@ function UsersTab({ q }: { q: string }) {
                   {u.uid === ownerId && ` · 👑 ${t('admin.owner')}`}
                   {u.founder && u.uid !== ownerId && ` · 👑 ${t('admin.founder')}`}
                   {u.coOwner && ` · 🤝 ${t('admin.coOwner')}`}
-                  {u.banned && ` · ${t('admin.banned')}`}
+                  {u.banned && ` · ${banLine(u.uid)}`}
                   {isPremium(u) &&
                     ` · ⭐ ${
                       new Date(u.premiumUntil!).getFullYear() >= 9999
@@ -372,6 +387,17 @@ function UsersTab({ q }: { q: string }) {
         ))}
       {menu && <Menu x={menu.x} y={menu.y} items={items(menu.user)} onClose={() => setMenu(null)} />}
       {subMenu && <Menu x={subMenu.x} y={subMenu.y} items={subMenu.items} onClose={() => setSubMenu(null)} />}
+      {punishFor && (
+        <PunishDialog
+          user={punishFor.user}
+          kind={punishFor.kind}
+          onClose={() => setPunishFor(null)}
+          onDone={(change) => {
+            patch(punishFor.user.uid, change);
+            loadPunishments();
+          }}
+        />
+      )}
       {infoFor && (
         <UserInfoDialog
           user={infoFor}

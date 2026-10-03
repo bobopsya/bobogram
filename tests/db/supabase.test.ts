@@ -1219,6 +1219,89 @@ describe('блокировки по IP и устройству', () => {
       });
     }
   });
+
+  it('бан с причиной и сроком: блокирует IP и устройства, снимается разбаном и по сроку', async () => {
+    const boss = await user('pnboss');
+    const bad = await user('pnbad');
+    const peer = await user('pnpeer');
+    await admin.from('profiles').update({ role: 'admin' }).eq('id', boss.id);
+    const isBanned = async (id: string) =>
+      (await admin.from('profiles').select('banned').eq('id', id).single()).data!.banned as boolean;
+    const reasonOf = async (id: string) =>
+      (await admin.from('punishments').select('ban_reason').eq('user_id', id).single()).data!.ban_reason;
+    await rpc(bad, 'report_device', { p_device: 'device-pn-00001', p_info: {} });
+    await rpc(boss, 'report_device', { p_device: 'device-pn-boss01', p_info: {} });
+    try {
+      await fails(rpc(peer, 'admin_ban_user', { p_user: bad.id, p_reason: 'x', p_until: null }));
+      await fails(rpc(boss, 'admin_ban_user', { p_user: boss.id, p_reason: 'x', p_until: null }));
+      await fails(
+        rpc(boss, 'admin_ban_user', {
+          p_user: bad.id,
+          p_reason: 'x',
+          p_until: new Date(Date.now() - 1000).toISOString(),
+        }),
+      );
+
+      const until = new Date(Date.now() + 3_600_000).toISOString();
+      await rpc(boss, 'admin_ban_user', { p_user: bad.id, p_reason: '  спам в личках  ', p_until: until });
+      expect(await isBanned(bad.id)).toBe(true);
+      const own = await bad.db.from('punishments').select('*').single();
+      expect(own.data!.ban_reason).toBe('спам в личках');
+      expect(Date.parse(own.data!.ban_until as string)).toBe(Date.parse(until));
+      // Причину видит сам человек и админы, посторонние — нет.
+      expect((await peer.db.from('punishments').select('*')).data).toHaveLength(0);
+      expect((await boss.db.from('punishments').select('*').eq('user_id', bad.id)).data).toHaveLength(1);
+
+      // С того же устройства — бан при входе, с той же причиной и сроком.
+      const again = await user('pnagain');
+      await rpc(again, 'report_device', { p_device: 'device-pn-00001', p_info: {} });
+      expect(await isBanned(again.id)).toBe(true);
+      expect(await reasonOf(again.id)).toBe('спам в личках');
+      // Инкогнито: устройство новое, а IP тот же — тоже бан.
+      const incognito = await user('pnincog');
+      await rpc(incognito, 'report_device', { p_device: 'device-pn-incog1', p_info: {} });
+      expect(await isBanned(incognito.id)).toBe(true);
+      // Админов блокировка не трогает.
+      expect(await isBanned(boss.id)).toBe(false);
+
+      // Разбан снимает и блокировки этого человека.
+      await rpc(boss, 'set_banned', { p_user: bad.id, p_banned: false });
+      expect(await isBanned(bad.id)).toBe(false);
+      expect((await admin.from('device_bans').select('*').eq('banned_user', bad.id)).data).toHaveLength(0);
+      expect(await reasonOf(bad.id)).toBeNull();
+      const after = await user('pnafter');
+      await rpc(after, 'report_device', { p_device: 'device-pn-after1', p_info: {} });
+      expect(await isBanned(after.id)).toBe(false);
+      for (const u of [again, incognito])
+        await admin.from('profiles').update({ banned: false }).eq('id', u.id);
+
+      // Временный бан заканчивается сам.
+      await rpc(boss, 'admin_ban_user', {
+        p_user: bad.id,
+        p_reason: 'ненадолго',
+        p_until: new Date(Date.now() + 2000).toISOString(),
+        p_ip: false,
+      });
+      expect(await isBanned(bad.id)).toBe(true);
+      await new Promise((r) => setTimeout(r, 2500));
+      const { data: jobs } = await admin.rpc('run_scheduled_jobs');
+      expect((jobs as { lifted: number }).lifted).toBeGreaterThanOrEqual(1);
+      expect(await isBanned(bad.id)).toBe(false);
+      expect((await admin.from('device_bans').select('*').eq('banned_user', bad.id)).data).toHaveLength(0);
+
+      // Спамблок: причина видна админам и пропадает вместе со спамблоком.
+      const spam = new Date(Date.now() + 3_600_000).toISOString();
+      await rpc(boss, 'admin_set_spamblock', { p_user: peer.id, p_until: spam, p_reason: 'рассылка' });
+      const spamReason = async () =>
+        (await admin.from('punishments').select('spam_reason').eq('user_id', peer.id).single()).data!
+          .spam_reason;
+      expect(await spamReason()).toBe('рассылка');
+      await rpc(boss, 'admin_set_spamblock', { p_user: peer.id, p_until: null });
+      expect(await spamReason()).toBeNull();
+    } finally {
+      await admin.from('device_bans').delete().eq('created_by', boss.id);
+    }
+  });
 });
 
 describe('опросы', () => {
